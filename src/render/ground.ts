@@ -5,6 +5,26 @@
  * sit at y = 0 and take the full happiness ramp; unowned parcels sit 0.1 lower,
  * take a single flat desaturated colour and get a faint frame, so the buyable
  * edge of the plot is legible from any angle without a UI overlay.
+ *
+ * Terrain rides on the same plates, under three rules:
+ *
+ * - **Water and mountain tiles leave the ramp entirely.** Nothing can be built
+ *   on them and nobody lives there, so a happiness colour on them would be a
+ *   reading of nothing — worse than useless, because the player reads the board
+ *   at a glance and would count them. A water tile's plate drops to the sim's
+ *   own water height and becomes the lake bed, seen only through the surface
+ *   render/terrain.ts lays over it; a mountain tile's plate becomes plain rock
+ *   under the peak. Both take cool, low-chroma colours the warm happiness ramp
+ *   cannot produce, so neither can be mistaken for a reading on it.
+ * - **Beaches keep their happiness.** A beach tile is ordinary buildable
+ *   ground that happens to touch water, so it keeps the full tint and is only
+ *   shifted toward sand — far enough that every beach tile carries a warm cast
+ *   the ramp never has at any happiness (red minus blue above 40 against the
+ *   ramp's 16 to 30), not so far that the tint stops being legible. Sand that
+ *   swamped the tint would be trading the interface for scenery.
+ * - **Terrain ignores ownership.** Unowned plain drops 0.1 to show it can be
+ *   bought; water and rock stay where they are, because the drop says
+ *   "buildable, not yours yet" and neither of them will ever be buildable.
  */
 
 import {
@@ -27,7 +47,9 @@ import {
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js'
 import { PARCEL_SIZE, TILE_COUNT, WORLD_SIZE } from '../sim/config'
 import { parcelOfTile, tileIndex, tileToWorld } from '../sim/grid'
+import { Terrain, terrainFor } from '../sim/terrain'
 import type { CityState } from '../sim/types'
+import type { RGB } from './palette'
 import {
   HIGHLIGHT_COLOR,
   PARCEL_BORDER,
@@ -37,11 +59,30 @@ import {
   UNOWNED_GROUND,
   hexToRgb,
   happinessRgb,
+  mixRgb,
   setSrgb,
 } from './palette'
 
 const PLATE_GAP = 0.045
 const UNOWNED_DROP = 0.1
+
+/**
+ * Sand. Warmer and more chromatic than anything on the happiness ramp, whose
+ * warmest stop is a near-neutral 0xc2bda4, so a beach reads as a material
+ * rather than as a score.
+ */
+const SAND = hexToRgb(0xf0cf9b)
+/** How far a beach plate is pulled toward sand. Above ~0.5 the tint dies. */
+const BEACH_MIX = 0.38
+/** And a little brighter with it: sand is the palest ground on the board. */
+const BEACH_LIFT = 1.05
+/** Unowned beaches show their sand too, but stay flat and unbought. */
+const UNOWNED_BEACH_MIX = 0.3
+
+/** The lake bed, seen only through the water surface. Cool, silty, off-ramp. */
+const SEA_FLOOR = hexToRgb(0x8f9b95)
+/** Bare rock under a peak: the same slate as the mountain, one step darker. */
+const ROCK_PLATE = hexToRgb(0x74727d)
 
 /** A flat rectangular outline lying in the XZ plane, centred on the origin. */
 function frameGeometry(size: number, thickness: number): BufferGeometry {
@@ -89,6 +130,10 @@ export interface GroundLayer {
 
 export function createGround(scene: Scene): GroundLayer {
   const owned = new Uint8Array(TILE_COUNT)
+  // Terrain per tile, copied out in sync(). Zeroed is the flat world, which is
+  // also what seed 0 generates, so the layer is correct before its first sync.
+  const kind = new Uint8Array(TILE_COUNT)
+  const beach = new Uint8Array(TILE_COUNT)
 
   // --- the table the diorama sits on ---------------------------------------
   const tableGeom = new BoxGeometry(WORLD_SIZE + 5, 0.6, WORLD_SIZE + 5)
@@ -182,11 +227,25 @@ export function createGround(scene: Scene): GroundLayer {
   const matrix = new Matrix4()
 
   function sync(state: CityState): void {
+    const map = terrainFor(state)
     for (let tile = 0; tile < TILE_COUNT; tile++) {
       const isOwned = state.ownedParcels[parcelOfTile(tile)] ? 1 : 0
       owned[tile] = isOwned
+      kind[tile] = map.terrain[tile]
+      beach[tile] = map.beach[tile]
       const w = tileToWorld(tile)
-      pos.set(w.x, isOwned ? 0 : -UNOWNED_DROP, w.z)
+      // Water sinks to the sim's own water height and becomes the lake bed;
+      // rock stays at ground level under the peak. Only plain land takes the
+      // unowned drop, because only plain land can ever be bought and built on.
+      const y =
+        kind[tile] === Terrain.Water
+          ? map.height[tile]
+          : kind[tile] === Terrain.Mountain
+            ? 0
+            : isOwned
+              ? 0
+              : -UNOWNED_DROP
+      pos.set(w.x, y, w.z)
       matrix.compose(pos, quat, scale)
       plates.setMatrixAt(tile, matrix)
     }
@@ -225,6 +284,10 @@ export function createGround(scene: Scene): GroundLayer {
   const color = new Color()
   const unowned = setSrgb(new Color(), UNOWNED_GROUND)
   const UNOWNED_WASH = setSrgb(new Color(), hexToRgb(0xcfc7b6))
+  const seaFloor = setSrgb(new Color(), SEA_FLOOR)
+  const rock = setSrgb(new Color(), ROCK_PLATE)
+  const sandLinear = setSrgb(new Color(), SAND)
+  const sandMix: RGB = [0, 0, 0]
 
   function update(u: GroundUpdate): void {
     // Night would otherwise crush the ramp into one dark blue-grey smear. The
@@ -234,15 +297,28 @@ export function createGround(scene: Scene): GroundLayer {
     const lift = 1 + 0.42 * u.night
     const sat = 1 + 0.6 * u.night
     for (let tile = 0; tile < TILE_COUNT; tile++) {
-      if (owned[tile]) {
-        setSrgb(color, happinessRgb(u.field[tile]))
-        color.multiplyScalar(lift)
+      if (kind[tile] === Terrain.Water) {
+        // No happiness reading here at all: this is the bed of the lake.
+        color.copy(seaFloor)
+      } else if (kind[tile] === Terrain.Mountain) {
+        color.copy(rock)
+      } else if (owned[tile]) {
+        // Beaches are tinted first and sanded second, so the sand rides on top
+        // of the reading instead of standing in for it.
+        if (beach[tile]) {
+          setSrgb(color, mixRgb(happinessRgb(u.field[tile]), SAND, BEACH_MIX, sandMix))
+          color.multiplyScalar(BEACH_LIFT)
+        } else {
+          setSrgb(color, happinessRgb(u.field[tile]))
+        }
       } else {
         // Washed out and slightly brighter than the plot, not darker: unowned
         // land is space the city could have, and a dark ring around a small
         // plot reads as a void the city is hiding in.
-        color.copy(unowned).lerp(UNOWNED_WASH, 0.32).multiplyScalar(1.02 * lift)
+        color.copy(unowned).lerp(UNOWNED_WASH, 0.32).multiplyScalar(1.02)
+        if (beach[tile]) color.lerp(sandLinear, UNOWNED_BEACH_MIX)
       }
+      color.multiplyScalar(lift)
       if (u.night > 0) {
         const lum = color.r * 0.2126 + color.g * 0.7152 + color.b * 0.0722
         color.setRGB(
