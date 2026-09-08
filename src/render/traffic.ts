@@ -1,11 +1,23 @@
 /**
  * Ambient life: cars and pedestrians walking the street network.
  *
- * This is decoration at the edge of vision, and it is sized like it. The tile
- * pitch is 1.0 and a house is 0.55 tall, so a car is 0.18 long and a person is
- * 0.12 — small enough that what you read is movement and colour, not a vehicle.
- * Anything built at a plausible real-world scale against a 1-unit tile would
- * stomp through the diorama like a monster.
+ * Sized against the camera rather than against the tiles. The rig frames the
+ * owned plot, so a new 6x6 city sits 15.2 units out and a full board 24.9; at
+ * 1440x900 with a 35 degree vertical FOV that is 94 and 57 pixels per world
+ * unit. A 0.18 car was 17 x 6 px on a new city and 10 x 3.5 px on a grown one,
+ * which is not a car, it is a smudge. So: a car is 0.24 x 0.08 x 0.10 and a
+ * person 0.16 tall — still toy-scale against a 0.55 house, still nothing like
+ * real proportions against a 1.0 tile, but half again the silhouette.
+ *
+ * Size alone does not save it, because 1.4x of nothing is nothing. Two other
+ * things carry the readability at distance: colours deep enough to separate
+ * from pale tarmac in *value* rather than pastels that sit on top of it, and a
+ * soft contact shadow under every agent. The shadow is the single biggest win —
+ * 14 x 9 px of dark under a car whose own body is 61 px of mid-tone — and it
+ * doubles as the ground anchor that castShadow being off would otherwise cost.
+ *
+ * The cost of the size is paid entirely in the lane maths below, which is why
+ * the width of a car is a load-bearing constant and its length is not.
  *
  * Two fixed-capacity InstancedMeshes carry the whole system: 24 cars, 48
  * people, allocated once at construction with `count` set to however many are
@@ -53,6 +65,7 @@ import {
   Matrix4,
   MeshBasicMaterial,
   MeshStandardMaterial,
+  MultiplyBlending,
   PlaneGeometry,
   Quaternion,
   SRGBColorSpace,
@@ -100,6 +113,15 @@ const SURFACE_Y = 0.014
 const TURN = 0.3
 
 /**
+ * How long an agent takes to step across when the ground beside it changes.
+ * Tuned against render/buildings, which grows a new building from nothing over
+ * 400ms and is most of the way there by 260: the pedestrian is out of the way
+ * at about the moment the lawn arrives under him, so what reads is somebody
+ * stepping aside for it rather than either a teleport or a burial.
+ */
+const LANE_FIX_SECONDS = 0.28
+
+/**
  * Lateral offset from the centre line, in tiles. Measured against what is
  * actually there rather than chosen by taste: render/roads lays 0.2 of tarmac,
  * so the road runs to 0.1 either side of the seam, and a car is 0.086 wide. At
@@ -107,15 +129,15 @@ const TURN = 0.3
  * centre line, so oncoming traffic passes clean.
  *
  * That uses the road up. Pedestrians therefore walk the kerb strip beyond it,
- * from 0.115 to 0.14, which keeps them off the tarmac and — via the clearance
+ * from 0.125 to 0.145, which clears the car's flank and — via the clearance
  * table below — out of the walls behind them. The one thing sharing that strip
  * is render/roads' lamp posts at 0.105; a pedestrian will occasionally clip one,
  * which is a graze against a 0.034-wide stick and the cheapest of the things
  * that could have given here.
  */
 const CAR_LANE = 0.05
-const PERSON_LANE_MIN = 0.115
-const PERSON_LANE_MAX = 0.14
+const PERSON_LANE_MIN = 0.125
+const PERSON_LANE_MAX = 0.145
 /**
  * How much room each building type leaves between the seam and its own bulk,
  * measured off the geometry in render/buildings: half the widest part that
@@ -134,34 +156,60 @@ const CLEARANCE: Record<BuildingType, number> = {
 const OPEN_CLEARANCE = 0.5
 
 /** Half-widths, taken at the largest per-instance scale rather than the mean. */
-const CAR_HALF = 0.047
+const CAR_HALF = 0.042
 const PERSON_HALF = 0.032
 
-const CAR_LENGTH = 0.18
-const CAR_WIDTH = 0.086
-const PERSON_HEIGHT = 0.118
+const CAR_LENGTH = 0.24
+/**
+ * The one dimension that is not free. Length and height cost nothing in the
+ * street corridor, but width is spent against the clearance table: a park's
+ * lawn leaves 0.04 either side of the seam, so a car wider than 0.08 could not
+ * be kept out of one where parks face each other across a street. Length and
+ * height took the whole increase instead, which is also where the silhouette
+ * is, and the car ends up a shade narrow at 3:1 — invisible at 15 pixels.
+ */
+const CAR_WIDTH = 0.08
+const PERSON_HEIGHT = 0.16
+const PERSON_WIDTH = 0.056
+
+/** Contact shadows: half-extents, and how dark the centre goes. */
+const CAR_SHADOW_R = 0.062
+const CAR_SHADOW_STRETCH = 2
+const PERSON_SHADOW_R = 0.042
+const CAR_SHADOW_DARK = 0.55
+const PERSON_SHADOW_DARK = 0.6
+/** Just clear of the tarmac at 0.012, and biased forward besides. */
+const SHADOW_Y = 0.016
 
 // ---------------------------------------------------------------------------
 // Colour. palette.ts owns the city's identity; these are the two small sets it
 // has no reason to know about, so they live here rather than in the contract.
 // ---------------------------------------------------------------------------
 
-/** Pastel, muted, low saturation — paintwork on a wooden toy, not car paint. */
+/**
+ * Painted tin toys, not car paint and not pastels either. The pastels these
+ * replaced were the real reason the traffic vanished at distance: render/roads
+ * lays tarmac at 0x9d978d, and a 0xd8a9a1 car against it differs by about four
+ * percent of value. At ten pixels, value separation is the only thing the eye
+ * has left, so every entry here is pushed well clear of the tarmac — and
+ * deliberately in both directions, some darker and some lighter, so the traffic
+ * never reads as one uniform band of dark specks.
+ */
 const CAR_COLORS = [
-  0xd8a9a1, // dusty rose
-  0xa9bdd0, // pale blue
-  0xe3cf9f, // butter
-  0x9fc0a7, // sage
-  0xc7b3d2, // lilac
-  0xdfb894, // apricot
-  0xd9d3c7, // bone
-  0x91b0b7, // teal grey
+  0xb5544a, // terracotta
+  0x3f6f9c, // denim
+  0xdcb84f, // mustard
+  0x4a7f5e, // pine
+  0x8a5f8e, // plum
+  0xc55f2e, // burnt orange
+  0xefe6d2, // cream, the light one
+  0x39434f, // slate, the dark one
 ]
 
-/** A touch greyer than the cars: a person is a speck and must not shout. */
+/** A step gentler than the cars — there are twice as many of them. */
 const PERSON_COLORS = [
-  0xc7a3a2, 0x9fb4c8, 0xd6c69c, 0xa8c1a4,
-  0xb8a9c3, 0xd1b79d, 0xcdc7bb, 0x8ca5ac,
+  0xab5b53, 0x466a8e, 0xcfae57, 0x517f61,
+  0x7f6288, 0xb96b42, 0xe6dcc8, 0x424b57,
 ]
 
 /** Headlights after dark. Warm, to sit against the cool night sky. */
@@ -218,6 +266,53 @@ function merge(parts: BufferGeometry[]): BufferGeometry {
 }
 
 /**
+ * A flat disc whose vertex colour fades from `centre` at the middle to `rim` at
+ * the edge — a radial gradient for free, with no texture and no shader. Used
+ * for the headlight pool (fading to nothing, added) and for contact shadows
+ * (fading to white, multiplied), which are the same primitive read two ways.
+ */
+function fadedDisc(
+  radius: number,
+  segments: number,
+  centre: number,
+  rim: number,
+  power: number,
+): BufferGeometry {
+  const disc = new CircleGeometry(radius, segments)
+  const flat = disc.toNonIndexed()
+  disc.dispose()
+  const pos = flat.getAttribute('position')
+  const colors = new Float32Array(pos.count * 3)
+  for (let i = 0; i < pos.count; i++) {
+    const r = clamp01(Math.hypot(pos.getX(i), pos.getY(i)) / radius)
+    const v = rim + (centre - rim) * (1 - r) ** power
+    colors[i * 3] = v
+    colors[i * 3 + 1] = v
+    colors[i * 3 + 2] = v
+  }
+  flat.setAttribute('color', new BufferAttribute(colors, 3))
+  for (const name of Object.keys(flat.attributes)) {
+    if (name !== 'position' && name !== 'normal' && name !== 'color') flat.deleteAttribute(name)
+  }
+  // Lay it on the ground, facing up.
+  flat.rotateX(-Math.PI / 2)
+  return flat
+}
+
+/**
+ * The blob of shade an agent sits in. Not a shadow map — at this range a car
+ * would be two texels of one — but the thing a shadow map would have bought:
+ * a dark shape roughly the agent's footprint, which at ten pixels carries more
+ * of the agent's presence than the agent does, and stops anything reading as
+ * hovering now that castShadow is off.
+ */
+function buildShadowGeometry(radius: number, stretch: number, dark: number): BufferGeometry {
+  const disc = fadedDisc(radius, 14, dark, 1, 1.3)
+  if (stretch !== 1) disc.scale(stretch, 1, 1)
+  return disc
+}
+
+/**
  * A toy car: forward is +x, base at y = 0. Three stacked boxes rather than a
  * literal rounded box — the chamfer between hull and shoulder is what reads as
  * roundness at this size, and it costs twelve triangles instead of a shader.
@@ -225,23 +320,25 @@ function merge(parts: BufferGeometry[]): BufferGeometry {
 function buildCarGeometry(): BufferGeometry {
   const parts: BufferGeometry[] = []
 
-  const hull = new BoxGeometry(CAR_LENGTH, 0.028, CAR_WIDTH)
-  hull.translate(0, 0.03, 0)
+  const hull = new BoxGeometry(CAR_LENGTH, 0.036, CAR_WIDTH)
+  hull.translate(0, 0.04, 0)
   parts.push(grey(hull, 1))
 
-  const shoulder = new BoxGeometry(CAR_LENGTH - 0.014, 0.014, CAR_WIDTH - 0.01)
-  shoulder.translate(-0.002, 0.051, 0)
+  const shoulder = new BoxGeometry(CAR_LENGTH - 0.018, 0.018, CAR_WIDTH - 0.01)
+  shoulder.translate(-0.003, 0.067, 0)
   parts.push(grey(shoulder, 1))
 
-  const cabin = new BoxGeometry(0.076, 0.022, CAR_WIDTH - 0.02)
-  cabin.translate(-0.014, 0.069, 0)
+  const cabin = new BoxGeometry(0.1, 0.024, CAR_WIDTH - 0.018)
+  cabin.translate(-0.018, 0.088, 0)
   parts.push(grey(cabin, CABIN_RATIO))
 
+  // Tucked inside the body: the wheels must not be what sets the car's width,
+  // or the clearance table would be lying to the lane picker by 5 thousandths.
   for (const sx of [-1, 1]) {
     for (const sz of [-1, 1]) {
-      const wheel = new CylinderGeometry(0.016, 0.016, 0.013, 6)
+      const wheel = new CylinderGeometry(0.02, 0.02, 0.013, 6)
       wheel.rotateX(Math.PI / 2)
-      wheel.translate(sx * 0.056, 0.016, sz * 0.042)
+      wheel.translate(sx * 0.074, 0.02, sz * 0.033)
       parts.push(grey(wheel, WHEEL_RATIO))
     }
   }
@@ -257,55 +354,47 @@ function buildLightGeometry(): BufferGeometry {
   const parts: BufferGeometry[] = []
 
   for (const sz of [-1, 1]) {
-    const head = new PlaneGeometry(0.03, 0.02)
+    const head = new PlaneGeometry(0.036, 0.024)
     head.rotateY(Math.PI / 2)
-    head.translate(CAR_LENGTH / 2 + 0.002, 0.044, sz * 0.026)
+    head.translate(CAR_LENGTH / 2 + 0.002, 0.056, sz * 0.024)
     parts.push(grey(head, 1))
 
-    const tail = new PlaneGeometry(0.026, 0.016)
+    const tail = new PlaneGeometry(0.03, 0.02)
     tail.rotateY(-Math.PI / 2)
-    tail.translate(-CAR_LENGTH / 2 - 0.002, 0.044, sz * 0.028)
+    tail.translate(-CAR_LENGTH / 2 - 0.002, 0.056, sz * 0.026)
     parts.push(paint(tail, TAILLIGHT_RATIO.r, TAILLIGHT_RATIO.g, TAILLIGHT_RATIO.b))
   }
 
-  // The beam on the road: a flat disc whose vertex colour falls off to nothing
-  // at the rim, which is a radial gradient for free and with no texture. It
-  // rides just clear of the tarmac and its lane markings, and is biased forward
-  // in the depth buffer besides, so it lies on the road rather than fighting it.
-  const beam = new CircleGeometry(0.062, 12)
-  const flat = beam.toNonIndexed()
-  beam.dispose()
-  const pos = flat.getAttribute('position')
-  const colors = new Float32Array(pos.count * 3)
-  for (let i = 0; i < pos.count; i++) {
-    const r = Math.hypot(pos.getX(i), pos.getY(i)) / 0.062
-    const v = BEAM_STRENGTH * (1 - clamp01(r)) ** 1.5
-    colors[i * 3] = v
-    colors[i * 3 + 1] = v
-    colors[i * 3 + 2] = v
-  }
-  flat.setAttribute('color', new BufferAttribute(colors, 3))
-  for (const name of Object.keys(flat.attributes)) {
-    if (name !== 'position' && name !== 'normal' && name !== 'color') flat.deleteAttribute(name)
-  }
-  flat.rotateX(-Math.PI / 2)
-  flat.scale(1.7, 1, 1)
-  flat.translate(0.135, -SURFACE_Y + 0.021, 0)
-  parts.push(flat)
+  // The beam on the road. It rides just clear of the tarmac and its lane
+  // markings, and is biased forward in the depth buffer besides, so it lies on
+  // the road rather than fighting it.
+  const beam = fadedDisc(0.075, 12, BEAM_STRENGTH, 0, 1.5)
+  beam.scale(1.7, 1, 1)
+  beam.translate(0.18, -SURFACE_Y + 0.021, 0)
+  parts.push(beam)
 
   return merge(parts)
 }
 
-/** A person: a tapered six-sided body with a faceted head. Forward is +x. */
+/**
+ * A person: a tapered six-sided body with a faceted head. Forward is +x.
+ *
+ * Taller than it has any business being — 0.16 against a 0.55 house is roughly
+ * a real person against a real two-storey house, where the honest toy figure
+ * this started as was 0.118. A tall thin silhouette is the only shape that
+ * survives being seven pixels high, and the height is free: it is spent
+ * upwards, where the street corridor charges nothing for it.
+ */
 function buildPersonGeometry(): BufferGeometry {
   const parts: BufferGeometry[] = []
 
-  const body = new CylinderGeometry(0.019, 0.026, 0.076, 6)
-  body.translate(0, 0.038, 0)
+  const half = PERSON_WIDTH / 2
+  const body = new CylinderGeometry(half * 0.72, half, 0.108, 6)
+  body.translate(0, 0.054, 0)
   parts.push(grey(body, 1))
 
-  const head = new IcosahedronGeometry(0.021, 0)
-  head.translate(0, PERSON_HEIGHT - 0.021, 0)
+  const head = new IcosahedronGeometry(0.024, 0)
+  head.translate(0, PERSON_HEIGHT - 0.024, 0)
   parts.push(paint(head, HEAD_RATIO.r, HEAD_RATIO.g, HEAD_RATIO.b))
 
   return merge(parts)
@@ -358,6 +447,13 @@ interface Agent {
   yaw: number
   lateral: number
 
+  /**
+   * A lane the agent is easing onto, because the ground under it changed. The
+   * rendered lane is `latFrom` moving to `lateral` as `latEase` runs 0 to 1.
+   */
+  latFrom: number
+  latEase: number
+
   /** Previous segment, and the one coming up. Normal, heading and lane only. */
   prx: number
   prz: number
@@ -399,6 +495,8 @@ function makeAgent(): Agent {
     rz: 1,
     yaw: 0,
     lateral: 0,
+    latFrom: 0,
+    latEase: 1,
     prx: 0,
     prz: 1,
     pyaw: 0,
@@ -540,6 +638,31 @@ function computeLane(a: Agent, from: number, to: number, clear: Float32Array, ou
   out.lateral = bestSign * Math.max(0, best)
 }
 
+/** The lane actually being rendered, part-way through a correction. */
+function shownLateral(a: Agent): number {
+  if (a.latEase >= 1) return a.lateral
+  return a.latFrom + (a.lateral - a.latFrom) * smoothstep(0, 1, a.latEase)
+}
+
+/**
+ * The ground beside an agent changed under it. sync() only revalidates which
+ * segment an agent is on, so without this a park dropped beside a street would
+ * leave everyone already on that street walking through the new lawn until they
+ * reached the next corner — two seconds for a pedestrian, and parks are placed
+ * by hand, so it is the player who would watch it happen. Snapping to the new
+ * lane instead would teleport them a quarter of a tile sideways, which at this
+ * framing is twenty-six pixels. So: step across, over a third of a second.
+ */
+function refreshLane(a: Agent, clear: Float32Array): void {
+  if (a.from < 0 || a.to < 0) return
+  const shown = shownLateral(a)
+  computeLane(a, a.from, a.to, clear, laneScratch)
+  if (Math.abs(laneScratch.lateral - a.lateral) < 1e-6) return
+  a.latFrom = shown
+  a.lateral = laneScratch.lateral
+  a.latEase = 0
+}
+
 /** Choose and pre-compute the segment after the current one. */
 function planNext(a: Agent, net: RoadNetwork, clear: Float32Array): void {
   const n = pickNext(net, a.to, a.from)
@@ -566,6 +689,7 @@ function planNext(a: Agent, net: RoadNetwork, clear: Float32Array): void {
   a.cutOut = 1
   const ox = a.rx * a.lateral + a.nrx * a.nlat
   const oz = a.rz * a.lateral + a.nrz * a.nlat
+
   if (ox !== 0 && oz !== 0) {
     const room = cornerClearance(a.to, Math.sign(ox), Math.sign(oz), clear) - a.halfWidth
     const apex = Math.min(Math.abs(ox), Math.abs(oz)) * 0.5
@@ -594,7 +718,9 @@ function enterSegment(
     a.prx = a.rx
     a.prz = a.rz
     a.pyaw = a.yaw
-    a.plat = a.lateral
+    // The shown lane, not the target: a correction still in flight is where the
+    // agent actually is, and that is what the junction blend has to start from.
+    a.plat = shownLateral(a)
   }
 
   computeLane(a, from, to, clear, laneScratch)
@@ -610,6 +736,8 @@ function enterSegment(
   a.rz = laneScratch.rz
   a.yaw = laneScratch.yaw
   a.lateral = laneScratch.lateral
+  a.latFrom = laneScratch.lateral
+  a.latEase = 1
 
   if (!carry) {
     a.prx = a.rx
@@ -642,6 +770,7 @@ const scratchScale = new Vector3()
 const scratchQuat = new Quaternion()
 const scratchEuler = new Euler(0, 0, 0, 'YXZ')
 const scratchMatrix = new Matrix4()
+const scratchShadow = new Matrix4()
 const scratchColor = new Color()
 
 const TWO_PI = Math.PI * 2
@@ -686,15 +815,37 @@ export function createTraffic(): Traffic {
     polygonOffsetUnits: -4,
   })
 
+  // Multiplied rather than drawn: the blob darkens whatever ground it lies on,
+  // so it works over tarmac, kerb and tinted plate alike without ever having to
+  // know what colour that ground is. Fog is left on, which lifts distant
+  // shadows towards the sky exactly as it lifts everything else.
+  const shadowMaterial = new MeshBasicMaterial({
+    vertexColors: true,
+    transparent: true,
+    depthWrite: false,
+    blending: MultiplyBlending,
+    // three.js warns on every frame without this: a multiply blend expects its
+    // source alpha already folded into the colour.
+    premultipliedAlpha: true,
+    toneMapped: false,
+    polygonOffset: true,
+    polygonOffsetFactor: -4,
+    polygonOffsetUnits: -4,
+  })
+
   const carGeometry = buildCarGeometry()
   const lightGeometry = buildLightGeometry()
   const personGeometry = buildPersonGeometry()
+  const carShadowGeometry = buildShadowGeometry(CAR_SHADOW_R, CAR_SHADOW_STRETCH, CAR_SHADOW_DARK)
+  const personShadowGeometry = buildShadowGeometry(PERSON_SHADOW_R, 1, PERSON_SHADOW_DARK)
 
   const carMesh = new InstancedMesh(carGeometry, bodyMaterial, CAR_CAPACITY)
   const lightMesh = new InstancedMesh(lightGeometry, lightMaterial, CAR_CAPACITY)
   const personMesh = new InstancedMesh(personGeometry, bodyMaterial, PERSON_CAPACITY)
+  const carShadowMesh = new InstancedMesh(carShadowGeometry, shadowMaterial, CAR_CAPACITY)
+  const personShadowMesh = new InstancedMesh(personShadowGeometry, shadowMaterial, PERSON_CAPACITY)
 
-  for (const mesh of [carMesh, lightMesh, personMesh]) {
+  for (const mesh of [carMesh, lightMesh, personMesh, carShadowMesh, personShadowMesh]) {
     mesh.count = 0
     // Instances range over the whole plot; the meshes' own bounds are one agent.
     mesh.frustumCulled = false
@@ -706,7 +857,12 @@ export function createTraffic(): Traffic {
   lightMesh.receiveShadow = false
   lightMesh.renderOrder = 6
   lightMesh.visible = false
-  group.add(carMesh, lightMesh, personMesh)
+  for (const mesh of [carShadowMesh, personShadowMesh]) {
+    mesh.receiveShadow = false
+    // Over the road, under the headlight beams.
+    mesh.renderOrder = 3
+  }
+  group.add(carMesh, lightMesh, personMesh, carShadowMesh, personShadowMesh)
 
   // Per-slot constants: colour, speed, lane and size are picked once from the
   // slot index and never change, so re-seeding an agent onto a new corner does
@@ -721,7 +877,9 @@ export function createTraffic(): Traffic {
     a.laneMag = CAR_LANE * (0.94 + 0.12 * hash01(i + 977))
     a.laneSign = 1
     a.halfWidth = CAR_HALF
-    a.scale = 0.92 + 0.16 * hash01(i + 311)
+    // Narrower band than the pedestrians get: CAR_HALF is the widest instance,
+    // and the widest instance is what the park clearance is checked against.
+    a.scale = 0.95 + 0.1 * hash01(i + 311)
     cars.push(a)
     carColors.push(
       new Color().setHex(CAR_COLORS[(i * 5 + 1) % CAR_COLORS.length], SRGBColorSpace),
@@ -807,7 +965,9 @@ export function createTraffic(): Traffic {
 
     carMesh.count = carCount
     lightMesh.count = carCount
+    carShadowMesh.count = carCount
     personMesh.count = personCount
+    personShadowMesh.count = personCount
   }
 
   /**
@@ -823,8 +983,10 @@ export function createTraffic(): Traffic {
     for (let i = 0; i < want; i++) {
       const a = agents[i]
       if (onLiveSegment(net, a)) {
-        // The segment survived, but the corner it was heading for may have lost
-        // the street beyond it, and the park it was avoiding may be gone.
+        // The segment survived, but the ground beside it may not have: the
+        // corner it was heading for can have lost the street beyond it, and the
+        // park it was giving way to can have been demolished, or just built.
+        refreshLane(a, clearance)
         planNext(a, net, clearance)
         live++
       } else if (seed(net, a, clearance)) live++
@@ -836,6 +998,7 @@ export function createTraffic(): Traffic {
   function advance(a: Agent, dt: number): void {
     const net = network
     if (!net) return
+    if (a.latEase < 1) a.latEase = Math.min(1, a.latEase + dt / LANE_FIX_SECONDS)
     a.t += a.speed * dt
     let guard = 0
     while (a.t >= 1 && guard++ < 4) {
@@ -858,14 +1021,19 @@ export function createTraffic(): Traffic {
     // position), and it gets a lane change finished before the corner rather
     // than after it. A half-turn blend also shortens the offset mid-corner,
     // which pulls the arc in towards the junction — free apex.
+    const lateral = shownLateral(a)
     let w = 0
     let cut = 1
-    let ax = a.rx * a.lateral
-    let az = a.rz * a.lateral
+    let ax = a.rx * lateral
+    let az = a.rz * lateral
     let ayaw = a.yaw
     let bx = ax
     let bz = az
     let byaw = ayaw
+    // The segment on the other side of the blend, whichever side that is.
+    let onx = a.rx
+    let onz = a.rz
+    let olat = lateral
     if (a.t < HALF_TURN) {
       // Just out of a junction: finish the swing that started before it.
       w = 0.5 + 0.5 * smoothstep(0, 1, a.t / HALF_TURN)
@@ -873,6 +1041,9 @@ export function createTraffic(): Traffic {
       az = a.prz * a.plat
       ayaw = a.pyaw
       cut = a.cutIn
+      onx = a.prx
+      onz = a.prz
+      olat = a.plat
     } else if (a.t > 1 - HALF_TURN) {
       // Approaching one: start it.
       w = 0.5 * smoothstep(0, 1, (a.t - (1 - HALF_TURN)) / HALF_TURN)
@@ -880,22 +1051,67 @@ export function createTraffic(): Traffic {
       bz = a.nrz * a.nlat
       byaw = a.nyaw
       cut = a.cutOut
+      onx = a.nrx
+      onz = a.nrz
+      olat = a.nlat
     }
     // Full at the edges of the window, tightest at the junction itself, so a
     // clamped apex never shows up as a kink where the blend starts.
     const k = cut < 1 ? 1 - (1 - cut) * (1 - Math.abs(2 * w - 1)) : 1
 
+    let ox = (ax + (bx - ax) * w) * k
+    let oz = (az + (bz - az) * w) * k
+
+    // Blending two lanes is not automatically safe. Where the segments turn,
+    // their normals are perpendicular and the blend only ever moves the agent
+    // ALONG the street, which is the arc and is free. Where they run straight
+    // on, both lanes are measured against the same axis, and easing from a wide
+    // lane into a tight one would spend the first fifth of the tight segment
+    // still out in the wide one — half a second of pedestrian inside a park
+    // lawn, four pixels of it, which is exactly the artefact the lane picker
+    // exists to prevent. So near a junction the shared axis is held to whatever
+    // both segments allow: the tighter lane when they agree on a side, and the
+    // centre line when they disagree. Both are symmetric about the junction, so
+    // the path stays continuous through it.
+    let lo = Math.min(0, lateral)
+    let hi = Math.max(0, lateral)
+    const dot = a.rx * onx + a.rz * onz
+    if (dot !== 0) {
+      // Weighted by nearness to the junction, exactly like the apex clamp: full
+      // at the corner, gone by the edge of the window where the agent is alone
+      // on its own segment again. Applying it flat across the window instead
+      // would snap the offset back a whole lane the instant the window ended.
+      const g = 1 - Math.abs(2 * w - 1)
+      const other = dot * olat
+      lo += (Math.max(lo, Math.min(0, other)) - lo) * g
+      hi += (Math.min(hi, Math.max(0, other)) - hi) * g
+    }
+    const proj = ox * a.rx + oz * a.rz
+    const held = proj < lo ? lo : proj > hi ? hi : proj
+    if (held !== proj) {
+      ox += a.rx * (held - proj)
+      oz += a.rz * (held - proj)
+    }
+
     const along = a.t * a.len
-    scratchPos.set(
-      a.fx + a.dirX * along + (ax + (bx - ax) * w) * k,
-      SURFACE_Y + bobY,
-      a.fz + a.dirZ * along + (az + (bz - az) * w) * k,
-    )
+    scratchPos.set(a.fx + a.dirX * along + ox, SURFACE_Y + bobY, a.fz + a.dirZ * along + oz)
 
     const yaw = w > 0 ? ayaw + angleDelta(ayaw, byaw) * w : a.yaw
-    scratchEuler.set(roll, yaw, 0)
-    scratchQuat.setFromEuler(scratchEuler)
     scratchScale.setScalar(a.scale)
+
+    // The shadow stays flat on the road and ignores the walk cycle: shade does
+    // not bob, and a blob that did would undo the anchoring it is there for.
+    scratchEuler.set(0, yaw, 0)
+    scratchQuat.setFromEuler(scratchEuler)
+    const y = scratchPos.y
+    scratchPos.y = SHADOW_Y
+    scratchShadow.compose(scratchPos, scratchQuat, scratchScale)
+
+    scratchPos.y = y
+    if (roll !== 0) {
+      scratchEuler.set(roll, yaw, 0)
+      scratchQuat.setFromEuler(scratchEuler)
+    }
     scratchMatrix.compose(scratchPos, scratchQuat, scratchScale)
   }
 
@@ -911,9 +1127,11 @@ export function createTraffic(): Traffic {
         poseAgent(a, 0, 0)
         carMesh.setMatrixAt(i, scratchMatrix)
         lightMesh.setMatrixAt(i, scratchMatrix)
+        carShadowMesh.setMatrixAt(i, scratchShadow)
       }
       carMesh.instanceMatrix.needsUpdate = true
       lightMesh.instanceMatrix.needsUpdate = true
+      carShadowMesh.instanceMatrix.needsUpdate = true
     }
 
     if (network && personCount > 0) {
@@ -928,8 +1146,10 @@ export function createTraffic(): Traffic {
         const roll = 0.09 * Math.sin(a.phase)
         poseAgent(a, bob, roll)
         personMesh.setMatrixAt(i, scratchMatrix)
+        personShadowMesh.setMatrixAt(i, scratchShadow)
       }
       personMesh.instanceMatrix.needsUpdate = true
+      personShadowMesh.instanceMatrix.needsUpdate = true
     }
 
     if (Math.abs(night - appliedNight) > 0.004) {
@@ -949,16 +1169,21 @@ export function createTraffic(): Traffic {
   }
 
   function dispose(): void {
-    group.remove(carMesh, lightMesh, personMesh)
+    group.remove(carMesh, lightMesh, personMesh, carShadowMesh, personShadowMesh)
     group.clear()
     carMesh.dispose()
     lightMesh.dispose()
     personMesh.dispose()
+    carShadowMesh.dispose()
+    personShadowMesh.dispose()
     carGeometry.dispose()
     lightGeometry.dispose()
     personGeometry.dispose()
+    carShadowGeometry.dispose()
+    personShadowGeometry.dispose()
     bodyMaterial.dispose()
     lightMaterial.dispose()
+    shadowMaterial.dispose()
     network = null
     carCount = 0
     personCount = 0
