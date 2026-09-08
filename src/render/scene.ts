@@ -16,11 +16,14 @@ import {
 import { BUILDINGS } from '../sim/buildings'
 import { parcelOfTile } from '../sim/grid'
 import { PARCELS_PER_SIDE, PARCEL_SIZE, WORLD_SIZE } from '../sim/config'
+import { computeRoads } from '../sim/roads'
 import type { CityState, Derived } from '../sim/types'
 import type { PickTarget, Renderer, RendererCallbacks, Tool } from './api'
 import { createBuildings } from './buildings'
 import { createCameraRig } from './camera'
 import { createGround } from './ground'
+import { createRoads } from './roads'
+import { createTraffic } from './traffic'
 import { SHADOW_MAP_TYPE, createLighting } from './lighting'
 
 const CLICK_SLOP_PX = 6
@@ -39,6 +42,9 @@ export function createRenderer(canvas: HTMLCanvasElement, cb: RendererCallbacks)
   const lighting = createLighting(scene)
   const ground = createGround(scene)
   const buildings = createBuildings(scene)
+  const roads = createRoads()
+  const traffic = createTraffic()
+  scene.add(roads.object, traffic.object)
   const rig = createCameraRig(canvas)
 
   const pickables = [...ground.pickables, ...buildings.pickables]
@@ -238,6 +244,11 @@ export function createRenderer(canvas: HTMLCanvasElement, cb: RendererCallbacks)
     synced = true
     ground.sync(state)
     buildings.sync(state)
+    // Streets are derived from the layout, exactly like the happiness field,
+    // so they are recomputed here and never stored.
+    const network = computeRoads(state)
+    roads.sync(state, network)
+    traffic.sync(state, derived, network)
     ground.update({ field: derived.field, night: 0 })
     rig.frameOwned(ownedExtent(state))
     applyHoverVisuals()
@@ -256,6 +267,8 @@ export function createRenderer(canvas: HTMLCanvasElement, cb: RendererCallbacks)
       night,
       demolishTile: demolishTile(),
     })
+    roads.frame(dt, night)
+    traffic.frame(dt, night)
     rig.update(dt)
     if (pointerInside) refreshHover()
     renderer.render(scene, rig.camera)
@@ -274,6 +287,8 @@ export function createRenderer(canvas: HTMLCanvasElement, cb: RendererCallbacks)
     canvas.removeEventListener('pointerdown', onPointerDown)
     canvas.removeEventListener('pointerup', onPointerUp)
     rig.dispose()
+    traffic.dispose()
+    roads.dispose()
     buildings.dispose()
     ground.dispose()
     lighting.dispose()
