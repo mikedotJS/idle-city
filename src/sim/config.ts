@@ -9,6 +9,9 @@ export const PARCEL_COUNT = PARCELS_PER_SIDE * PARCELS_PER_SIDE // 16
 /** Parcels owned at the start: the centre 2x2 block, i.e. a 6x6 tile plot. */
 export const STARTING_PARCELS = [5, 6, 9, 10]
 
+/** Enough to buy a first factory outright; below ~200 a new city can strand at zero income. */
+export const STARTING_COINS = 300
+
 export const LAND_BASE_COST = 400
 export const LAND_COST_GROWTH = 1.7
 
@@ -26,7 +29,7 @@ export const INCOME_FLOOR = 0.5
 
 /** Shops earn per population within SHOP_RADIUS, up to SHOP_POP_CAP. */
 export const SHOP_RADIUS = 3
-export const SHOP_COINS_PER_POP = 0.4
+export const SHOP_COINS_PER_POP = 0.06
 export const SHOP_POP_CAP = 25
 
 export const POP_PER_HOUSE = 4
@@ -39,7 +42,7 @@ export const RECOVER_HAPPINESS = 0.35
 export const RECOVER_DELAY = 15
 
 /** Seconds between auto-build attempts, divided by (INCOME_FLOOR + cityHappiness). */
-export const BUILD_INTERVAL = 3.0
+export const BUILD_INTERVAL = 8
 
 /** Offline earnings are capped so a week away doesn't hand you the game. */
 export const OFFLINE_CAP_SECONDS = 8 * 3600

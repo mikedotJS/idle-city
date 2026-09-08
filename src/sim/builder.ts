@@ -59,8 +59,8 @@ export function pickBuildTile(state: CityState): number | null {
  * One auto-build attempt. Returns the building placed, or null.
  *
  * On success it pays, counts the build, shifts the queue (re-pushing the type
- * just built when the queue would otherwise empty) and schedules the next
- * attempt. On failure — nothing queued, unaffordable, or nowhere to build — it
+ * built to the back of the queue, so the list cycles as a standing policy) and
+ * schedules the next attempt. On failure — nothing queued, unaffordable, or nowhere to build — it
  * changes nothing, so the caller simply retries at the next interval.
  */
 export function tryAutoBuild(state: CityState, derived: Derived): Building | null {
@@ -76,8 +76,10 @@ export function tryAutoBuild(state: CityState, derived: Derived): Building | nul
   state.coins -= cost
   const building = spawnBuilding(state, type, tile)
 
-  state.queue.shift()
-  if (state.queue.length === 0) state.queue.push(type)
+  // The queue rotates rather than draining: what was just built goes to the back,
+  // so the list is a repeating policy ([house, house, shop] builds two houses per
+  // shop forever) instead of a shopping list that decays into one building type.
+  state.queue.push(state.queue.shift()!)
 
   state.nextBuildAt = state.time + BUILD_INTERVAL / (INCOME_FLOOR + derived.cityHappiness)
   return building

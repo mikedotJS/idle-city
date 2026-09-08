@@ -18,9 +18,7 @@ export function computeField(state: CityState): Float32Array {
     if (!b) continue
     const emit = BUILDINGS[b.type].emit
     if (!emit) continue
-    // A derelict park stops helping, but a derelict factory is still a ruin nobody
-    // wants to live beside — so only positive emitters switch off when derelict.
-    if (b.derelict && emit.strength > 0) continue
+    // Emitters are hand-placed and never derelictable, so they always emit.
 
     const bx = tileX(b.tile)
     const bz = tileZ(b.tile)

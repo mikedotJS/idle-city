@@ -63,9 +63,12 @@ city builds faster, and building faster is how it eats its own buffer zones.
 "You queue specific buildings" and "you hand-place the field emitters" pull in
 opposite directions. Resolution:
 
-- **The queue** is the auto-builder's shopping list. Houses and shops only.
-  It spends your coins on its own and auto-repeats its last entry, so the city
-  keeps growing while you're not watching.
+- **The queue** is the auto-builder's standing policy. Houses and shops only.
+  It spends your coins on its own and *rotates*: what it just built goes to the
+  back of the list, so `[house, house, shop]` means two houses per shop forever
+  with no further input. Clearing the queue stops construction entirely, which
+  is also how you save up for land or a factory — you and your own city are
+  spending from the same purse, and the city acts every few seconds.
 - **Direct placement** is for factories and parks. Click a tile, pay, it's
   built. These are the only two buildings that emit into the happiness field,
   so they are the only two whose position is an interesting decision — and
@@ -95,16 +98,24 @@ Unowned parcels render as flat, desaturated ground with a faint border.
 
 ### 4.2 Buildings
 
-| Type | Cost | Placed by | Produces | Emits |
-|---|---|---|---|---|
-| House | `20 × 1.15^n` | queue | 4 population | — |
-| Shop | `60 × 1.15^n` | queue | coins ∝ nearby population | — |
-| Factory | `200 × 1.25^n` | you | 5 coins/s flat | −1.0 pollution |
-| Park | `80 × 1.20^n` | you | nothing | +0.8 happiness |
+| Type | Cost | Placed by | Produces | Emits | Can rot |
+|---|---|---|---|---|---|
+| House | `20 × 1.15^n` | queue | 4 population | — | yes |
+| Shop | `60 × 1.15^n` | queue | coins ∝ nearby population | — | yes |
+| Factory | `200 × 1.25^n` | you | 5 coins/s flat | −1.0 pollution | no |
+| Park | `80 × 1.20^n` | you | nothing | +0.8 happiness | no |
+
+A new city starts with 300 coins, enough for a first factory outright, and a
+`[house, house, shop]` policy. Houses alone earn nothing whatsoever, so a
+starting queue that never reaches a shop strands the city at zero income with
+no way back.
 
 - A house only holds population while its tile happiness ≥ `0.30`.
-- A shop earns `0.4 coins/s` per population within radius 3 of it, capped at
-  25 population. Shops in a housing desert earn nothing.
+- A shop earns `0.06 coins/s` per population within radius 3 of it, capped at
+  25 population. Shops in a housing desert earn nothing. This number started at
+  0.4 and was cut by a factor of six after measurement: at 0.4 a full plot earns
+  120 coins/s against houses costing ~300, so money stopped constraining
+  anything and the city filled its plot in two minutes.
 - Factories pay regardless of happiness. That's the temptation.
 
 ### 4.3 The happiness field
@@ -134,6 +145,14 @@ then, cache it, never per frame.
 
 ### 4.4 Dereliction
 
+**Only what the city builds for itself can rot.** Houses and shops go derelict;
+hand-placed factories and parks never do. This is not a softening — it is
+load-bearing. A factory sits on `0.5 − 1.0`, clamped to 0, which is below its
+own floor, so a derelictable factory shuts *itself* down 30 seconds after being
+placed and the "pays well regardless of happiness" temptation that the whole
+design rests on silently disappears. The rule also reads cleanly as a rule:
+what you placed by hand stays where you put it.
+
 Hysteresis, so nothing flickers on the boundary:
 
 - Tile happiness below `0.25` for 30 continuous seconds → building goes
@@ -146,21 +165,23 @@ and free.
 
 ### 4.5 Growth
 
-Every `3.0 / (0.5 + cityHappiness)` seconds, the builder tries to build the
+Every `8.0 / (0.5 + cityHappiness)` seconds, the builder tries to build the
 front of the queue:
 
 1. Can we afford it? If not, wait.
 2. Find the free owned tile with the shortest euclidean distance to any
    existing building (ties broken by a seeded RNG, so a save replays the same).
-3. Build it. Pay for it. If the queue is now empty, push a copy of what we just
-   built.
+3. Build it. Pay for it. Move it to the back of the queue, so the list cycles.
 
 Step 2 is the whole design. The builder does not look at happiness, does not
 avoid factories, and will cheerfully wall in your park. That's the feature.
 
 ### 4.6 Offline
 
-The entire sim freezes when the tab is hidden or closed. On return:
+The entire sim freezes when the tab is hidden or closed — and those are the
+same absence, so they take the same path. Freezing only on save/reload would
+credit nothing for switching tabs for an hour and full rate for closing the tab
+for an hour. On return:
 
 ```
 coins += lastKnownIncomeRate × elapsedSeconds
@@ -233,7 +254,33 @@ renderer reads sim state and diffs it against what it drew last frame.
 
 ---
 
-## 7. Milestones
+## 7. Measured pacing
+
+`npm run pacing` plays the city headlessly and prints the growth curve. Hours of
+play take seconds, because `sim/` has no renderer to wait for. Every balance
+number above was set against it rather than by argument.
+
+Current curve, playing a buffered factory and buying land whenever affordable:
+
+| min | income/s | built | owned tiles | happiness | derelict |
+|---|---|---|---|---|---|
+| 5 | 18.7 | 33 | 36 | 51% | 3 |
+| 30 | 22.8 | 57 | 72 | 44% | 9 |
+| 60 | 23.9 | 66 | 90 | 43% | 11 |
+| 180 | 30.9 | 80 | 117 | 44% | 12 |
+
+Two things to watch when this is finally played by a person:
+
+- **Income only grows 2.5× over three hours.** Flat, by idle-game standards.
+  With four building types and no upgrades there is not much else driving it,
+  and this is the strongest argument for eventually adding density.
+- **Happiness settles around 44% and stops falling.** The city degrades to
+  mediocre and then holds there rather than spiralling. That is probably the
+  right shape — a death spiral in a game you leave running would be miserable —
+  but it means the pressure to intervene is gentle, and gentle pressure in an
+  idle game is easy to ignore entirely.
+
+## 8. Milestones
 
 **M1 — does the field read?**
 Grid, camera, lighting. Click to place factories and parks. Happiness field and
@@ -262,7 +309,7 @@ anything.
 
 ---
 
-## 8. Deliberately out of scope
+## 9. Deliberately out of scope
 
 Prestige, upgrade trees, research, more than four building types, roads,
 terrain, multiple maps, mobile support, tutorial. None of these answer the M2

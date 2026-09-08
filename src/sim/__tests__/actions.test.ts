@@ -20,13 +20,15 @@ import { parcelOfTile, tileIndex } from '../grid'
 import { put, quietCity } from './helpers'
 
 describe('createCity', () => {
-  it('starts on the centre parcels with an empty grid and a house queued', () => {
+  it('starts on the centre parcels with an empty grid and a workable policy', () => {
     const state = createCity(7)
     expect(state.grid.length).toBe(TILE_COUNT)
     expect(state.grid.every((c) => c === null)).toBe(true)
     expect(state.ownedParcels.filter(Boolean).length).toBe(STARTING_PARCELS.length)
     for (const p of STARTING_PARCELS) expect(state.ownedParcels[p]).toBe(true)
-    expect(state.queue).toEqual(['house'])
+    // Two houses per shop: houses alone earn nothing at all, so a queue that
+    // cannot reach a shop leaves a new city stalled at zero income forever.
+    expect(state.queue).toEqual(['house', 'house', 'shop'])
     expect(state.time).toBe(0)
   })
 })
@@ -134,11 +136,12 @@ describe('buyParcel', () => {
     expect(landCost(state)).toBe(LAND_BASE_COST)
 
     buyParcel(state, 1)
-    expect(landCost(state)).toBe(Math.floor(LAND_BASE_COST * LAND_COST_GROWTH))
+    expect(landCost(state)).toBe(Math.round(LAND_BASE_COST * LAND_COST_GROWTH))
     buyParcel(state, 2)
-    expect(landCost(state)).toBe(Math.floor(LAND_BASE_COST * LAND_COST_GROWTH ** 2))
-    // 400 * 1.7^2 lands a hair under 1156 in float, and the cost is floored.
-    expect(landCost(state)).toBe(1155)
+    expect(landCost(state)).toBe(Math.round(LAND_BASE_COST * LAND_COST_GROWTH ** 2))
+    // 400 * 1.7^2 lands a hair under 1156 in float; rounding keeps the price the
+    // one the design arithmetic actually names.
+    expect(landCost(state)).toBe(1156)
   })
 
   it('returns null land cost once the whole world is owned', () => {
@@ -153,7 +156,7 @@ describe('queue', () => {
     const state = createCity(3)
     enqueue(state, 'shop')
     enqueue(state, 'house')
-    expect(state.queue).toEqual(['house', 'shop', 'house'])
+    expect(state.queue).toEqual(['house', 'house', 'shop', 'shop', 'house'])
     clearQueue(state)
     expect(state.queue).toEqual([])
   })

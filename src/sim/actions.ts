@@ -1,15 +1,14 @@
-import { PARCEL_COUNT, SAVE_VERSION, STARTING_PARCELS, TILE_COUNT } from './config'
+import {
+  PARCEL_COUNT,
+  SAVE_VERSION,
+  STARTING_COINS,
+  STARTING_PARCELS,
+  TILE_COUNT,
+} from './config'
 import { BUILDINGS, buildingCost } from './buildings'
 import { nextLandCost } from './economy'
 import { nextRandom, parcelNeighbours, parcelOfTile } from './grid'
 import type { Building, BuildingType, CityState, QueueableType } from './types'
-
-/**
- * Coins a new city starts with. DESIGN.md does not name a figure; this is enough
- * for a first factory (200) or a few houses plus a shop, so the city cannot stall
- * at zero income before the player has anything that earns.
- */
-export const STARTING_COINS = 300
 
 /** Default RNG seed, so an unseeded new city is still reproducible in tests. */
 const DEFAULT_SEED = 1
@@ -38,7 +37,7 @@ export function createCity(seed?: number): CityState {
     coins: STARTING_COINS,
     grid: new Array<Building | null>(TILE_COUNT).fill(null),
     ownedParcels,
-    queue: ['house'],
+    queue: ['house', 'house', 'shop'],
     builtCount: { house: 0, shop: 0, factory: 0, park: 0 },
     rngSeed: (seed ?? DEFAULT_SEED) | 0 || DEFAULT_SEED,
     nextBuildAt: 0,

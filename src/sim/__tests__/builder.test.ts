@@ -117,14 +117,28 @@ describe('tryAutoBuild', () => {
     )
   })
 
-  it('consumes the queue in order without repeating while entries remain', () => {
+  it('rotates the queue so the list cycles as a standing policy', () => {
     const state = quietCity()
-    state.queue = ['house', 'shop']
-    state.coins = 500
+    state.queue = ['house', 'house', 'shop']
+    state.coins = 5000
+
     expect(tryAutoBuild(state, derive(state))!.type).toBe('house')
-    expect(state.queue).toEqual(['shop'])
+    expect(state.queue).toEqual(['house', 'shop', 'house'])
+    expect(tryAutoBuild(state, derive(state))!.type).toBe('house')
+    expect(state.queue).toEqual(['shop', 'house', 'house'])
     expect(tryAutoBuild(state, derive(state))!.type).toBe('shop')
-    expect(state.queue).toEqual(['shop'])
+    // Back where it started: two houses per shop, forever, with no further input.
+    expect(state.queue).toEqual(['house', 'house', 'shop'])
+  })
+
+  it('keeps a single-entry queue building that one type forever', () => {
+    const state = quietCity()
+    state.queue = ['house']
+    state.coins = 5000
+    for (let i = 0; i < 4; i++) {
+      expect(tryAutoBuild(state, derive(state))!.type).toBe('house')
+      expect(state.queue).toEqual(['house'])
+    }
   })
 
   it('does nothing with an empty queue', () => {

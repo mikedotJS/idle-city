@@ -94,16 +94,29 @@ describe('dereliction hysteresis', () => {
     expect(ruin.derelict).toBe(false)
   })
 
-  it('derelicts parks and factories too', () => {
+  it('never derelicts a hand-placed park or factory, however bad it gets', () => {
     const state = quietCity()
     const park = put(state, 'park', 5, 5)
-    put(state, 'factory', 5, 6)
+    const factory = put(state, 'factory', 5, 6)
     put(state, 'factory', 6, 5)
     put(state, 'factory', 4, 5)
-    expect(computeField(state)[tileIndex(5, 5)]).toBeLessThan(DERELICT_HAPPINESS)
+    const field = computeField(state)
+    expect(field[tileIndex(5, 5)]).toBeLessThan(DERELICT_HAPPINESS)
+    expect(field[tileIndex(5, 6)]).toBeLessThan(DERELICT_HAPPINESS)
 
-    runUntil(state, DERELICT_DELAY + 1)
-    expect(park.derelict).toBe(true)
-    expect(state.grid[tileIndex(5, 6)]!.derelict).toBe(true)
+    runUntil(state, DERELICT_DELAY * 4)
+    expect(park.derelict).toBe(false)
+    expect(factory.derelict).toBe(false)
+  })
+
+  it('keeps an unbuffered factory earning, which is the point of building one', () => {
+    // A lone factory sits at 0.5 - 1.0, clamped to 0 — well under the floor. If it
+    // could derelict it would shut itself down 30s after being placed, and the
+    // whole "pays well regardless of happiness" temptation would silently vanish.
+    const state = quietCity()
+    const factory = put(state, 'factory', 5, 5)
+    runUntil(state, DERELICT_DELAY * 3)
+    expect(computeField(state)[tileIndex(5, 5)]).toBe(0)
+    expect(factory.derelict).toBe(false)
   })
 })

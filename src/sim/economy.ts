@@ -43,7 +43,7 @@ export function nextLandCost(state: CityState): number | null {
   let owned = 0
   for (const o of state.ownedParcels) if (o) owned++
   if (owned >= PARCEL_COUNT) return null
-  return Math.floor(LAND_BASE_COST * Math.pow(LAND_COST_GROWTH, owned - STARTING_PARCELS.length))
+  return Math.round(LAND_BASE_COST * Math.pow(LAND_COST_GROWTH, owned - STARTING_PARCELS.length))
 }
 
 export function derive(state: CityState): Derived {

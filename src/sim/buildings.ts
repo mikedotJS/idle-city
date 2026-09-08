@@ -21,6 +21,15 @@ export interface BuildingDef {
   roofColor: number
   /** Base body height in tile units, before per-instance jitter. */
   height: number
+  /**
+   * Whether sustained misery can shut this building down. Only what the city
+   * builds for itself can rot; what you placed by hand stays exactly where you
+   * put it. A factory is indifferent to whether anyone wants to live near it —
+   * that indifference is the whole temptation — and a park in a bad district is
+   * simply a park losing an argument, which the stacking field already models.
+   */
+  derelictable: boolean
+
   /** One-line explanation shown in the UI. */
   blurb: string
 }
@@ -28,6 +37,7 @@ export interface BuildingDef {
 export const BUILDINGS: Record<BuildingType, BuildingDef> = {
   house: {
     type: 'house',
+    derelictable: true,
     label: 'House',
     baseCost: 20,
     costGrowth: 1.15,
@@ -39,6 +49,7 @@ export const BUILDINGS: Record<BuildingType, BuildingDef> = {
   },
   shop: {
     type: 'shop',
+    derelictable: true,
     label: 'Shop',
     baseCost: 60,
     costGrowth: 1.15,
@@ -50,6 +61,7 @@ export const BUILDINGS: Record<BuildingType, BuildingDef> = {
   },
   factory: {
     type: 'factory',
+    derelictable: false,
     label: 'Factory',
     baseCost: 200,
     costGrowth: 1.25,
@@ -62,6 +74,7 @@ export const BUILDINGS: Record<BuildingType, BuildingDef> = {
   },
   park: {
     type: 'park',
+    derelictable: false,
     label: 'Park',
     baseCost: 80,
     costGrowth: 1.2,

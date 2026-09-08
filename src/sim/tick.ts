@@ -4,6 +4,7 @@ import {
   RECOVER_DELAY,
   RECOVER_HAPPINESS,
 } from './config'
+import { BUILDINGS } from './buildings'
 import { derive } from './economy'
 import { tryAutoBuild } from './builder'
 import type { CityState, Derived } from './types'
@@ -20,7 +21,8 @@ export interface TickResult {
  * Hysteresis: a standing building needs DERELICT_DELAY continuous seconds below
  * DERELICT_HAPPINESS to fall, a derelict one needs RECOVER_DELAY continuous
  * seconds above RECOVER_HAPPINESS to come back. Between the two thresholds
- * neither timer runs, so nothing flickers on the boundary.
+ * neither timer runs, so nothing flickers on the boundary. Only derelictable
+ * types are considered; see BuildingDef.derelictable.
  * Returns true if any building changed state.
  */
 function updateDereliction(state: CityState, field: Float32Array): boolean {
@@ -28,7 +30,7 @@ function updateDereliction(state: CityState, field: Float32Array): boolean {
 
   for (let i = 0; i < state.grid.length; i++) {
     const b = state.grid[i]
-    if (!b) continue
+    if (!b || !BUILDINGS[b.type].derelictable) continue
     const h = field[i]
 
     if (b.derelict) {
