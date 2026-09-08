@@ -265,16 +265,20 @@ Current curve, playing a buffered factory and buying land whenever affordable:
 | min | income/s | built | owned tiles | happiness | derelict |
 |---|---|---|---|---|---|
 | 5 | 18.7 | 33 | 36 | 51% | 3 |
-| 30 | 22.8 | 57 | 72 | 44% | 9 |
-| 60 | 23.9 | 66 | 90 | 43% | 11 |
-| 180 | 30.9 | 80 | 117 | 44% | 12 |
+| 30 | 24.2 | 57 | 81 | 45% | 9 |
+| 60 | 26.2 | 66 | 90 | 44% | 11 |
+| 180 | 67.5 | 73 | 99 | 43% | 15 |
 
-Two things to watch when this is finally played by a person:
+**Income now grows 5.7× over three hours, up from 2.5×.** The jump between the
+60 and 90 minute marks is the plot filling and the auto-builder switching from
+spreading to upgrading. Building levels were added precisely because this curve
+was flat, and the same script that diagnosed it confirmed the fix. Fewer
+buildings than before (73 against 80) because terrain took tiles out of the
+board, and more than double the income anyway.
 
-- **Income only grows 2.5× over three hours.** Flat, by idle-game standards.
-  With four building types and no upgrades there is not much else driving it,
-  and this is the strongest argument for eventually adding density.
-- **Happiness settles around 44% and stops falling.** The city degrades to
+One thing still to watch when a person finally plays it:
+
+- **Happiness settles around 43% and stops falling.** The city degrades to
   mediocre and then holds there rather than spiralling. That is probably the
   right shape — a death spiral in a game you leave running would be miserable —
   but it means the pressure to intervene is gentle, and gentle pressure in an
@@ -309,8 +313,69 @@ anything.
 
 ---
 
-## 9. Deliberately out of scope
+## 9. Built since the prototype
 
-Prestige, upgrade trees, research, more than four building types, roads,
-terrain, multiple maps, mobile support, tutorial. None of these answer the M2
-question, and each one is a place to hide from it.
+Everything below was added after the milestones above, at the point where the
+list in this section still read "deliberately out of scope". It is kept honest
+rather than quietly deleted: several of these were ruled out on purpose, and
+what changed was the request, not the reasoning.
+
+### Streets, traffic and transit
+
+Roads were excluded as a *mechanic* and still are: road access would be a
+second constraint competing with pollution, and the whole design rests on there
+being one. They exist as decoration instead — derived from the layout like the
+happiness field, never stored, costing nothing. They run along the seams
+BETWEEN tiles rather than on them, because a road that occupied a tile would
+eat buildable space and quietly rebalance an economy tuned against 36 starting
+tiles.
+
+A seam becomes a street once a building stands beside it, so neighbours share
+streets instead of each getting a ring: 80 buildings produce 189 segments, not
+320. Cars, pedestrians and buses walk that network, with lane offsets picked per
+segment against a clearance table measured off the actual building geometry —
+without it, pedestrians disappeared into park lawns for a second at a time.
+
+Railways follow the same posture, derived from where stations stand. Unlike
+roads, track may cross water: a line halting at every shore would need a station
+on every island, and a bridge looks better anyway. Stations are the only part
+that touches the simulation, and they do it the way every hand-placed building
+does — by emitting into the happiness field. Still one constraint.
+
+### Terrain, biomes and levels
+
+Water and mountain are generated from a stable seed rather than stored: one
+number reproduces 144 tiles exactly. The starting plot is always plain, derived
+from `STARTING_PARCELS` rather than a hardcoded radius, so a new city can never
+open onto a lake with nowhere to build. Coverage was measured, not eyeballed —
+a linear falloff from the board edge swung between 23% and 50% by seed; cubing
+it holds 31% with a 24-33% range over 300 seeds. Seed 0 is the flat world, which
+makes "terrain is optional" a property of the code and keeps economy tests from
+also being tests about where the lake landed.
+
+Buildings run to level 3, and the auto-builder upgrades only once there is
+nowhere left to spread. That ordering is the point: density is the answer to a
+full plot, which is exactly where the income curve used to flatten. Level scales
+a factory's emission strength but not its range, so upgrading one makes the same
+neighbourhood worse rather than poisoning a wider one.
+
+Tiles beside water or below the peaks carry a biome, and buildings take their
+theme from it. Purely cosmetic — a coastal house and an inland house earn the
+same.
+
+### Music, accounts and the board
+
+Four generated tracks crossfade on an equal-power curve. Crossfading rather than
+looping is the point: a generated track has an ending, not a loop point, so
+looping one would put an audible seam in the room every three minutes.
+
+Players sign in and publish their city to a global leaderboard, ranked by
+happiness x population x income. That metric rewards scale, so two players of
+equal skill are separated by how long they left the tab open — a test pins the
+behaviour so it cannot drift unnoticed. Scores are computed by the browser: the
+backend cannot yet recompute them, so a score can be inflated even though no
+player can overwrite another's row.
+
+## 10. Still deliberately out of scope
+
+Prestige, research trees, mobile support, tutorial.
