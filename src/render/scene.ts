@@ -15,6 +15,7 @@ import {
 } from 'three'
 import { BUILDINGS } from '../sim/buildings'
 import { parcelOfTile } from '../sim/grid'
+import { PARCELS_PER_SIDE, PARCEL_SIZE, WORLD_SIZE } from '../sim/config'
 import type { CityState, Derived } from '../sim/types'
 import type { PickTarget, Renderer, RendererCallbacks, Tool } from './api'
 import { createBuildings } from './buildings'
@@ -103,6 +104,9 @@ export function createRenderer(canvas: HTMLCanvasElement, cb: RendererCallbacks)
     if (rect.width === 0 || rect.height === 0) return null
     ndc.x = ((pointerX - rect.left) / rect.width) * 2 - 1
     ndc.y = -((pointerY - rect.top) / rect.height) * 2 + 1
+    // The controls moved the camera this frame; the renderer has not flushed
+    // the scene graph yet, so bring this one matrix up to date ourselves.
+    rig.camera.updateMatrixWorld()
     raycaster.setFromCamera(ndc, rig.camera)
     const hits = raycaster.intersectObjects(pickables, false)
     for (const hit of hits) {
@@ -210,12 +214,32 @@ export function createRenderer(canvas: HTMLCanvasElement, cb: RendererCallbacks)
 
   // --- contract ------------------------------------------------------------
 
+  /** Width in tiles of the bounding box of every parcel the player owns. */
+  function ownedExtent(state: CityState): number {
+    let minX = WORLD_SIZE
+    let maxX = -1
+    let minZ = WORLD_SIZE
+    let maxZ = -1
+    for (let parcel = 0; parcel < state.ownedParcels.length; parcel++) {
+      if (!state.ownedParcels[parcel]) continue
+      const px = (parcel % PARCELS_PER_SIDE) * PARCEL_SIZE
+      const pz = Math.floor(parcel / PARCELS_PER_SIDE) * PARCEL_SIZE
+      minX = Math.min(minX, px)
+      maxX = Math.max(maxX, px + PARCEL_SIZE)
+      minZ = Math.min(minZ, pz)
+      maxZ = Math.max(maxZ, pz + PARCEL_SIZE)
+    }
+    if (maxX < 0) return PARCEL_SIZE
+    return Math.max(maxX - minX, maxZ - minZ)
+  }
+
   function sync(state: CityState, derived: Derived): void {
     lastState = state
     synced = true
     ground.sync(state)
     buildings.sync(state)
     ground.update({ field: derived.field, night: 0 })
+    rig.frameOwned(ownedExtent(state))
     applyHoverVisuals()
   }
 

@@ -35,6 +35,7 @@ import {
   RING_GOOD,
   TABLE_COLOR,
   UNOWNED_GROUND,
+  hexToRgb,
   happinessRgb,
   setSrgb,
 } from './palette'
@@ -223,17 +224,32 @@ export function createGround(scene: Scene): GroundLayer {
   // --- per-frame colour ----------------------------------------------------
   const color = new Color()
   const unowned = setSrgb(new Color(), UNOWNED_GROUND)
+  const UNOWNED_WASH = setSrgb(new Color(), hexToRgb(0xcfc7b6))
 
   function update(u: GroundUpdate): void {
-    // Night would otherwise crush the ramp into a single dark smear, so the
-    // plates are lifted as the light drops. The tint stays the readout.
-    const lift = 1 + 0.45 * u.night
+    // Night would otherwise crush the ramp into one dark blue-grey smear. The
+    // plates are lifted as the light drops and their chroma is pushed back out
+    // against the moonlight's wash, because the tint is the readout and it has
+    // to survive every hour of the cycle.
+    const lift = 1 + 0.42 * u.night
+    const sat = 1 + 0.6 * u.night
     for (let tile = 0; tile < TILE_COUNT; tile++) {
       if (owned[tile]) {
         setSrgb(color, happinessRgb(u.field[tile]))
         color.multiplyScalar(lift)
       } else {
-        color.copy(unowned).multiplyScalar(0.82 * lift)
+        // Washed out and slightly brighter than the plot, not darker: unowned
+        // land is space the city could have, and a dark ring around a small
+        // plot reads as a void the city is hiding in.
+        color.copy(unowned).lerp(UNOWNED_WASH, 0.32).multiplyScalar(1.02 * lift)
+      }
+      if (u.night > 0) {
+        const lum = color.r * 0.2126 + color.g * 0.7152 + color.b * 0.0722
+        color.setRGB(
+          lum + (color.r - lum) * sat,
+          lum + (color.g - lum) * sat,
+          lum + (color.b - lum) * sat,
+        )
       }
       plates.setColorAt(tile, color)
     }

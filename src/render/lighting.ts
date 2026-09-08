@@ -40,7 +40,9 @@ export function createLighting(scene: Scene): LightingRig {
   sun.shadow.radius = 3
   sun.shadow.bias = -0.0004
   sun.shadow.normalBias = 0.03
-  const half = WORLD_SIZE / 2 + 2
+  // Generous margin: at dawn and dusk the shadows are long, and a tight ortho
+  // frustum chops them off mid-lawn. 2048 texels over 24 units is still fine.
+  const half = WORLD_SIZE / 2 + 6
   sun.shadow.camera.left = -half
   sun.shadow.camera.right = half
   sun.shadow.camera.top = half

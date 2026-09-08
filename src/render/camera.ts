@@ -1,8 +1,13 @@
 /**
  * Orbit rig. ~35 degree FOV, damped, pitch clamped to 25..65 degrees above the
- * ground, dolly limits chosen so the whole 12x12 plot stays roughly framed at
- * either end, and the target leashed to the world origin so the diorama can
- * never be panned off screen.
+ * ground, and the target leashed to the world origin so the diorama can never
+ * be panned off screen.
+ *
+ * The rig frames the land you OWN, not the whole world. A new city owns a 6x6
+ * plot inside a 12x12 board, so fitting the board leaves the city a stamp in
+ * the middle of a large empty table. frameOwned() re-fits as parcels are
+ * bought, easing rather than cutting so the purchase reads as the city opening
+ * up.
  */
 
 import { PerspectiveCamera, Vector3 } from 'three'
@@ -16,15 +21,22 @@ export interface CameraRig {
   controls: OrbitControls
   update(dt: number): void
   resize(width: number, height: number): void
+  /** Ease the dolly out to frame a plot this many tiles across. */
+  frameOwned(tilesAcross: number): void
   dispose(): void
 }
 
 export function createCameraRig(canvas: HTMLCanvasElement): CameraRig {
   const camera = new PerspectiveCamera(35, 1, 0.5, 200)
 
-  // Far enough back that the plot plus a ring of unowned parcels is in frame.
-  const fit = WORLD_SIZE / 2 / Math.tan((35 * DEG) / 2)
-  camera.position.set(fit * 0.62, fit * 0.72, fit * 0.62)
+  // Distance at which a plot `tiles` across fills the frame, plus a margin so
+  // the buyable ring stays visible as a hint that the board is bigger.
+  const distanceFor = (tiles: number) =>
+    ((tiles + 3.4) / 2 / Math.tan((35 * DEG) / 2)) * 1.02
+
+  let desired = distanceFor(6)
+  const start = desired
+  camera.position.set(start * 0.62, start * 0.72, start * 0.62)
 
   const controls = new OrbitControls(camera, canvas)
   controls.target.set(0, 0.4, 0)
@@ -37,14 +49,34 @@ export function createCameraRig(canvas: HTMLCanvasElement): CameraRig {
   // Pitch above the ground plane, so polar angle is measured the other way.
   controls.minPolarAngle = (90 - 65) * DEG
   controls.maxPolarAngle = (90 - 25) * DEG
-  controls.minDistance = WORLD_SIZE * 0.62
+  controls.minDistance = 5
   controls.maxDistance = WORLD_SIZE * 2.4
   controls.update()
 
   const LEASH = 2.5
   const flat = new Vector3()
+  const toCamera = new Vector3()
+  /** Cleared the moment the player touches the controls; their framing wins. */
+  let autoFrame = true
+  controls.addEventListener('start', () => {
+    autoFrame = false
+  })
+
+  function frameOwned(tilesAcross: number): void {
+    desired = Math.min(distanceFor(tilesAcross), controls.maxDistance)
+  }
 
   function update(dt: number): void {
+    if (autoFrame) {
+      toCamera.subVectors(camera.position, controls.target)
+      const current = toCamera.length()
+      if (Math.abs(current - desired) > 0.01) {
+        // Exponential ease, framerate independent.
+        const next = current + (desired - current) * (1 - Math.exp(-dt * 2.2))
+        camera.position.copy(controls.target).addScaledVector(toCamera.setLength(1), next)
+      }
+    }
+
     // Keep the target near the origin however the player pans.
     flat.set(controls.target.x, 0, controls.target.z)
     if (flat.lengthSq() > LEASH * LEASH) {
@@ -65,5 +97,5 @@ export function createCameraRig(canvas: HTMLCanvasElement): CameraRig {
     controls.dispose()
   }
 
-  return { camera, controls, update, resize, dispose }
+  return { camera, controls, update, resize, frameOwned, dispose }
 }

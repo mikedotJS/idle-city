@@ -126,7 +126,7 @@ export function createHud(root: HTMLElement, cb: HudCallbacks): Hud {
   const multNote = el(
     'p',
     'note',
-    'Income multiplier = 0.50 + happiness, so 0.50x at worst and 1.50x at best. A happier city earns more from the same buildings, and builds faster too.',
+    'Income multiplier = 0.50 + happiness, so 0.50x at worst and 1.50x at best. A happier city earns more from the same buildings, and builds faster too. The rate beside your coins already has it applied.',
   )
 
   readouts.append(coinsBlock, statGrid, happy, multNote)
@@ -188,6 +188,11 @@ export function createHud(root: HTMLElement, cb: HudCallbacks): Hud {
   toolsPanel.append(toolList)
   toolsPanel.append(
     el('p', 'hint', 'Pick a tool, then click a tile. Escape or right-click puts it down again.'),
+    el(
+      'p',
+      'hint',
+      'The pale land past your plot is for sale. Click it to buy, and the city will spread into it.',
+    ),
   )
   bottomLeft.append(toolsPanel)
 
@@ -197,7 +202,7 @@ export function createHud(root: HTMLElement, cb: HudCallbacks): Hud {
   const queuePanel = el('section', 'panel panel--queue')
   queuePanel.append(el('h2', 'panel__title', 'Build queue'))
   queuePanel.append(
-    el('p', 'hint', 'The city builds these itself, in order, paying out of your coins.'),
+    el('p', 'hint', 'The city builds this list on repeat, paying out of your coins.'),
   )
   const queueList = el('ol', 'queue-list')
   const queueRepeat = el('p', 'repeat')
@@ -216,7 +221,7 @@ export function createHud(root: HTMLElement, cb: HudCallbacks): Hud {
     addButtons.push({ type, costNode, lastCost: -1 })
   }
 
-  const clearButton = el('button', 'btn btn--ghost', 'Clear')
+  const clearButton = el('button', 'btn btn--ghost', 'Pause building')
   clearButton.type = 'button'
   clearButton.title = 'Empty the queue.'
   clearButton.addEventListener('click', () => cb.onClearQueue())
@@ -340,18 +345,35 @@ export function createHud(root: HTMLElement, cb: HudCallbacks): Hud {
 
     if (state.queue.length === 0) {
       setClass(queueRepeat, 'repeat repeat--empty')
-      setText(queueRepeat, 'Nothing is queued, so nothing new gets built. Add a house or a shop.')
+      setText(
+        queueRepeat,
+        'Building is paused, so nothing new goes up and your coins pile up instead. ' +
+          'This is how you save for land or a factory: the city spends from the same purse you do.',
+      )
       return
     }
-    const repeated = state.queue[state.queue.length - 1]
-    const word = pluralLabel(repeated)
     setClass(queueRepeat, 'repeat')
     setText(
       queueRepeat,
       state.queue.length === 1
-        ? `Auto-repeat: one thing is queued, so the city will keep building ${word} forever, until you queue something else.`
-        : `Auto-repeat: when the list runs out the city keeps building ${word} forever, because that is the last entry.`,
+        ? `This list repeats forever, so the city will keep building ${pluralLabel(state.queue[0])} and nothing else.`
+        : `This list repeats forever: ${describeCycle(state.queue)}, then round again.`,
     )
+  }
+
+  /** "two houses, then a shop" — the queue read as the standing policy it is. */
+  function describeCycle(queue: readonly QueueableType[]): string {
+    const runs: { type: QueueableType; count: number }[] = []
+    for (const type of queue) {
+      const last = runs[runs.length - 1]
+      if (last && last.type === type) last.count++
+      else runs.push({ type, count: 1 })
+    }
+    const parts = runs.map(({ type, count }) =>
+      count === 1 ? `one ${BUILDINGS[type].label.toLowerCase()}` : `${count} ${pluralLabel(type)}`,
+    )
+    if (parts.length === 1) return parts[0]
+    return `${parts.slice(0, -1).join(', ')}, then ${parts[parts.length - 1]}`
   }
 
   function update(state: CityState, derived: Derived): void {
