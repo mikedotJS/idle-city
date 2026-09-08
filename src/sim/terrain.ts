@@ -69,6 +69,9 @@ const COAST_WOBBLE = 0.18
 /** Above this, a tile is water or rock. Tuned by measurement, not by eye. */
 const TERRAIN_THRESHOLD = 0.8
 
+/** How fast a peak rises inland. See the note where it is used. */
+const MOUNTAIN_GAIN = 2.4
+
 /** Deterministic 32-bit hash. Same seed, same island, every reload. */
 function hash(x: number, z: number, seed: number): number {
   let h = (x * 374761393 + z * 668265263 + seed * 2246822519) | 0
@@ -152,8 +155,12 @@ export function generateTerrain(seed: number): TerrainMap {
       const peak = edgeCloseness(x, z, mountainEdge) + noise(x, z, seed ^ 0x9e37, 2.7) * COAST_WOBBLE
       if (peak > TERRAIN_THRESHOLD) {
         terrain[i] = Terrain.Mountain
-        // Taller the further in, so a ridge reads as a ridge and not a wall.
-        height[i] = 0.5 + (peak - TERRAIN_THRESHOLD) * 6
+        // Taller the further in, so a ridge reads as a ridge — but only just.
+        // At a gain of 6 the median peak was 1.84 and the tallest 2.77 against
+        // a 0.55 house and a 1.0 tile: not a mountain, a wall along one edge of
+        // the board. 2.4 puts the median near 1.0 and the tallest near 1.4,
+        // about twice a house, which reads as landscape rather than architecture.
+        height[i] = 0.5 + (peak - TERRAIN_THRESHOLD) * MOUNTAIN_GAIN
       }
     }
   }
