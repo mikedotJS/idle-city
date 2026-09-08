@@ -11,7 +11,8 @@
     "test": "vitest run",
     "pacing": "vite-node scripts/pacing.ts",
     "shot": "node scripts/shot.mjs",
-    "audio-check": "node scripts/audio-check.mjs"
+    "audio-check": "node scripts/audio-check.mjs",
+    "board-check": "node scripts/board-check.mjs"
   },
   "dependencies": {
     "three": "^0.180.0"

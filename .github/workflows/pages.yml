@@ -33,7 +33,13 @@ jobs:
       - run: npm test
 
       # `npm run build` typechecks before it bundles.
+      # Both values are public by design — they ship in the browser bundle —
+      # so they are repository *variables*, not secrets. Leave them unset and
+      # the leaderboard simply never enters the DOM; the game is unaffected.
       - run: npm run build
+        env:
+          VITE_BASED_URL: ${{ vars.BASED_URL }}
+          VITE_BASED_ANON_KEY: ${{ vars.BASED_ANON_KEY }}
 
       - uses: actions/configure-pages@v5
 

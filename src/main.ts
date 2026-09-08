@@ -1,4 +1,7 @@
 import { createMusic } from './audio/music'
+import { createBasedClient } from './net/based'
+import { createLeaderboard } from './net/leaderboard'
+import { createLeaderboardUI } from './ui/leaderboard'
 import { createRenderer } from './render/scene'
 import type { PickTarget, Renderer, Tool } from './render/api'
 import { createHud } from './ui/hud'
@@ -32,6 +35,16 @@ let structureDirty = true
 
 const music = createMusic()
 
+// The board is optional infrastructure. With no backend configured the client
+// reports itself unconfigured and the UI never enters the DOM, so the static
+// build keeps working exactly as it did before any of this existed.
+const leaderboard = createLeaderboard(
+  createBasedClient({
+    url: import.meta.env.VITE_BASED_URL,
+    anonKey: import.meta.env.VITE_BASED_ANON_KEY,
+  }),
+)
+
 const renderer: Renderer = createRenderer(canvas, { onPick, onHover })
 const hud: Hud = createHud(uiRoot, {
   onSelectTool: setTool,
@@ -50,6 +63,8 @@ const hud: Hud = createHud(uiRoot, {
 })
 
 music.subscribe((musicState) => hud.setMusicState(musicState))
+
+createLeaderboardUI(uiRoot, leaderboard, () => state)
 
 // Browsers block audio until the page has been interacted with, so the first
 // real gesture is what actually starts playback. Placing a park counts.
