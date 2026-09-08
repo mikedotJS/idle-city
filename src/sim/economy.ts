@@ -1,0 +1,85 @@
+import {
+  BASE_HAPPINESS,
+  FACTORY_COINS,
+  HABITABLE_HAPPINESS,
+  INCOME_FLOOR,
+  LAND_BASE_COST,
+  LAND_COST_GROWTH,
+  PARCEL_COUNT,
+  POP_PER_HOUSE,
+  SHOP_COINS_PER_POP,
+  SHOP_POP_CAP,
+  SHOP_RADIUS,
+  STARTING_PARCELS,
+} from './config'
+import { computeField } from './field'
+import { tileDistance } from './grid'
+import type { CityState, Derived } from './types'
+
+/** A house holds people only while it is standing and its tile is pleasant enough. */
+function isHoused(state: CityState, field: Float32Array, tile: number): boolean {
+  const b = state.grid[tile]
+  if (!b || b.type !== 'house' || b.derelict) return false
+  return field[tile] >= HABITABLE_HAPPINESS
+}
+
+/** Living population housed within `radius` of `tile`. */
+export function populationNear(
+  state: CityState,
+  field: Float32Array,
+  tile: number,
+  radius: number,
+): number {
+  let pop = 0
+  for (let i = 0; i < state.grid.length; i++) {
+    if (!isHoused(state, field, i)) continue
+    if (tileDistance(i, tile) <= radius) pop += POP_PER_HOUSE
+  }
+  return pop
+}
+
+/** Cost of the next parcel given how many are owned, or null if all are owned. */
+export function nextLandCost(state: CityState): number | null {
+  let owned = 0
+  for (const o of state.ownedParcels) if (o) owned++
+  if (owned >= PARCEL_COUNT) return null
+  return Math.floor(LAND_BASE_COST * Math.pow(LAND_COST_GROWTH, owned - STARTING_PARCELS.length))
+}
+
+export function derive(state: CityState): Derived {
+  const field = computeField(state)
+
+  let population = 0
+  let occupied = 0
+  let happinessSum = 0
+
+  for (let i = 0; i < state.grid.length; i++) {
+    const b = state.grid[i]
+    if (!b) continue
+    occupied++
+    happinessSum += field[i]
+    if (isHoused(state, field, i)) population += POP_PER_HOUSE
+  }
+
+  const cityHappiness = occupied === 0 ? BASE_HAPPINESS : happinessSum / occupied
+
+  let base = 0
+  for (let i = 0; i < state.grid.length; i++) {
+    const b = state.grid[i]
+    if (!b || b.derelict) continue
+    if (b.type === 'shop') {
+      const near = Math.min(populationNear(state, field, i, SHOP_RADIUS), SHOP_POP_CAP)
+      base += near * SHOP_COINS_PER_POP
+    } else if (b.type === 'factory') {
+      base += FACTORY_COINS
+    }
+  }
+
+  return {
+    field,
+    population,
+    cityHappiness,
+    incomeRate: base * (INCOME_FLOOR + cityHappiness),
+    nextLandCost: nextLandCost(state),
+  }
+}
