@@ -25,3 +25,21 @@ export interface Traffic {
   readonly object: Object3D
   dispose(): void
 }
+
+/** Water, peaks and the sand strip along the shore. */
+export interface TerrainView {
+  /** Called when the map or owned parcels changed. Terrain itself never changes. */
+  sync(state: CityState): void
+  /** Every frame. `night` is 0 at midday and 1 at midnight. */
+  frame(dt: number, night: number): void
+  readonly object: Object3D
+  dispose(): void
+}
+
+/** Track, and the trains running on it. */
+export interface RailView {
+  sync(state: CityState): void
+  frame(dt: number, night: number): void
+  readonly object: Object3D
+  dispose(): void
+}

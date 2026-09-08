@@ -8,6 +8,7 @@ import {
 import { BUILDINGS, buildingCost } from './buildings'
 import { nextLandCost } from './economy'
 import { nextRandom, parcelNeighbours, parcelOfTile } from './grid'
+import { Terrain, isBuildable, terrainFor } from './terrain'
 import type { Building, BuildingType, CityState, QueueableType } from './types'
 
 /** Default RNG seed, so an unseeded new city is still reproducible in tests. */
@@ -38,7 +39,8 @@ export function createCity(seed?: number): CityState {
     grid: new Array<Building | null>(TILE_COUNT).fill(null),
     ownedParcels,
     queue: ['house', 'house', 'shop'],
-    builtCount: { house: 0, shop: 0, factory: 0, park: 0 },
+    builtCount: { house: 0, shop: 0, factory: 0, park: 0, station: 0 },
+    terrainSeed: (seed ?? DEFAULT_SEED) ^ 0x5eed,
     rngSeed: (seed ?? DEFAULT_SEED) | 0 || DEFAULT_SEED,
     nextBuildAt: 0,
     lastSavedAt: Date.now(),
@@ -52,6 +54,7 @@ export function createCity(seed?: number): CityState {
 export function spawnBuilding(state: CityState, type: BuildingType, tile: number): Building {
   const b: Building = {
     type,
+    level: 1,
     tile,
     variant: draw(state),
     bornAt: state.time,
@@ -69,6 +72,10 @@ export function placeManual(state: CityState, type: BuildingType, tile: number):
   if (def.placement !== 'manual') return fail(`${def.label}s are built by the queue`)
   if (!Number.isInteger(tile) || tile < 0 || tile >= TILE_COUNT) return fail('Outside the world')
   if (!state.ownedParcels[parcelOfTile(tile)]) return fail('You do not own that land')
+  const map = terrainFor(state)
+  if (!isBuildable(map, tile)) {
+    return fail(map.terrain[tile] === Terrain.Water ? 'You cannot build on water' : 'Too steep to build on')
+  }
   if (state.grid[tile]) return fail('That tile is taken')
 
   const cost = buildingCost(type, state.builtCount[type])

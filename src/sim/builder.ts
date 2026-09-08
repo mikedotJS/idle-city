@@ -1,7 +1,14 @@
-import { BUILD_INTERVAL, INCOME_FLOOR, WORLD_SIZE } from './config'
+import {
+  BUILD_INTERVAL,
+  INCOME_FLOOR,
+  LEVEL_COST,
+  MAX_LEVEL,
+  WORLD_SIZE,
+} from './config'
 import { buildingCost } from './buildings'
 import { nextRandom, parcelOfTile, tileDistance, tileX, tileZ } from './grid'
 import { spawnBuilding } from './actions'
+import { isBuildable, terrainFor } from './terrain'
 import type { Building, CityState, Derived } from './types'
 
 const EPS = 1e-9
@@ -15,6 +22,7 @@ const EPS = 1e-9
  * Ties are broken with the seeded RNG, so a reloaded save builds the same city.
  */
 export function pickBuildTile(state: CityState): number | null {
+  const map = terrainFor(state)
   const buildings: number[] = []
   for (let i = 0; i < state.grid.length; i++) if (state.grid[i]) buildings.push(i)
 
@@ -27,6 +35,7 @@ export function pickBuildTile(state: CityState): number | null {
   for (let i = 0; i < state.grid.length; i++) {
     if (state.grid[i]) continue
     if (!state.ownedParcels[parcelOfTile(i)]) continue
+    if (!isBuildable(map, i)) continue
 
     let d: number
     if (buildings.length === 0) {
@@ -55,6 +64,42 @@ export function pickBuildTile(state: CityState): number | null {
   return chosen
 }
 
+/** What it costs to take a building to its next level. */
+export function upgradeCost(state: CityState, building: Building): number | null {
+  if (building.level >= MAX_LEVEL) return null
+  const next = building.level + 1
+  return Math.round(buildingCost(building.type, state.builtCount[building.type]) * LEVEL_COST[next])
+}
+
+/**
+ * Raise the cheapest upgradeable building by one level.
+ *
+ * Cheapest first, deliberately: it keeps the city rising evenly instead of
+ * growing one tower while everything around it stays a shed, and it means the
+ * upgrade the player can afford soonest is the one that happens.
+ */
+function tryUpgrade(state: CityState, derived: Derived): Building | null {
+  let target: Building | null = null
+  let best = Infinity
+
+  for (const b of state.grid) {
+    if (!b || b.level >= MAX_LEVEL) continue
+    const cost = upgradeCost(state, b)
+    if (cost === null || cost > state.coins) continue
+    if (cost < best) {
+      best = cost
+      target = b
+    }
+  }
+
+  if (!target) return null
+
+  state.coins -= best
+  target.level++
+  state.nextBuildAt = state.time + BUILD_INTERVAL / (INCOME_FLOOR + derived.cityHappiness)
+  return target
+}
+
 /**
  * One auto-build attempt. Returns the building placed, or null.
  *
@@ -71,7 +116,13 @@ export function tryAutoBuild(state: CityState, derived: Derived): Building | nul
   if (state.coins < cost) return null
 
   const tile = pickBuildTile(state)
-  if (tile === null) return null
+  if (tile === null) {
+    // Nowhere left to spread, so the city grows upward instead. This is the
+    // answer to the flattest part of the curve: with a fixed plot and no
+    // upgrades, income stalled once the last tile was filled.
+    const upgraded = tryUpgrade(state, derived)
+    return upgraded
+  }
 
   state.coins -= cost
   const building = spawnBuilding(state, type, tile)

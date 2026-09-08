@@ -1,13 +1,14 @@
 import { describe, expect, it } from 'vitest'
 import { createCity, placeManual } from '../actions'
+import { flatten } from './helpers'
 import { WORLD_SIZE } from '../config'
 import { tileIndex } from '../grid'
 import { CORNERS_PER_SIDE, computeRoads, cornerIndex, cornerToWorld, neighboursOf } from '../roads'
 import type { CityState } from '../types'
 
-/** A city with the whole board owned, so ownership never confuses a case. */
+/** A flat city with the whole board owned, so nothing else confuses a case. */
 function openCity(): CityState {
-  const state = createCity(11)
+  const state = flatten(createCity(11))
   state.ownedParcels.fill(true)
   state.coins = 1e9
   return state

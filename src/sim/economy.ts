@@ -6,6 +6,7 @@ import {
   LAND_BASE_COST,
   LAND_COST_GROWTH,
   PARCEL_COUNT,
+  LEVEL_OUTPUT,
   POP_PER_HOUSE,
   SHOP_COINS_PER_POP,
   SHOP_POP_CAP,
@@ -33,9 +34,15 @@ export function populationNear(
   let pop = 0
   for (let i = 0; i < state.grid.length; i++) {
     if (!isHoused(state, field, i)) continue
-    if (tileDistance(i, tile) <= radius) pop += POP_PER_HOUSE
+    if (tileDistance(i, tile) <= radius) pop += housedCount(state, i)
   }
   return pop
+}
+
+/** People a house holds at its level. A level 3 house is a small tower block. */
+function housedCount(state: CityState, tile: number): number {
+  const b = state.grid[tile]
+  return b ? POP_PER_HOUSE * LEVEL_OUTPUT[b.level] : 0
 }
 
 /** Cost of the next parcel given how many are owned, or null if all are owned. */
@@ -58,7 +65,7 @@ export function derive(state: CityState): Derived {
     if (!b) continue
     occupied++
     happinessSum += field[i]
-    if (isHoused(state, field, i)) population += POP_PER_HOUSE
+    if (isHoused(state, field, i)) population += housedCount(state, i)
   }
 
   const cityHappiness = occupied === 0 ? BASE_HAPPINESS : happinessSum / occupied
@@ -68,10 +75,11 @@ export function derive(state: CityState): Derived {
     const b = state.grid[i]
     if (!b || b.derelict) continue
     if (b.type === 'shop') {
-      const near = Math.min(populationNear(state, field, i, SHOP_RADIUS), SHOP_POP_CAP)
+      const cap = SHOP_POP_CAP * LEVEL_OUTPUT[b.level]
+      const near = Math.min(populationNear(state, field, i, SHOP_RADIUS), cap)
       base += near * SHOP_COINS_PER_POP
     } else if (b.type === 'factory') {
-      base += FACTORY_COINS
+      base += FACTORY_COINS * LEVEL_OUTPUT[b.level]
     }
   }
 

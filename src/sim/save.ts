@@ -1,5 +1,12 @@
-import { OFFLINE_CAP_SECONDS, PARCEL_COUNT, SAVE_KEY, SAVE_VERSION, TILE_COUNT } from './config'
-import { BUILDINGS } from './buildings'
+import {
+  MAX_LEVEL,
+  OFFLINE_CAP_SECONDS,
+  PARCEL_COUNT,
+  SAVE_KEY,
+  SAVE_VERSION,
+  TILE_COUNT,
+} from './config'
+import { BUILDINGS, BUILDING_TYPES } from './buildings'
 import { derive } from './economy'
 import type { Building, BuildingType, CityState, QueueableType } from './types'
 
@@ -87,6 +94,9 @@ function validateBuilding(raw: unknown, tile: number): Building | null {
   if (b.highSince !== null && !isFinite_(b.highSince)) return null
   return {
     type: b.type as BuildingType,
+    // Saves written before levels existed have none; everything standing then
+    // was level 1 by definition.
+    level: isFinite_(b.level) ? Math.min(Math.max(Math.round(b.level as number), 1), MAX_LEVEL) : 1,
     tile,
     variant: b.variant,
     bornAt: b.bornAt,
@@ -104,7 +114,9 @@ function validate(raw: unknown): CityState | null {
   if (typeof raw !== 'object' || raw === null) return null
   const s = raw as Record<string, unknown>
 
-  if (s.version !== SAVE_VERSION) return null
+  // A version bump used to throw the city away. Migrating instead costs a few
+  // defaults and keeps everyone's plot: the v1 shape is a strict subset of v2.
+  if (s.version !== SAVE_VERSION && s.version !== 1) return null
   if (!isFinite_(s.time) || !isFinite_(s.coins)) return null
   if (!isFinite_(s.rngSeed) || !isFinite_(s.nextBuildAt) || !isFinite_(s.lastSavedAt)) return null
 
@@ -130,11 +142,21 @@ function validate(raw: unknown): CityState | null {
 
   if (typeof s.builtCount !== 'object' || s.builtCount === null) return null
   const counts = s.builtCount as Record<string, unknown>
-  const builtCount = { house: 0, shop: 0, factory: 0, park: 0 } as Record<BuildingType, number>
-  for (const type of Object.keys(builtCount) as BuildingType[]) {
+  // Driven off the registry rather than a literal list. A hardcoded one was a
+  // second source of truth for the building types: adding `station` silently
+  // dropped its count on every load, with no error anywhere.
+  const builtCount = {} as Record<BuildingType, number>
+  for (const type of BUILDING_TYPES) {
     const n = counts[type]
+    // A type added since the save was written simply has none built yet, which
+    // is not corruption — rejecting here would delete a city for gaining a
+    // building type it has never seen.
+    if (n === undefined) {
+      builtCount[type] = 0
+      continue
+    }
     if (!isFinite_(n)) return null
-    builtCount[type] = n
+    builtCount[type] = n as number
   }
 
   return {
@@ -146,6 +168,9 @@ function validate(raw: unknown): CityState | null {
     queue,
     builtCount,
     rngSeed: s.rngSeed | 0 || 1,
+    // v1 saves predate terrain. Deriving the seed from the RNG seed gives each
+    // returning city a stable map of its own rather than all sharing one.
+    terrainSeed: isFinite_(s.terrainSeed) ? (s.terrainSeed as number) | 0 : ((s.rngSeed as number) | 0) ^ 0x5eed,
     nextBuildAt: s.nextBuildAt,
     lastSavedAt: s.lastSavedAt,
   }

@@ -18,6 +18,7 @@
 
 import { WORLD_SIZE } from './config'
 import { tileIndex } from './grid'
+import { isBuildable, terrainFor } from './terrain'
 import type { CityState } from './types'
 
 export const CORNERS_PER_SIDE = WORLD_SIZE + 1
@@ -57,6 +58,12 @@ function isBuilt(state: CityState, x: number, z: number): boolean {
   return state.grid[tileIndex(x, z)] !== null
 }
 
+/** No tarmac across a lake or over a peak, whatever stands beside it. */
+function isPaveable(state: CityState, x: number, z: number): boolean {
+  if (x < 0 || z < 0 || x >= WORLD_SIZE || z >= WORLD_SIZE) return false
+  return isBuildable(terrainFor(state), tileIndex(x, z))
+}
+
 /**
  * A seam becomes a street when a building stands on either side of it, so the
  * network traces the built-up edge of the city and nothing else. An empty plot
@@ -75,7 +82,9 @@ export function computeRoads(state: CityState): RoadNetwork {
   // Seams running east-west, between tile rows (cz - 1) and cz.
   for (let cz = 0; cz < CORNERS_PER_SIDE; cz++) {
     for (let cx = 0; cx < WORLD_SIZE; cx++) {
-      if (isBuilt(state, cx, cz - 1) || isBuilt(state, cx, cz)) {
+      const northOk = isBuilt(state, cx, cz - 1) && isPaveable(state, cx, cz - 1)
+      const southOk = isBuilt(state, cx, cz) && isPaveable(state, cx, cz)
+      if (northOk || southOk) {
         add(cornerIndex(cx, cz), cornerIndex(cx + 1, cz))
       }
     }
@@ -84,7 +93,9 @@ export function computeRoads(state: CityState): RoadNetwork {
   // Seams running north-south, between tile columns (cx - 1) and cx.
   for (let cz = 0; cz < WORLD_SIZE; cz++) {
     for (let cx = 0; cx < CORNERS_PER_SIDE; cx++) {
-      if (isBuilt(state, cx - 1, cz) || isBuilt(state, cx, cz)) {
+      const westOk = isBuilt(state, cx - 1, cz) && isPaveable(state, cx - 1, cz)
+      const eastOk = isBuilt(state, cx, cz) && isPaveable(state, cx, cz)
+      if (westOk || eastOk) {
         add(cornerIndex(cx, cz), cornerIndex(cx, cz + 1))
       }
     }

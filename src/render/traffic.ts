@@ -151,6 +151,7 @@ const CLEARANCE: Record<BuildingType, number> = {
   shop: 0.16, // body 0.68, canopy is at 0.35 and clears everyone
   factory: 0.13, // body 0.74
   park: 0.04, // lawn plate 0.92, and only 0.12 tall
+  station: 0.14, // platform runs wide, but the canopy is overhead
 }
 /** An empty tile takes nothing; an agent may hang over bare ground. */
 const OPEN_CLEARANCE = 0.5

@@ -9,6 +9,18 @@ export const PARCEL_COUNT = PARCELS_PER_SIDE * PARCELS_PER_SIDE // 16
 /** Parcels owned at the start: the centre 2x2 block, i.e. a 6x6 tile plot. */
 export const STARTING_PARCELS = [5, 6, 9, 10]
 
+/** Buildings upgrade 1 -> 2 -> 3 once there is nowhere left to build. */
+export const MAX_LEVEL = 3
+
+/** Output multiplier per level. Index 0 is unused so the level reads directly. */
+export const LEVEL_OUTPUT = [0, 1, 2.4, 5.5]
+
+/** A taller factory poisons more: upgrading one is a real trade, not free money. */
+export const LEVEL_EMISSION = [0, 1, 1.35, 1.75]
+
+/** Upgrade price as a multiple of what the next new building of that type costs. */
+export const LEVEL_COST = [0, 0, 3, 9]
+
 /** Enough to buy a first factory outright; below ~200 a new city can strand at zero income. */
 export const STARTING_COINS = 300
 
@@ -48,5 +60,5 @@ export const BUILD_INTERVAL = 8
 export const OFFLINE_CAP_SECONDS = 8 * 3600
 
 export const SAVE_KEY = 'micro-city-save'
-export const SAVE_VERSION = 1
+export const SAVE_VERSION = 2
 export const AUTOSAVE_INTERVAL = 5 // seconds of sim time

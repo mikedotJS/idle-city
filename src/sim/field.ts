@@ -1,4 +1,4 @@
-import { BASE_HAPPINESS, TILE_COUNT, WORLD_SIZE } from './config'
+import { LEVEL_EMISSION, BASE_HAPPINESS, TILE_COUNT, WORLD_SIZE } from './config'
 import { BUILDINGS } from './buildings'
 import { tileIndex, tileX, tileZ } from './grid'
 import type { CityState } from './types'
@@ -19,6 +19,10 @@ export function computeField(state: CityState): Float32Array {
     const emit = BUILDINGS[b.type].emit
     if (!emit) continue
     // Emitters are hand-placed and never derelictable, so they always emit.
+    // Level scales the strength, not the range: upgrading a factory makes the
+    // same neighbourhood worse rather than poisoning a wider one, so the
+    // decision stays local to where you put it.
+    const strength = emit.strength * LEVEL_EMISSION[b.level]
 
     const bx = tileX(b.tile)
     const bz = tileZ(b.tile)
@@ -33,7 +37,7 @@ export function computeField(state: CityState): Float32Array {
         const d = Math.hypot(x - bx, z - bz)
         const falloff = 1 - d / reach
         if (falloff <= 0) continue
-        field[tileIndex(x, z)] += emit.strength * falloff
+        field[tileIndex(x, z)] += strength * falloff
       }
     }
   }

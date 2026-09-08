@@ -1,10 +1,12 @@
-export type BuildingType = 'house' | 'shop' | 'factory' | 'park'
+export type BuildingType = 'house' | 'shop' | 'factory' | 'park' | 'station'
 
 /** Types the build queue may contain. Factory and park are placed by hand. */
 export type QueueableType = 'house' | 'shop'
 
 export interface Building {
   type: BuildingType
+  /** 1..MAX_LEVEL. Scales output, population and emission together. */
+  level: number
   /** Tile index: z * WORLD_SIZE + x. */
   tile: number
   /** Stable 0..1 jitter seed, used by the renderer for height and hue variation. */
@@ -34,6 +36,11 @@ export interface CityState {
   builtCount: Record<BuildingType, number>
   /** Deterministic RNG state, so a reloaded save keeps building the same city. */
   rngSeed: number
+  /**
+   * Fixed for the life of a city. Terrain is regenerated from it rather than
+   * stored, so the map survives a reload without bloating the save.
+   */
+  terrainSeed: number
   /** Sim time of the next auto-build attempt. */
   nextBuildAt: number
   /** Wall-clock ms of the last save, for offline earnings. */
