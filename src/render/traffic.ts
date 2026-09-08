@@ -1,5 +1,5 @@
 /**
- * Ambient life: cars and pedestrians walking the street network.
+ * Ambient life: cars, buses and pedestrians walking the street network.
  *
  * Sized against the camera rather than against the tiles. The rig frames the
  * owned plot, so a new 6x6 city sits 15.2 units out and a full board 24.9; at
@@ -19,12 +19,21 @@
  * The cost of the size is paid entirely in the lane maths below, which is why
  * the width of a car is a load-bearing constant and its length is not.
  *
- * Two fixed-capacity InstancedMeshes carry the whole system: 24 cars, 48
- * people, allocated once at construction with `count` set to however many are
- * currently live. Population and building count drive that number, so an empty
- * plot is silent, a young city has one car pottering about, and a full one is
- * busy. Nothing is allocated per frame — every matrix, quaternion and colour is
- * a hoisted scratch object.
+ * Three fixed-capacity agent pools carry the whole system: 24 cars, 8 buses
+ * and 48 people, allocated once at construction with `count` set to however
+ * many are currently live. Population and building count drive that number, so
+ * an empty plot is silent, a young city has one car pottering about, and a full
+ * one is busy. Nothing is allocated per frame — every matrix, quaternion and
+ * colour is a hoisted scratch object.
+ *
+ * Buses are the third pool and share every line of the machinery below: same
+ * corner walk, same lane picker, same clearance table, same turn blend. What
+ * makes them read as public transport rather than as large cars is entirely in
+ * the constants — half a car again in length, half again in height, a flat roof
+ * where a car has a stepped cabin, a pale near-uniform livery where the cars
+ * are a box of painted tin toys, and two thirds the speed. Nothing about them
+ * needed new behaviour, and giving them any would have been a way to get them
+ * floating through a park lawn that the cars already know to avoid.
  *
  * Agents walk corner to corner along `sim/roads`. Segments are axis-aligned and
  * exactly one tile long, so progress along one is a single scalar and speed is
@@ -85,10 +94,18 @@ import { clamp01, smoothstep } from './palette'
 // ---------------------------------------------------------------------------
 
 const CAR_CAPACITY = 24
+const BUS_CAPACITY = 8
 const PERSON_CAPACITY = 48
 
 /** Tiles per second. A segment is one tile, so this is also segments/second. */
 const CAR_SPEED = 1.6
+/**
+ * Two thirds of a car. Speed is the cheapest of the three signals that say
+ * "bus" — a vehicle being overtaken is legible at ten pixels where a roofline
+ * is not — and it is also the one that keeps a 0.36 body from looking like it
+ * is being flung round the corners the lane blend rounds off for it.
+ */
+const BUS_SPEED = 1.1
 const PERSON_SPEED = 0.5
 /** Multiplicative spread either side of the base speed, so nothing convoys. */
 const SPEED_JITTER = 0.22
@@ -96,6 +113,14 @@ const SPEED_JITTER = 0.22
 /** Cars per building, people per head of population. Both clamp to capacity. */
 const CARS_PER_BUILDING = 0.3
 const PEOPLE_PER_POP = 0.26
+/**
+ * Buses per head of population. A tenth of the pedestrian rate and an order
+ * below the cars: the first bus arrives at about seventeen population, which is
+ * four or five houses, and a full plot runs five or six. Buses are the rarest
+ * thing on the street on purpose — a bus every few seconds reads as a city, and
+ * a bus every few tiles reads as a depot.
+ */
+const BUSES_PER_POP = 0.03
 
 /**
  * Wheels and feet on the tarmac. render/roads lays its surface at 0.012, so
@@ -158,6 +183,7 @@ const OPEN_CLEARANCE = 0.5
 
 /** Half-widths, taken at the largest per-instance scale rather than the mean. */
 const CAR_HALF = 0.042
+const BUS_HALF = 0.048
 const PERSON_HALF = 0.032
 
 const CAR_LENGTH = 0.24
@@ -170,14 +196,38 @@ const CAR_LENGTH = 0.24
  * is, and the car ends up a shade narrow at 3:1 — invisible at 15 pixels.
  */
 const CAR_WIDTH = 0.08
+
+/**
+ * A bus is half a car again in every direction that is free, and a hair more
+ * in the one that is not.
+ *
+ * Length and height cost nothing in the street corridor, so they take the whole
+ * difference: 0.36 against the car's 0.24, and 0.146 tall against 0.10, which
+ * is what a flat roof half again the height of a car's is for. Width is the
+ * expensive one. The tarmac runs to 0.1 either side of the seam and a bus rides
+ * the same 0.05 lane the cars do. The body is 0.09, the glazing band stands two
+ * thousandths proud of it either side, and the largest instance is 1.02 of
+ * that: 0.048 of half-width, so the flank lands at 0.098 — two thousandths
+ * inside the kerb, and still clear of the oncoming lane. A millimetre more and
+ * buses would be straddling the centre line on every street in the city rather
+ * than only beside the parks, where the clearance table pulls everything to the
+ * middle anyway.
+ */
+const BUS_LENGTH = 0.36
+const BUS_WIDTH = 0.09
+const BUS_HEIGHT = 0.146
+
 const PERSON_HEIGHT = 0.16
 const PERSON_WIDTH = 0.056
 
 /** Contact shadows: half-extents, and how dark the centre goes. */
 const CAR_SHADOW_R = 0.062
 const CAR_SHADOW_STRETCH = 2
+const BUS_SHADOW_R = 0.056
+const BUS_SHADOW_STRETCH = 3.3
 const PERSON_SHADOW_R = 0.042
 const CAR_SHADOW_DARK = 0.55
+const BUS_SHADOW_DARK = 0.5
 const PERSON_SHADOW_DARK = 0.6
 /** Just clear of the tarmac at 0.012, and biased forward besides. */
 const SHADOW_Y = 0.016
@@ -205,6 +255,23 @@ const CAR_COLORS = [
   0xc55f2e, // burnt orange
   0xefe6d2, // cream, the light one
   0x39434f, // slate, the dark one
+]
+
+/**
+ * Bus livery. The one place buses go the opposite way from everything else in
+ * this file: pale, low-saturation and nearly uniform, where the cars are deep
+ * and deliberately mismatched. That contrast is the point — a box of painted
+ * tin toys with three pale fleet-liveried vehicles moving slowly through it
+ * reads as public transport without a single decal — and the value separation
+ * the cars had to fight for comes free here, because all three sit clearly
+ * LIGHTER than the 0x9d978d tarmac rather than darker. The dark glazing band
+ * and the dark wheels supply the internal contrast that keeps a pale body from
+ * flattening into one blob.
+ */
+const BUS_COLORS = [
+  0x9dc0b4, // pale sage-teal
+  0xd9bd94, // pale caramel
+  0xa8bad4, // pale periwinkle
 ]
 
 /** A step gentler than the cars — there are twice as many of them. */
@@ -348,6 +415,54 @@ function buildCarGeometry(): BufferGeometry {
 }
 
 /**
+ * A bus: one long box with a flat cap on top, a dark glazing band running most
+ * of its length and four wheels tucked inside the flanks.
+ *
+ * The silhouette is doing all the work. A car is three stacked boxes because a
+ * stepped shoulder is what reads as a car at fifteen pixels; a bus is the
+ * opposite shape and gets the opposite treatment — one unbroken slab and a flat
+ * roof, so the two never resolve into the same blob at distance whatever
+ * colours they happen to be wearing. The glazing band is the one detail that
+ * survives the range, and it is the detail that says bus.
+ */
+function buildBusGeometry(): BufferGeometry {
+  const parts: BufferGeometry[] = []
+
+  const skirt = new BoxGeometry(BUS_LENGTH - 0.03, 0.02, BUS_WIDTH - 0.006)
+  skirt.translate(0, 0.032, 0)
+  parts.push(grey(skirt, 0.72))
+
+  const body = new BoxGeometry(BUS_LENGTH, 0.094, BUS_WIDTH)
+  body.translate(0, 0.085, 0)
+  parts.push(grey(body, 1))
+
+  // Two thousandths proud of the flanks, so the band never z-fights the body.
+  const glazing = new BoxGeometry(BUS_LENGTH - 0.06, 0.034, BUS_WIDTH + 0.004)
+  glazing.translate(0.004, 0.093, 0)
+  parts.push(grey(glazing, 0.42))
+
+  // Flat. A bus roof is the one surface this camera looks straight down on, so
+  // it is also where the difference from a car is most visible.
+  const roof = new BoxGeometry(BUS_LENGTH - 0.012, 0.014, BUS_WIDTH - 0.008)
+  roof.translate(0, BUS_HEIGHT - 0.007, 0)
+  parts.push(grey(roof, 0.88))
+
+  // Inside the flanks, for the same reason the car's are: the clearance table
+  // is checked against BUS_HALF, and a wheel sticking past it would make that
+  // number a lie.
+  for (const sx of [-1, 1]) {
+    for (const sz of [-1, 1]) {
+      const wheel = new CylinderGeometry(0.021, 0.021, 0.013, 6)
+      wheel.rotateX(Math.PI / 2)
+      wheel.translate(sx * 0.115, 0.021, sz * 0.036)
+      parts.push(grey(wheel, WHEEL_RATIO))
+    }
+  }
+
+  return merge(parts)
+}
+
+/**
  * Lamps and the wash they throw, drawn additively so they are light rather than
  * paint. Separate from the body because they must not take the car's colour.
  */
@@ -372,6 +487,40 @@ function buildLightGeometry(): BufferGeometry {
   const beam = fadedDisc(0.075, 12, BEAM_STRENGTH, 0, 1.5)
   beam.scale(1.7, 1, 1)
   beam.translate(0.18, -SURFACE_Y + 0.021, 0)
+  parts.push(beam)
+
+  return merge(parts)
+}
+
+/**
+ * The same for a bus, plus the thing a car does not get: a lit window band.
+ * A bus after dark is a moving strip of warm light — it is the most recognisable
+ * night-time silhouette on any street — and it costs two more planes on a mesh
+ * that already exists. Dimmer than the lamps, so the headlights still lead.
+ */
+function buildBusLightGeometry(): BufferGeometry {
+  const parts: BufferGeometry[] = []
+
+  for (const sz of [-1, 1]) {
+    const head = new PlaneGeometry(0.032, 0.022)
+    head.rotateY(Math.PI / 2)
+    head.translate(BUS_LENGTH / 2 + 0.002, 0.06, sz * 0.028)
+    parts.push(grey(head, 1))
+
+    const tail = new PlaneGeometry(0.028, 0.02)
+    tail.rotateY(-Math.PI / 2)
+    tail.translate(-BUS_LENGTH / 2 - 0.002, 0.06, sz * 0.03)
+    parts.push(paint(tail, TAILLIGHT_RATIO.r, TAILLIGHT_RATIO.g, TAILLIGHT_RATIO.b))
+
+    const windows = new PlaneGeometry(BUS_LENGTH - 0.07, 0.03)
+    if (sz < 0) windows.rotateY(Math.PI)
+    windows.translate(0.004, 0.093, sz * (BUS_WIDTH / 2 + 0.005))
+    parts.push(grey(windows, 0.5))
+  }
+
+  const beam = fadedDisc(0.08, 12, BEAM_STRENGTH, 0, 1.5)
+  beam.scale(1.7, 1, 1)
+  beam.translate(0.24, -SURFACE_Y + 0.021, 0)
   parts.push(beam)
 
   return merge(parts)
@@ -836,17 +985,27 @@ export function createTraffic(): Traffic {
 
   const carGeometry = buildCarGeometry()
   const lightGeometry = buildLightGeometry()
+  const busGeometry = buildBusGeometry()
+  const busLightGeometry = buildBusLightGeometry()
   const personGeometry = buildPersonGeometry()
   const carShadowGeometry = buildShadowGeometry(CAR_SHADOW_R, CAR_SHADOW_STRETCH, CAR_SHADOW_DARK)
+  const busShadowGeometry = buildShadowGeometry(BUS_SHADOW_R, BUS_SHADOW_STRETCH, BUS_SHADOW_DARK)
   const personShadowGeometry = buildShadowGeometry(PERSON_SHADOW_R, 1, PERSON_SHADOW_DARK)
 
   const carMesh = new InstancedMesh(carGeometry, bodyMaterial, CAR_CAPACITY)
   const lightMesh = new InstancedMesh(lightGeometry, lightMaterial, CAR_CAPACITY)
+  const busMesh = new InstancedMesh(busGeometry, bodyMaterial, BUS_CAPACITY)
+  const busLightMesh = new InstancedMesh(busLightGeometry, lightMaterial, BUS_CAPACITY)
   const personMesh = new InstancedMesh(personGeometry, bodyMaterial, PERSON_CAPACITY)
   const carShadowMesh = new InstancedMesh(carShadowGeometry, shadowMaterial, CAR_CAPACITY)
+  const busShadowMesh = new InstancedMesh(busShadowGeometry, shadowMaterial, BUS_CAPACITY)
   const personShadowMesh = new InstancedMesh(personShadowGeometry, shadowMaterial, PERSON_CAPACITY)
 
-  for (const mesh of [carMesh, lightMesh, personMesh, carShadowMesh, personShadowMesh]) {
+  const meshes = [
+    carMesh, lightMesh, busMesh, busLightMesh, personMesh,
+    carShadowMesh, busShadowMesh, personShadowMesh,
+  ]
+  for (const mesh of meshes) {
     mesh.count = 0
     // Instances range over the whole plot; the meshes' own bounds are one agent.
     mesh.frustumCulled = false
@@ -855,15 +1014,17 @@ export function createTraffic(): Traffic {
     mesh.castShadow = false
     mesh.receiveShadow = true
   }
-  lightMesh.receiveShadow = false
-  lightMesh.renderOrder = 6
-  lightMesh.visible = false
-  for (const mesh of [carShadowMesh, personShadowMesh]) {
+  for (const mesh of [lightMesh, busLightMesh]) {
+    mesh.receiveShadow = false
+    mesh.renderOrder = 6
+    mesh.visible = false
+  }
+  for (const mesh of [carShadowMesh, busShadowMesh, personShadowMesh]) {
     mesh.receiveShadow = false
     // Over the road, under the headlight beams.
     mesh.renderOrder = 3
   }
-  group.add(carMesh, lightMesh, personMesh, carShadowMesh, personShadowMesh)
+  group.add(...meshes)
 
   // Per-slot constants: colour, speed, lane and size are picked once from the
   // slot index and never change, so re-seeding an agent onto a new corner does
@@ -884,6 +1045,28 @@ export function createTraffic(): Traffic {
     cars.push(a)
     carColors.push(
       new Color().setHex(CAR_COLORS[(i * 5 + 1) % CAR_COLORS.length], SRGBColorSpace),
+    )
+  }
+
+  const buses: Agent[] = []
+  const busColors: Color[] = []
+  for (let i = 0; i < BUS_CAPACITY; i++) {
+    const a = makeAgent()
+    // A narrower speed band than the cars get. Buses that spread as widely as
+    // the traffic does would have one crawling and one keeping up with a car,
+    // and the whole point of the number is that a bus is the slow thing.
+    a.speed = BUS_SPEED * (0.92 + 0.16 * hash01(i + 20011))
+    // Same hand as the cars, and the same lane: a bus in the oncoming lane is
+    // not a bus, it is a bug.
+    a.laneMag = CAR_LANE
+    a.laneSign = 1
+    a.halfWidth = BUS_HALF
+    // Barely any. BUS_HALF is quoted at the largest instance, and every extra
+    // percent of scale is another percent of body hanging over the kerb.
+    a.scale = 0.98 + 0.04 * hash01(i + 40009)
+    buses.push(a)
+    busColors.push(
+      new Color().setHex(BUS_COLORS[(i * 2 + 1) % BUS_COLORS.length], SRGBColorSpace),
     )
   }
 
@@ -913,6 +1096,7 @@ export function createTraffic(): Traffic {
 
   let network: RoadNetwork | null = null
   let carCount = 0
+  let busCount = 0
   let personCount = 0
   /** Night level the instance colours were last written for. */
   let appliedNight = -1
@@ -928,11 +1112,19 @@ export function createTraffic(): Traffic {
       scratchColor.copy(carColors[i]).multiplyScalar(1 + 0.18 * night)
       carMesh.setColorAt(i, scratchColor)
     }
+    for (let i = 0; i < BUS_CAPACITY; i++) {
+      // The smallest lift of the three. A bus livery is already pale, and
+      // lifting it as hard as a car's would push it to white after dark and
+      // take the glazing band with it.
+      scratchColor.copy(busColors[i]).multiplyScalar(1 + 0.12 * night)
+      busMesh.setColorAt(i, scratchColor)
+    }
     for (let i = 0; i < PERSON_CAPACITY; i++) {
       scratchColor.copy(personColors[i]).multiplyScalar(1 + 0.36 * night)
       personMesh.setColorAt(i, scratchColor)
     }
     if (carMesh.instanceColor) carMesh.instanceColor.needsUpdate = true
+    if (busMesh.instanceColor) busMesh.instanceColor.needsUpdate = true
     if (personMesh.instanceColor) personMesh.instanceColor.needsUpdate = true
   }
 
@@ -956,17 +1148,32 @@ export function createTraffic(): Traffic {
     const segments = net.segmentCount
     const wantCars =
       segments === 0 ? 0 : Math.min(CAR_CAPACITY, segments, Math.round(buildings * CARS_PER_BUILDING))
+    // A quarter of the segment ceiling the cars get, and a hard zero with no
+    // streets: a bus needs somewhere to be going, and four seams is the least
+    // that reads as a route rather than as a vehicle circling one block.
+    const wantBuses =
+      segments === 0
+        ? 0
+        : Math.min(
+            BUS_CAPACITY,
+            Math.floor(segments / 4),
+            Math.round(derived.population * BUSES_PER_POP),
+          )
     const wantPeople =
       segments === 0
         ? 0
         : Math.min(PERSON_CAPACITY, segments * 2, Math.round(derived.population * PEOPLE_PER_POP))
 
     carCount = reseat(cars, wantCars)
+    busCount = reseat(buses, wantBuses)
     personCount = reseat(people, wantPeople)
 
     carMesh.count = carCount
     lightMesh.count = carCount
     carShadowMesh.count = carCount
+    busMesh.count = busCount
+    busLightMesh.count = busCount
+    busShadowMesh.count = busCount
     personMesh.count = personCount
     personShadowMesh.count = personCount
   }
@@ -1135,6 +1342,20 @@ export function createTraffic(): Traffic {
       carShadowMesh.instanceMatrix.needsUpdate = true
     }
 
+    if (network && busCount > 0) {
+      for (let i = 0; i < busCount; i++) {
+        const a = buses[i]
+        advance(a, d)
+        poseAgent(a, 0, 0)
+        busMesh.setMatrixAt(i, scratchMatrix)
+        busLightMesh.setMatrixAt(i, scratchMatrix)
+        busShadowMesh.setMatrixAt(i, scratchShadow)
+      }
+      busMesh.instanceMatrix.needsUpdate = true
+      busLightMesh.instanceMatrix.needsUpdate = true
+      busShadowMesh.instanceMatrix.needsUpdate = true
+    }
+
     if (network && personCount > 0) {
       for (let i = 0; i < personCount; i++) {
         const a = people[i]
@@ -1167,26 +1388,27 @@ export function createTraffic(): Traffic {
       appliedBeam = beam
     }
     lightMesh.visible = beam > 0.01 && carCount > 0
+    busLightMesh.visible = beam > 0.01 && busCount > 0
   }
 
   function dispose(): void {
-    group.remove(carMesh, lightMesh, personMesh, carShadowMesh, personShadowMesh)
+    group.remove(...meshes)
     group.clear()
-    carMesh.dispose()
-    lightMesh.dispose()
-    personMesh.dispose()
-    carShadowMesh.dispose()
-    personShadowMesh.dispose()
+    for (const mesh of meshes) mesh.dispose()
     carGeometry.dispose()
     lightGeometry.dispose()
+    busGeometry.dispose()
+    busLightGeometry.dispose()
     personGeometry.dispose()
     carShadowGeometry.dispose()
+    busShadowGeometry.dispose()
     personShadowGeometry.dispose()
     bodyMaterial.dispose()
     lightMaterial.dispose()
     shadowMaterial.dispose()
     network = null
     carCount = 0
+    busCount = 0
     personCount = 0
   }
 
