@@ -10,7 +10,8 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "pacing": "vite-node scripts/pacing.ts",
-    "shot": "node scripts/shot.mjs"
+    "shot": "node scripts/shot.mjs",
+    "audio-check": "node scripts/audio-check.mjs"
   },
   "dependencies": {
     "three": "^0.180.0"

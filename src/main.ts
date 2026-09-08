@@ -1,3 +1,4 @@
+import { createMusic } from './audio/music'
 import { createRenderer } from './render/scene'
 import type { PickTarget, Renderer, Tool } from './render/api'
 import { createHud } from './ui/hud'
@@ -29,6 +30,8 @@ let tool: Tool = { kind: 'none' }
 let hovered: PickTarget | null = null
 let structureDirty = true
 
+const music = createMusic()
+
 const renderer: Renderer = createRenderer(canvas, { onPick, onHover })
 const hud: Hud = createHud(uiRoot, {
   onSelectTool: setTool,
@@ -38,7 +41,21 @@ const hud: Hud = createHud(uiRoot, {
   onClearQueue: () => {
     clearQueue(state)
   },
+  onToggleMusic: () => {
+    music.setEnabled(!music.getState().enabled)
+  },
+  onMusicVolume: (level) => {
+    music.setVolume(level)
+  },
 })
+
+music.subscribe((musicState) => hud.setMusicState(musicState))
+
+// Browsers block audio until the page has been interacted with, so the first
+// real gesture is what actually starts playback. Placing a park counts.
+for (const event of ['pointerdown', 'keydown'] as const) {
+  window.addEventListener(event, () => music.unlock(), { passive: true })
+}
 
 function setTool(next: Tool): void {
   tool = next
@@ -155,6 +172,7 @@ document.addEventListener('visibilitychange', () => {
   else comeBack()
 })
 window.addEventListener('pagehide', goAway)
+window.addEventListener('pagehide', () => music.dispose())
 window.addEventListener('beforeunload', () => save(state))
 
 window.addEventListener('keydown', (event) => {

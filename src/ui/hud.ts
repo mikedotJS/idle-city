@@ -7,6 +7,7 @@
  * has actually changed.
  */
 
+import type { MusicState } from '../audio/music'
 import type { Tool } from '../render/api'
 import { BUILDINGS, buildingCost } from '../sim/buildings'
 import { INCOME_FLOOR, OFFLINE_CAP_SECONDS } from '../sim/config'
@@ -229,6 +230,54 @@ export function createHud(root: HTMLElement, cb: HudCallbacks): Hud {
 
   queuePanel.append(queueList, queueRepeat, queueActions)
   rightSide.append(queuePanel)
+
+  // ------------------------------------------------------------------- music
+
+  const musicPanel = el('section', 'panel panel--music')
+  const musicRow = el('div', 'music__row')
+  const musicButton = el('button', 'music__toggle')
+  musicButton.type = 'button'
+  musicButton.addEventListener('click', () => cb.onToggleMusic())
+  const musicTitle = el('span', 'music__title')
+  musicRow.append(musicButton, musicTitle)
+
+  const musicVolume = document.createElement('input')
+  musicVolume.type = 'range'
+  musicVolume.className = 'music__volume'
+  musicVolume.min = '0'
+  musicVolume.max = '100'
+  musicVolume.step = '1'
+  musicVolume.setAttribute('aria-label', 'Music volume')
+  musicVolume.addEventListener('input', () => {
+    cb.onMusicVolume(Number(musicVolume.value) / 100)
+  })
+
+  musicPanel.append(musicRow, musicVolume)
+  rightSide.append(musicPanel)
+
+  let musicSignature = ''
+
+  function setMusicState(music: MusicState): void {
+    // The waiting state is the normal state on load, not a failure: browsers
+    // block audio until the page has been interacted with.
+    const label = !music.enabled
+      ? 'Music off'
+      : music.waitingForGesture
+        ? 'Click anywhere to start the music'
+        : (music.nowPlaying ?? 'Music on')
+    const signature = `${music.enabled}|${label}|${music.volume}`
+    if (signature === musicSignature) return
+    musicSignature = signature
+
+    setText(musicButton, music.enabled ? 'Music on' : 'Music off')
+    musicButton.className = music.enabled ? 'music__toggle is-on' : 'music__toggle'
+    musicButton.setAttribute('aria-pressed', String(music.enabled))
+    setText(musicTitle, music.enabled ? label : '')
+    musicPanel.classList.toggle('is-muted', !music.enabled)
+    if (document.activeElement !== musicVolume) {
+      musicVolume.value = String(Math.round(music.volume * 100))
+    }
+  }
 
   // ------------------------------------------------------------------ toasts
 
@@ -513,5 +562,5 @@ export function createHud(root: HTMLElement, cb: HudCallbacks): Hud {
 
   paintSelection()
 
-  return { update, setTool, setHoverInfo, showOfflineEarnings, toast }
+  return { update, setTool, setHoverInfo, setMusicState, showOfflineEarnings, toast }
 }
