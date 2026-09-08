@@ -9,7 +9,7 @@
 
 import type { MusicState } from '../audio/music'
 import type { Tool } from '../render/api'
-import { BUILDINGS, buildingCost } from '../sim/buildings'
+import { BUILDINGS, BUILDING_TYPES, buildingCost } from '../sim/buildings'
 import { INCOME_FLOOR, OFFLINE_CAP_SECONDS } from '../sim/config'
 import type { BuildingType, CityState, Derived, QueueableType } from '../sim/types'
 import type { HoverInfo, Hud, HudCallbacks } from './api'
@@ -23,8 +23,16 @@ import {
 } from './format'
 import type { HappinessKey } from './format'
 
-/** Buildings the player places by hand. The only two that emit into the field. */
-const MANUAL_TYPES: BuildingType[] = ['factory', 'park']
+/**
+ * Buildings the player places by hand — the ones that emit into the field.
+ *
+ * Read off the registry rather than listed by hand. A hardcoded list was a
+ * second source of truth for which buildings the player places: adding the
+ * station left it unplaceable, with nothing anywhere reporting a problem.
+ */
+const MANUAL_TYPES: BuildingType[] = BUILDING_TYPES.filter(
+  (type) => BUILDINGS[type].placement === 'manual',
+)
 /** Buildings the auto-builder will take off the queue. */
 const QUEUE_TYPES: QueueableType[] = ['house', 'shop']
 

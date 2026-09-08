@@ -22,7 +22,9 @@ import type { PickTarget, Renderer, RendererCallbacks, Tool } from './api'
 import { createBuildings } from './buildings'
 import { createCameraRig } from './camera'
 import { createGround } from './ground'
+import { createRailView } from './rail'
 import { createRoads } from './roads'
+import { createTerrainView } from './terrain'
 import { createTraffic } from './traffic'
 import { SHADOW_MAP_TYPE, createLighting } from './lighting'
 
@@ -42,9 +44,13 @@ export function createRenderer(canvas: HTMLCanvasElement, cb: RendererCallbacks)
   const lighting = createLighting(scene)
   const ground = createGround(scene)
   const buildings = createBuildings(scene)
+  const terrainView = createTerrainView()
   const roads = createRoads()
+  const rail = createRailView()
   const traffic = createTraffic()
-  scene.add(roads.object, traffic.object)
+  // Terrain first: the water surface is translucent and must draw after the
+  // lake bed but before anything standing on the shore.
+  scene.add(terrainView.object, roads.object, rail.object, traffic.object)
   const rig = createCameraRig(canvas)
 
   const pickables = [...ground.pickables, ...buildings.pickables]
@@ -247,7 +253,9 @@ export function createRenderer(canvas: HTMLCanvasElement, cb: RendererCallbacks)
     // Streets are derived from the layout, exactly like the happiness field,
     // so they are recomputed here and never stored.
     const network = computeRoads(state)
+    terrainView.sync(state)
     roads.sync(state, network)
+    rail.sync(state)
     traffic.sync(state, derived, network)
     ground.update({ field: derived.field, night: 0 })
     rig.frameOwned(ownedExtent(state))
@@ -267,7 +275,9 @@ export function createRenderer(canvas: HTMLCanvasElement, cb: RendererCallbacks)
       night,
       demolishTile: demolishTile(),
     })
+    terrainView.frame(dt, night)
     roads.frame(dt, night)
+    rail.frame(dt, night)
     traffic.frame(dt, night)
     rig.update(dt)
     if (pointerInside) refreshHover()
@@ -288,7 +298,9 @@ export function createRenderer(canvas: HTMLCanvasElement, cb: RendererCallbacks)
     canvas.removeEventListener('pointerup', onPointerUp)
     rig.dispose()
     traffic.dispose()
+    rail.dispose()
     roads.dispose()
+    terrainView.dispose()
     buildings.dispose()
     ground.dispose()
     lighting.dispose()
