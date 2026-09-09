@@ -12,29 +12,13 @@
  * Uses the custom properties from style.css's :root — no colours of its own.
  */
 
-/*
- * Left of the leaderboard launcher, not on top of it. `.panel--board-launch`
- * is also a fixed island at right:18px bottom:18px and is NOT part of the .hud
- * grid, so reading that grid alone says this corner is empty when it is not.
- * 264px clears the launcher's 230px cap plus a gap. This project has shipped
- * the invisible-overlap bug twice — a correct button under something else,
- * reported as "I click and nothing happens" — so anything fixed-positioned
- * gets checked against every other fixed island, not just the grid.
- */
+/* Positioned by ui/shell.ts's .shell-dock now, not on its own — see
+   shell.ts's header comment. */
 .tools-root {
-  position: fixed;
-  /* Clear of the right-hand HUD column AND of the leaderboard launcher, both
-     of which are fixed islands this panel is not part of. Derived from
-     --hud-side rather than copied, so widening that column moves this too. */
-  right: calc(var(--hud-side) + 30px);
-  bottom: 18px;
-  z-index: 5;
   display: flex;
   flex-direction: column;
   align-items: flex-end;
   gap: 12px;
-  /* The wrapper itself must never catch a pointer event — only the toggle
-     and the panel, both marked pointer-events: auto below, should. */
   pointer-events: none;
 }
 

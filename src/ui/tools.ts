@@ -35,6 +35,8 @@ export interface ToolsCallbacks {
 }
 
 export interface ToolsPanel {
+  /** The whole tools block (toggle + collapsible panel), for a caller to place. */
+  element: HTMLElement
   /** Called every animation frame. Cheap: bail early when nothing changed. */
   update(state: CityState): void
   dispose(): void
@@ -70,7 +72,6 @@ function setText(node: HTMLElement, value: string): void {
 }
 
 export function createToolsPanel(
-  root: HTMLElement,
   getState: () => CityState,
   callbacks: ToolsCallbacks,
 ): ToolsPanel {
@@ -312,7 +313,6 @@ export function createToolsPanel(
   })
 
   wrap.append(toggleButton, panel)
-  root.append(wrap)
 
   refreshUndo(getState())
 
@@ -325,5 +325,5 @@ export function createToolsPanel(
     wrap.remove()
   }
 
-  return { update, dispose }
+  return { element: wrap, update, dispose }
 }
