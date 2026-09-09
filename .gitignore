@@ -6,3 +6,4 @@ dist
 
 # Scratch harnesses written next to the project during a session.
 .tmp-*
+.superpowers/
