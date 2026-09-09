@@ -746,9 +746,6 @@ body {
 /* -------------------------------------------------------------- leaderboard */
 
 .panel--board-launch {
-  position: fixed;
-  right: 18px;
-  bottom: 18px;
   display: flex;
   flex-direction: column;
   gap: 6px;

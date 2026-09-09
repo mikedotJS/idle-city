@@ -20,6 +20,8 @@ import { formatCoins } from './format'
 const CITY_NAME_KEY = 'micro-city-name'
 
 export interface LeaderboardUI {
+  /** The launcher button + hint, ready to be placed by a caller. The modal overlay it opens is unaffected — it's appended straight to root and stays fixed, full-screen, independent of any dock. */
+  launcher: HTMLElement
   dispose(): void
 }
 
@@ -48,7 +50,7 @@ export function createLeaderboardUI(
   getState: () => CityState,
 ): LeaderboardUI {
   if (!board.configured) {
-    return { dispose: () => {} }
+    return { launcher: el('span'), dispose: () => {} }
   }
 
   // ------------------------------------------------------------------ button
@@ -126,7 +128,7 @@ export function createLeaderboardUI(
 
   card.append(headingRow, form, account, publishRow, status, list, closeButton)
   overlay.append(card)
-  root.append(launcher, overlay)
+  root.append(overlay)
 
   // ------------------------------------------------------------------- state
 
@@ -306,6 +308,7 @@ export function createLeaderboardUI(
   paintAuth()
 
   return {
+    launcher,
     dispose(): void {
       stopAutoPublish()
       window.removeEventListener('keydown', onKey, true)
