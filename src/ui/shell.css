@@ -1,15 +1,12 @@
 /*
- * The dock: every section's panels, side by side. Currently anchored
- * right: hud-side+30, bottom: 18, growing leftward as columns are added.
- * Social has joined as a second column, but the anchor has not been
- * redesigned for that — it just grew the dock left. A proper redesign
- * is needed before Ville (third column) arrives, since the current
- * right-anchored, leftward-growing approach won't hold.
+ * The dock: every section's panels, side by side. Left and right dock
+ * independently — each anchors straight to its own screen edge, 18px in,
+ * matching every other panel's corner margin in this codebase. A section
+ * joining or leaving one side never affects the other side's position.
  */
 
 .shell-dock {
   position: fixed;
-  right: calc(var(--hud-side) + 30px);
   bottom: 18px;
   z-index: 5;
   display: flex;
@@ -19,6 +16,14 @@
      a section's own panels should, same rule tools.ts and prestige.ts
      already followed for their own wrappers. */
   pointer-events: none;
+}
+
+.shell-dock--left {
+  left: 18px;
+}
+
+.shell-dock--right {
+  right: 18px;
 }
 
 .shell-dock__column {
