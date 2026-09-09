@@ -18,6 +18,7 @@
     "restart-check": "node scripts/restart-check.mjs"
   },
   "dependencies": {
+    "@weirdscience/based-client": "^0.6.1",
     "three": "^0.180.0"
   },
   "devDependencies": {
