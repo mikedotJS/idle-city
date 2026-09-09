@@ -56,3 +56,55 @@
   overflow: hidden;
   clip: rect(0, 0, 0, 0);
 }
+
+/* ---------------------------------------------------------------- mobile */
+
+.shell-tabbar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 7;
+  display: flex;
+  gap: 4px;
+  padding: 8px 8px calc(env(safe-area-inset-bottom, 0px) + 8px);
+  background: var(--paper);
+  border-top: 1px solid var(--line);
+  pointer-events: auto;
+}
+
+.shell-tab {
+  flex: 1;
+  min-height: 44px;
+  appearance: none;
+  border: none;
+  border-radius: var(--radius-card);
+  background: transparent;
+  color: var(--ink-soft);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 620;
+  cursor: pointer;
+}
+
+.shell-tab.is-active {
+  background: var(--accent-wash);
+  color: var(--accent-deep);
+}
+
+.shell-sheet {
+  position: fixed;
+  inset: 0;
+  bottom: 68px;
+  z-index: 6;
+  overflow-y: auto;
+  background: var(--paper);
+  padding: 16px;
+  pointer-events: auto;
+}
+
+.shell-sheet .shell-dock__column {
+  max-height: none;
+  overflow-y: visible;
+  align-items: stretch;
+}

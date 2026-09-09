@@ -8,9 +8,12 @@
  * stops needing to know about every other panel's coordinates to avoid
  * covering them.
  *
- * Desktop-only for now: sections dock side by side, always visible. The
- * mobile bottom tab bar this is designed to grow into is a later pass — see
- * docs/superpowers/specs/2026-09-09-hud-shell-redesign-design.md.
+ * At or above 960px wide, sections dock side by side, always visible — the
+ * same layout Phases 1-3 built. Below 960px, a bottom tab bar switches
+ * between full-height sheets, one section's content visible at a time. In
+ * both cases the same DOM nodes move between presentations rather than
+ * being rebuilt, so state inside a panel survives a tab switch or a resize
+ * across the breakpoint.
  *
  * Left and right dock independently: each side renders its own dock only
  * when it has at least one section, anchored straight to its own screen
@@ -50,6 +53,8 @@ export interface HudShell {
   dispose(): void
 }
 
+const DESKTOP_QUERY = '(min-width: 960px)'
+
 function buildColumn(section: HudSection): HTMLElement {
   const column = el('div', 'shell-dock__column')
   column.dataset.section = section.id
@@ -58,22 +63,78 @@ function buildColumn(section: HudSection): HTMLElement {
 }
 
 export function createShell(root: HTMLElement, sections: HudSection[]): HudShell {
-  const docks: HTMLElement[] = []
-
-  for (const side of ['left', 'right'] as const) {
-    const sideSections = sections.filter((section) => section.side === side)
-    if (sideSections.length === 0) continue
-    const dock = el('div', `shell-dock shell-dock--${side}`)
-    for (const section of sideSections) {
-      dock.append(buildColumn(section))
-    }
-    root.append(dock)
-    docks.push(dock)
+  const columns = new Map<string, HTMLElement>()
+  for (const section of sections) {
+    columns.set(section.id, buildColumn(section))
   }
+
+  // ------------------------------------------------------------- desktop
+
+  const docks = new Map<'left' | 'right', HTMLElement>()
+  for (const side of ['left', 'right'] as const) {
+    if (sections.some((section) => section.side === side)) {
+      docks.set(side, el('div', `shell-dock shell-dock--${side}`))
+    }
+  }
+
+  // ------------------------------------------------------------- mobile
+
+  const tabbar = el('div', 'shell-tabbar')
+  const sheet = el('div', 'shell-sheet')
+  const tabButtons = new Map<string, HTMLButtonElement>()
+  let activeId = sections[0]?.id
+
+  for (const section of sections) {
+    const button = el('button', 'shell-tab', section.label)
+    button.type = 'button'
+    button.addEventListener('click', () => {
+      activeId = section.id
+      renderMobile()
+    })
+    tabButtons.set(section.id, button)
+    tabbar.append(button)
+  }
+
+  function renderMobile(): void {
+    for (const [id, button] of tabButtons) {
+      button.classList.toggle('is-active', id === activeId)
+    }
+    const column = activeId ? columns.get(activeId) : undefined
+    sheet.replaceChildren(...(column ? [column] : []))
+  }
+
+  // --------------------------------------------------------- mode switch
+
+  const mq = window.matchMedia(DESKTOP_QUERY)
+
+  function applyMode(): void {
+    // Detach from wherever a column currently lives before re-attaching it —
+    // appending an already-attached node moves it, but a stale empty dock
+    // or sheet left behind looks like an empty panel rather than nothing.
+    for (const dock of docks.values()) dock.remove()
+    sheet.remove()
+    tabbar.remove()
+
+    if (mq.matches) {
+      for (const section of sections) {
+        docks.get(section.side)?.append(columns.get(section.id)!)
+      }
+      for (const dock of docks.values()) root.append(dock)
+    } else {
+      renderMobile()
+      root.append(sheet, tabbar)
+    }
+  }
+
+  mq.addEventListener('change', applyMode)
+  applyMode()
 
   return {
     dispose(): void {
-      for (const dock of docks) dock.remove()
+      mq.removeEventListener('change', applyMode)
+      for (const dock of docks.values()) dock.remove()
+      sheet.remove()
+      tabbar.remove()
     },
   }
 }
