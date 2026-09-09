@@ -246,7 +246,7 @@ Remove `onToggleMusic`, `onMusicVolume`, `onToggleSfx`, `onSfxVolume` from `HudC
 - [ ] **Step 5: Typecheck**
 
 Run: `npm run build`
-Expected: fails, listing every call site still passing the four removed callbacks or calling `hud.setMusicState`/`hud.setSfxState` — that's `main.ts`, fixed in Task 4. Confirm the *only* errors are in `main.ts`; anything else means a step above missed a reference.
+Expected: fails, listing every call site still passing the four removed callbacks or calling `hud.setMusicState`/`hud.setSfxState` — that's `main.ts`, fixed in Task 2 (Step 3, next commit). Confirm the *only* errors are in `main.ts`; anything else means a step above missed a reference.
 
 - [ ] **Step 6: Commit**
 
