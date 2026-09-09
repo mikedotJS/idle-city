@@ -4,6 +4,7 @@ import { computeField } from '../field'
 import {
   BASE_HAPPINESS,
   FACTORY_COINS,
+  FRIEND_INCOME_BONUS,
   INCOME_FLOOR,
   POP_PER_HOUSE,
   SHOP_COINS_PER_POP,
@@ -100,5 +101,25 @@ describe('derive', () => {
     expect(derive(state).cityHappiness).toBeCloseTo(expected, 6)
     // The empty tiles between them sit at BASE_HAPPINESS and must not dilute it.
     expect(derive(state).cityHappiness).not.toBeCloseTo(BASE_HAPPINESS, 6)
+  })
+
+  it('defaults friendCount to 0, so an omitted argument changes nothing', () => {
+    const state = quietCity()
+    put(state, 'factory', 5, 5)
+    expect(derive(state).incomeRate).toBeCloseTo(derive(state, 0).incomeRate, 9)
+  })
+
+  it('scales income up by FRIEND_INCOME_BONUS per confirmed friend', () => {
+    const state = quietCity()
+    put(state, 'factory', 5, 5)
+    const base = derive(state).incomeRate
+
+    expect(derive(state, 3).incomeRate).toBeCloseTo(base * (1 + FRIEND_INCOME_BONUS * 3), 6)
+    expect(derive(state, 10).incomeRate).toBeCloseTo(base * (1 + FRIEND_INCOME_BONUS * 10), 6)
+  })
+
+  it('leaves an already-zero income at zero no matter how many friends', () => {
+    // An empty city earns nothing to begin with; friends multiply that, not add to it.
+    expect(derive(quietCity(), 50).incomeRate).toBe(0)
   })
 })

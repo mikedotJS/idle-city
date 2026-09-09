@@ -1,5 +1,6 @@
 import {
   BASE_HAPPINESS,
+  FRIEND_INCOME_BONUS,
   HABITABLE_HAPPINESS,
   INCOME_FLOOR,
   LAND_BARREN_FLOOR,
@@ -85,7 +86,12 @@ export function nextLandCost(state: CityState): number | null {
   return cheapest
 }
 
-export function derive(state: CityState): Derived {
+/**
+ * `friendCount` is the only thing here that isn't drawn from `state`: it's
+ * social, not civic, so it doesn't belong in a save file. Defaults to 0 so
+ * every existing caller — tests included — is unaffected until it opts in.
+ */
+export function derive(state: CityState, friendCount = 0): Derived {
   const field = computeField(state)
 
   let population = 0
@@ -123,7 +129,7 @@ export function derive(state: CityState): Derived {
     field,
     population,
     cityHappiness,
-    incomeRate: base * (INCOME_FLOOR + cityHappiness),
+    incomeRate: base * (INCOME_FLOOR + cityHappiness) * (1 + FRIEND_INCOME_BONUS * friendCount),
     nextLandCost: nextLandCost(state),
   }
 }

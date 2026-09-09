@@ -39,6 +39,14 @@ export const HABITABLE_HAPPINESS = 0.3
 /** Income multiplier is INCOME_FLOOR + cityHappiness, so 0.5x .. 1.5x. */
 export const INCOME_FLOOR = 0.5
 
+/**
+ * A small, uncapped nudge to income per confirmed friend — a reason to add
+ * people, not a strategy that outweighs actually building a city. 10 friends
+ * is a 10% bump, roughly a third of what going from miserable to delighted
+ * happiness alone is worth.
+ */
+export const FRIEND_INCOME_BONUS = 0.01
+
 /** Shops earn per population within SHOP_RADIUS, up to SHOP_POP_CAP. */
 export const SHOP_RADIUS = 3
 export const SHOP_COINS_PER_POP = 0.06

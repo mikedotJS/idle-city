@@ -3,6 +3,8 @@ import { createSfx } from './audio/sfx'
 import { createBasedClient } from './net/based'
 import { createLeaderboard } from './net/leaderboard'
 import { createLeaderboardUI } from './ui/leaderboard'
+import { createFriends } from './net/friends'
+import { createFriendsUI } from './ui/friends'
 import { createRenderer } from './render/scene'
 import type { PickTarget, Renderer, Tool } from './render/api'
 import { createHud } from './ui/hud'
@@ -62,12 +64,22 @@ const sfx = createSfx()
 // The board is optional infrastructure. With no backend configured the client
 // reports itself unconfigured and the UI never enters the DOM, so the static
 // build keeps working exactly as it did before any of this existed.
-const leaderboard = createLeaderboard(
-  createBasedClient({
-    url: import.meta.env.VITE_BASED_URL,
-    anonKey: import.meta.env.VITE_BASED_ANON_KEY,
-  }),
-)
+//
+// One client, two features: friends and the leaderboard share the same
+// signed-in session rather than each asking to sign in separately.
+const basedClient = createBasedClient({
+  url: import.meta.env.VITE_BASED_URL,
+  anonKey: import.meta.env.VITE_BASED_ANON_KEY,
+})
+const leaderboard = createLeaderboard(basedClient)
+const friends = createFriends(basedClient)
+
+/**
+ * Confirmed friend count, pushed here by the friends panel whenever it
+ * changes. Read by the tick loop for the income bonus — social state, so it
+ * lives beside the sim rather than inside CityState, which is a save file.
+ */
+let friendCount = 0
 
 const renderer: Renderer = createRenderer(canvas, { onPick, onHover })
 const hud: Hud = createHud(uiRoot, {
@@ -111,6 +123,9 @@ music.subscribe((musicState) => hud.setMusicState(musicState))
 sfx.subscribe((sfxState) => hud.setSfxState(sfxState))
 
 createLeaderboardUI(uiRoot, leaderboard, currentCity)
+createFriendsUI(uiRoot, friends, (confirmedCount) => {
+  friendCount = confirmedCount
+})
 
 const activity = createActivityPanel(uiRoot, {
   onGoTo: (tile) => {
@@ -146,7 +161,7 @@ const tools = createToolsPanel(uiRoot, currentCity, {
     // one may survive: the undo stack would restore a building onto somebody
     // else's map, and the renderer's instances belong to the old layout.
     state = next
-    derived = derive(state)
+    derived = derive(state, friendCount)
     forgetDemolitions()
     structureDirty = true
     save(state)
@@ -361,7 +376,7 @@ function frame(now: number): void {
   if (!document.hidden) {
     accumulator += simDt
     while (accumulator >= SIM_DT) {
-      const result = step(state, SIM_DT)
+      const result = step(state, SIM_DT, friendCount)
       derived = result.derived
       if (result.structureChanged) structureDirty = true
       accumulator -= SIM_DT

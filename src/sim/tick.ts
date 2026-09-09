@@ -69,10 +69,10 @@ function updateDereliction(state: CityState, field: Float32Array): boolean {
 }
 
 /** Advance the sim by dt seconds. Callers pass fixed SIM_DT steps. */
-export function step(state: CityState, dt: number): TickResult {
+export function step(state: CityState, dt: number, friendCount = 0): TickResult {
   state.time += dt
 
-  let derived = derive(state)
+  let derived = derive(state, friendCount)
   let structureChanged = false
 
   // Earn at the rate the layout had over this step, before anything changes it.
@@ -80,13 +80,13 @@ export function step(state: CityState, dt: number): TickResult {
 
   if (updateDereliction(state, derived.field)) {
     structureChanged = true
-    derived = derive(state)
+    derived = derive(state, friendCount)
   }
 
   if (state.time >= state.nextBuildAt) {
     if (tryAutoBuild(state, derived)) {
       structureChanged = true
-      derived = derive(state)
+      derived = derive(state, friendCount)
     }
   }
 

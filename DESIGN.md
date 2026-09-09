@@ -435,6 +435,18 @@ behaviour so it cannot drift unnoticed. Scores are computed by the browser: the
 backend cannot yet recompute them, so a score can be inflated even though no
 player can overwrite another's row.
 
+The same account adds friends by trading a code — each other's user id,
+copied out of the Friends panel — rather than by looking anyone up: Based has
+no directory, and building one is a bigger, privacy-sensitive change than a
+friends list needed. A friendship only counts once both sides have added the
+other; one-sided adds sit as pending until the other side reciprocates. Each
+confirmed friend nudges income up by a fixed, small percentage
+(`FRIEND_INCOME_BONUS`) — a reason to add people, not a strategy that
+outweighs actually building a city. Nothing stops a player from confirming a
+"friendship" with a second account they also control, the same shape of gap
+as the unverified score above: harmless to other players, but not proof
+against someone gaming their own number.
+
 ### Spatial sound design
 
 Music says how the city feels in general; this says what it is doing right

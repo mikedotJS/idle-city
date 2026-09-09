@@ -924,6 +924,15 @@ body {
   max-width: 230px;
 }
 
+.panel--friends-launch {
+  position: fixed;
+  right: 18px;
+  bottom: 92px;
+  display: flex;
+  padding: 10px 12px;
+  pointer-events: auto;
+}
+
 .panel--board {
   width: min(560px, 92vw);
   max-height: 86vh;
