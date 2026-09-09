@@ -13,6 +13,8 @@ import type { Friends } from '../net/friends'
 import type { BasedUser } from '../net/based'
 
 export interface FriendsUI {
+  /** The launcher button + hint, ready to be placed by a caller. The modal overlay it opens is unaffected — it's appended straight to root and stays fixed, full-screen, independent of any dock. */
+  launcher: HTMLElement
   dispose(): void
 }
 
@@ -33,7 +35,7 @@ export function createFriendsUI(
   onCountChange: (confirmedCount: number) => void,
 ): FriendsUI {
   if (!friends.configured) {
-    return { dispose: () => {} }
+    return { launcher: el('span'), dispose: () => {} }
   }
 
   // ------------------------------------------------------------------ button
@@ -99,7 +101,7 @@ export function createFriendsUI(
     closeButton,
   )
   overlay.append(card)
-  root.append(launcher, overlay)
+  root.append(overlay)
 
   // ------------------------------------------------------------------- state
 
@@ -209,6 +211,7 @@ export function createFriendsUI(
   paint()
 
   return {
+    launcher,
     dispose(): void {
       window.removeEventListener('keydown', onKey, true)
       launcher.remove()
