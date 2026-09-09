@@ -1,10 +1,10 @@
 /*
- * The dock: every section's panels, side by side. Provisionally anchored
- * where tools.ts's own launcher used to sit (right: hud-side+30, bottom:18)
- * — proven clear of the leaderboard/friends launchers, which are not on the
- * shell yet. Revisited once the Social and Ville sections join (see the
- * design doc's migration order) and this needs to account for all of them
- * at once instead of reusing one panel's old safe spot.
+ * The dock: every section's panels, side by side. Currently anchored
+ * right: hud-side+30, bottom: 18, growing leftward as columns are added.
+ * Social has joined as a second column, but the anchor has not been
+ * redesigned for that — it just grew the dock left. A proper redesign
+ * is needed before Ville (third column) arrives, since the current
+ * right-anchored, leftward-growing approach won't hold.
  */
 
 .shell-dock {

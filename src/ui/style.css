@@ -604,6 +604,7 @@ body {
   align-items: center;
   gap: 7px;
   pointer-events: none;
+  z-index: 6;
 }
 
 .toast {
