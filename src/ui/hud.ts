@@ -7,8 +7,6 @@
  * has actually changed.
  */
 
-import type { MusicState } from '../audio/music'
-import type { SfxState } from '../audio/sfx'
 import type { Tool } from '../render/api'
 import { BUILDINGS, BUILDING_TYPES, buildingCost } from '../sim/buildings'
 import { INCOME_FLOOR, OFFLINE_CAP_SECONDS } from '../sim/config'
@@ -290,102 +288,6 @@ export function createHud(root: HTMLElement, cb: HudCallbacks): Hud {
   restartPanel.append(restartButton)
   rightSide.append(restartPanel)
 
-  // ------------------------------------------------------------------- music
-
-  const musicPanel = el('section', 'panel panel--music')
-  const musicRow = el('div', 'music__row')
-  const musicButton = el('button', 'music__toggle')
-  musicButton.type = 'button'
-  musicButton.addEventListener('click', () => cb.onToggleMusic())
-  const musicTitle = el('span', 'music__title')
-  musicRow.append(musicButton, musicTitle)
-
-  const musicVolume = document.createElement('input')
-  musicVolume.type = 'range'
-  musicVolume.className = 'music__volume'
-  musicVolume.min = '0'
-  musicVolume.max = '100'
-  musicVolume.step = '1'
-  musicVolume.setAttribute('aria-label', 'Music volume')
-  musicVolume.addEventListener('input', () => {
-    cb.onMusicVolume(Number(musicVolume.value) / 100)
-  })
-
-  musicPanel.append(musicRow, musicVolume)
-  rightSide.append(musicPanel)
-
-  // ------------------------------------------------------------------- sound
-
-  // Its own panel rather than folded into the music one: the two are
-  // unrelated to a player deciding whether to hear them — someone might want
-  // the music and none of the clatter of a factory going up, or the other way
-  // round — so each gets its own toggle and its own volume.
-  const soundPanel = el('section', 'panel panel--sound')
-  const soundRow = el('div', 'sound__row')
-  const soundButton = el('button', 'sound__toggle')
-  soundButton.type = 'button'
-  soundButton.addEventListener('click', () => cb.onToggleSfx())
-  const soundTitle = el('span', 'sound__title', 'Sound effects')
-  soundRow.append(soundButton, soundTitle)
-
-  const soundVolume = document.createElement('input')
-  soundVolume.type = 'range'
-  soundVolume.className = 'sound__volume'
-  soundVolume.min = '0'
-  soundVolume.max = '100'
-  soundVolume.step = '1'
-  soundVolume.setAttribute('aria-label', 'Sound effects volume')
-  soundVolume.addEventListener('input', () => {
-    cb.onSfxVolume(Number(soundVolume.value) / 100)
-  })
-
-  soundPanel.append(soundRow, soundVolume)
-  rightSide.append(soundPanel)
-
-  let musicSignature = ''
-  let sfxSignature = ''
-
-  function setMusicState(music: MusicState): void {
-    // The waiting state is the normal state on load, not a failure: browsers
-    // block audio until the page has been interacted with.
-    const label = !music.enabled
-      ? 'Music off'
-      : music.waitingForGesture
-        ? 'Click anywhere to start the music'
-        : (music.nowPlaying ?? 'Music on')
-    const signature = `${music.enabled}|${label}|${music.volume}`
-    if (signature === musicSignature) return
-    musicSignature = signature
-
-    setText(musicButton, music.enabled ? 'Music on' : 'Music off')
-    musicButton.className = music.enabled ? 'music__toggle is-on' : 'music__toggle'
-    musicButton.setAttribute('aria-pressed', String(music.enabled))
-    setText(musicTitle, music.enabled ? label : '')
-    musicPanel.classList.toggle('is-muted', !music.enabled)
-    if (document.activeElement !== musicVolume) {
-      musicVolume.value = String(Math.round(music.volume * 100))
-    }
-  }
-
-  function setSfxState(sfx: SfxState): void {
-    const label = !sfx.enabled
-      ? 'Sound off'
-      : sfx.waitingForGesture
-        ? 'Click anywhere to start'
-        : 'Sound on'
-    const signature = `${sfx.enabled}|${label}|${sfx.volume}`
-    if (signature === sfxSignature) return
-    sfxSignature = signature
-
-    setText(soundButton, sfx.enabled ? 'Sound on' : 'Sound off')
-    soundButton.className = sfx.enabled ? 'sound__toggle is-on' : 'sound__toggle'
-    soundButton.setAttribute('aria-pressed', String(sfx.enabled))
-    setText(soundTitle, sfx.enabled ? label : 'Sound effects')
-    soundPanel.classList.toggle('is-muted', !sfx.enabled)
-    if (document.activeElement !== soundVolume) {
-      soundVolume.value = String(Math.round(sfx.volume * 100))
-    }
-  }
 
   // ------------------------------------------------------------------ toasts
 
@@ -671,5 +573,5 @@ export function createHud(root: HTMLElement, cb: HudCallbacks): Hud {
 
   paintSelection()
 
-  return { update, setTool, setHoverInfo, setMusicState, setSfxState, showOfflineEarnings, toast }
+  return { update, setTool, setHoverInfo, showOfflineEarnings, toast }
 }
