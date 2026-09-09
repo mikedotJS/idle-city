@@ -8,6 +8,7 @@ import {
 import { buildingCost } from './buildings'
 import { nextRandom, parcelOfTile, tileDistance, tileX, tileZ } from './grid'
 import { spawnBuilding } from './actions'
+import { recordEvent } from './events'
 import { isBuildable, terrainFor } from './terrain'
 import type { Building, CityState, Derived } from './types'
 
@@ -96,6 +97,13 @@ function tryUpgrade(state: CityState, derived: Derived): Building | null {
 
   state.coins -= best
   target.level++
+  recordEvent(state, {
+    kind: 'upgraded',
+    at: state.time,
+    where: target.tile,
+    type: target.type,
+    level: target.level,
+  })
   state.nextBuildAt = state.time + BUILD_INTERVAL / (INCOME_FLOOR + derived.cityHappiness)
   return target
 }
@@ -126,6 +134,7 @@ export function tryAutoBuild(state: CityState, derived: Derived): Building | nul
 
   state.coins -= cost
   const building = spawnBuilding(state, type, tile)
+  recordEvent(state, { kind: 'built', at: state.time, where: tile, type })
 
   // The queue rotates rather than draining: what was just built goes to the back,
   // so the list is a repeating policy ([house, house, shop] builds two houses per

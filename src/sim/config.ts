@@ -60,5 +60,5 @@ export const BUILD_INTERVAL = 8
 export const OFFLINE_CAP_SECONDS = 8 * 3600
 
 export const SAVE_KEY = 'micro-city-save'
-export const SAVE_VERSION = 2
+export const SAVE_VERSION = 3
 export const AUTOSAVE_INTERVAL = 5 // seconds of sim time

@@ -8,6 +8,7 @@ import {
 } from './config'
 import { BUILDINGS, BUILDING_TYPES } from './buildings'
 import { derive } from './economy'
+import { EVENT_LIMIT, type CityEvent } from './events'
 import type { Building, BuildingType, CityState, QueueableType } from './types'
 
 /** localStorage is the only DOM API the sim touches, and only here. */
@@ -115,8 +116,9 @@ function validate(raw: unknown): CityState | null {
   const s = raw as Record<string, unknown>
 
   // A version bump used to throw the city away. Migrating instead costs a few
-  // defaults and keeps everyone's plot: the v1 shape is a strict subset of v2.
-  if (s.version !== SAVE_VERSION && s.version !== 1) return null
+  // defaults and keeps everyone's plot: each older shape is a strict subset of
+  // the next, so every field added since is simply defaulted below.
+  if (typeof s.version !== 'number' || s.version < 1 || s.version > SAVE_VERSION) return null
   if (!isFinite_(s.time) || !isFinite_(s.coins)) return null
   if (!isFinite_(s.rngSeed) || !isFinite_(s.nextBuildAt) || !isFinite_(s.lastSavedAt)) return null
 
@@ -173,5 +175,31 @@ function validate(raw: unknown): CityState | null {
     terrainSeed: isFinite_(s.terrainSeed) ? (s.terrainSeed as number) | 0 : ((s.rngSeed as number) | 0) ^ 0x5eed,
     nextBuildAt: s.nextBuildAt,
     lastSavedAt: s.lastSavedAt,
+    events: validateEvents(s.events),
+    // Saves from before the activity log have nothing to report, so the window
+    // starts closed rather than announcing the whole history of the city.
+    lastSeenAt: isFinite_(s.lastSeenAt) ? (s.lastSeenAt as number) : (s.time as number),
   }
+}
+
+const EVENT_KINDS = new Set(['built', 'upgraded', 'derelict', 'recovered', 'demolished', 'land'])
+
+/** A malformed entry is dropped, never fatal: the log is news, not the city. */
+function validateEvents(raw: unknown): CityEvent[] {
+  if (!Array.isArray(raw)) return []
+  const out: CityEvent[] = []
+  for (const item of raw.slice(-EVENT_LIMIT)) {
+    if (typeof item !== 'object' || item === null) continue
+    const e = item as Record<string, unknown>
+    if (typeof e.kind !== 'string' || !EVENT_KINDS.has(e.kind)) continue
+    if (!isFinite_(e.at) || !isFinite_(e.where)) continue
+    out.push({
+      kind: e.kind as CityEvent['kind'],
+      at: e.at,
+      where: e.where,
+      type: typeof e.type === 'string' && e.type in BUILDINGS ? (e.type as BuildingType) : undefined,
+      level: isFinite_(e.level) ? (e.level as number) : undefined,
+    })
+  }
+  return out
 }

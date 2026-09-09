@@ -1,3 +1,5 @@
+import type { CityEvent } from './events'
+
 export type BuildingType = 'house' | 'shop' | 'factory' | 'park' | 'station'
 
 /** Types the build queue may contain. Factory and park are placed by hand. */
@@ -45,6 +47,10 @@ export interface CityState {
   nextBuildAt: number
   /** Wall-clock ms of the last save, for offline earnings. */
   lastSavedAt: number
+  /** Recent things the city did to itself. Capped; see sim/events.ts. */
+  events: CityEvent[]
+  /** Sim time of the player's last action. Everything before it has been seen. */
+  lastSeenAt: number
 }
 
 /** Recomputed from CityState. Never saved, never mutated by the renderer. */

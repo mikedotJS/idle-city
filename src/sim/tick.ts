@@ -5,6 +5,7 @@ import {
   RECOVER_HAPPINESS,
 } from './config'
 import { BUILDINGS } from './buildings'
+import { recordEvent } from './events'
 import { derive } from './economy'
 import { tryAutoBuild } from './builder'
 import type { CityState, Derived } from './types'
@@ -41,6 +42,7 @@ function updateDereliction(state: CityState, field: Float32Array): boolean {
         } else if (state.time - b.highSince >= RECOVER_DELAY - EPS) {
           b.derelict = false
           b.highSince = null
+          recordEvent(state, { kind: 'recovered', at: state.time, where: i, type: b.type })
           changed = true
         }
       } else {
@@ -54,6 +56,7 @@ function updateDereliction(state: CityState, field: Float32Array): boolean {
         } else if (state.time - b.lowSince >= DERELICT_DELAY - EPS) {
           b.derelict = true
           b.lowSince = null
+          recordEvent(state, { kind: 'derelict', at: state.time, where: i, type: b.type })
           changed = true
         }
       } else {

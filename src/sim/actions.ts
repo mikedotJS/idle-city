@@ -7,6 +7,7 @@ import {
 } from './config'
 import { BUILDINGS, buildingCost } from './buildings'
 import { nextLandCost } from './economy'
+import { noteInteraction, recordEvent } from './events'
 import { nextRandom, parcelNeighbours, parcelOfTile } from './grid'
 import { Terrain, isBuildable, terrainFor } from './terrain'
 import type { Building, BuildingType, CityState, QueueableType } from './types'
@@ -57,6 +58,8 @@ export function createCity(seed?: number): CityState {
     rngSeed: chosen,
     nextBuildAt: 0,
     lastSavedAt: Date.now(),
+    events: [],
+    lastSeenAt: 0,
   }
 }
 
@@ -96,6 +99,7 @@ export function placeManual(state: CityState, type: BuildingType, tile: number):
 
   state.coins -= cost
   spawnBuilding(state, type, tile)
+  noteInteraction(state)
   return OK
 }
 
@@ -103,7 +107,10 @@ export function demolish(state: CityState, tile: number): ActionResult {
   if (!Number.isInteger(tile) || tile < 0 || tile >= TILE_COUNT) return fail('Outside the world')
   if (!state.grid[tile]) return fail('Nothing to demolish')
   // Free, instant, no refund — derelict buildings clear the same way.
+  const removed = state.grid[tile]
   state.grid[tile] = null
+  recordEvent(state, { kind: 'demolished', at: state.time, where: tile, type: removed?.type })
+  noteInteraction(state)
   return OK
 }
 
@@ -122,6 +129,8 @@ export function buyParcel(state: CityState, parcel: number): ActionResult {
 
   state.coins -= cost
   state.ownedParcels[parcel] = true
+  recordEvent(state, { kind: 'land', at: state.time, where: parcel })
+  noteInteraction(state)
   return OK
 }
 

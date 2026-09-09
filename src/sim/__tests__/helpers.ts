@@ -15,7 +15,11 @@ export function flatten(state: CityState): CityState {
 export function quietCity(seed = 1): CityState {
   const state = flatten(createCity(seed))
   state.queue.length = 0
-  state.nextBuildAt = Infinity
+  // Far enough away to never fire, but FINITE: JSON.stringify turns Infinity
+  // into null, the save validator rightly rejects that, and load() then returns
+  // null — so a quietCity could not be round-tripped at all. That has cost four
+  // separate debugging sessions in this codebase; it dies here.
+  state.nextBuildAt = Number.MAX_SAFE_INTEGER
   return state
 }
 
