@@ -126,8 +126,8 @@ const musicSound = createMusicSoundControls({
 music.subscribe((musicState) => musicSound.setMusicState(musicState))
 sfx.subscribe((sfxState) => musicSound.setSfxState(sfxState))
 
-createLeaderboardUI(uiRoot, leaderboard, currentCity)
-createFriendsUI(uiRoot, friends, (confirmedCount) => {
+const leaderboardUI = createLeaderboardUI(uiRoot, leaderboard, currentCity)
+const friendsUI = createFriendsUI(uiRoot, friends, (confirmedCount) => {
   friendCount = confirmedCount
 })
 
@@ -177,7 +177,10 @@ const tools = createToolsPanel(currentCity, {
   onPostcard: () => renderer.postcard(),
 })
 
-createShell(uiRoot, [{ id: 'menu', label: 'Menu', panels: [musicSound.element, tools.element, prestigePanel.element] }])
+createShell(uiRoot, [
+  { id: 'menu', label: 'Menu', panels: [musicSound.element, tools.element, prestigePanel.element] },
+  { id: 'social', label: 'Social', panels: [leaderboardUI.launcher, friendsUI.launcher] },
+])
 
 // Browsers block audio until the page has been interacted with, so the first
 // real gesture is what actually starts playback. Placing a park counts.
