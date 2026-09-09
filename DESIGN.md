@@ -395,6 +395,29 @@ behaviour so it cannot drift unnoticed. Scores are computed by the browser: the
 backend cannot yet recompute them, so a score can be inflated even though no
 player can overwrite another's row.
 
+### Telling the player what happened, and letting them undo it
+
+The loop is a city that grows itself into trouble, but trouble has to be
+*found*, and after ten minutes on a second monitor a 12x12 board of sixty
+buildings does not volunteer which four just rotted. A panel says it in one
+sentence and points at the tile the dereliction clusters around — a count says
+the city rotted, a place says where to go.
+
+It says "in the last 4m", never "while you were away". The sim freezes whenever
+the tab is hidden, so this window is always time the player was present and not
+watching. That is also why it is measured from the last time they *acted* on
+the city rather than the last time they were present: an absence changes only
+the coin counter.
+
+Alongside it: speed (1x/2x/4x, scaling the whole city rather than only the
+build timer), undo for demolition, and export/import of the city as text.
+Demolition is the only action in the game that is instant, free and
+irreversible, so it is the only one a misclick can really cost you; the undo
+stack lives in a module rather than in `CityState`, because it belongs to
+whoever is at the keyboard, not to the city. The export exists because the save
+lives in `localStorage`, so one routine "clear site data" ends a week of play
+and a static site has nowhere else to put a backup.
+
 ## 10. Still deliberately out of scope
 
 Prestige, research trees, mobile support, tutorial.
