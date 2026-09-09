@@ -21,6 +21,18 @@ export interface HudCallbacks {
 }
 
 export interface Hud {
+  /** Compact, always-visible readouts. Placed by main.ts outside any
+   * shell section — it must stay visible no matter which section (or,
+   * later, which mobile tab) is open. */
+  topStripElement: HTMLElement
+  /** The "Place by hand" build palette. */
+  paletteElement: HTMLElement
+  /** The hovered-tile info panel, shown beneath the palette. */
+  hoverPanelElement: HTMLElement
+  /** The build queue. */
+  queueElement: HTMLElement
+  /** The "New city" restart button, in its own panel. */
+  restartElement: HTMLElement
   update(state: CityState, derived: Derived): void
   /** Reflect a tool chosen elsewhere, e.g. cleared with Escape after placing. */
   setTool(tool: Tool): void

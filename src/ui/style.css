@@ -81,39 +81,6 @@ body {
 
 /* ------------------------------------------------------------------ layout */
 
-.hud {
-  position: fixed;
-  inset: 0;
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
-  grid-template-rows: auto minmax(0, 1fr) auto;
-  gap: 16px;
-  padding: 18px;
-  pointer-events: none;
-}
-
-.hud__zone {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  min-height: 0;
-  width: var(--hud-side);
-}
-
-.hud__zone--tl {
-  grid-column: 1;
-  /* All three rows, so the column is bounded by the window rather than by its
-     own content. Everything on the left shares one height budget. */
-  grid-row: 1 / -1;
-  max-height: 100%;
-  min-height: 0;
-}
-
-.hud__zone--tr {
-  grid-column: 3;
-  grid-row: 1 / span 2;
-}
-
 /* ------------------------------------------------------------------ panels */
 
 .panel {
@@ -290,6 +257,90 @@ body {
 }
 .meter__fill--rotting {
   background: var(--rotting);
+}
+
+/* These four used to get their width for free from the `.hud__zone`
+   wrapper they shared. Now that each is its own top-level panel in the
+   Ville shell section, each needs to say so itself. */
+.panel--tools,
+.panel--hover,
+.panel--queue,
+.panel--restart {
+  width: var(--hud-side);
+}
+
+/* --------------------------------------------------------------- topstrip */
+
+.topstrip {
+  position: fixed;
+  top: 18px;
+  left: 18px;
+  z-index: 5;
+  flex-direction: row;
+  align-items: center;
+  gap: 14px;
+  padding: 10px 16px;
+  pointer-events: auto;
+  font-variant-numeric: tabular-nums;
+}
+
+.topstrip__coin-icon {
+  font-size: 15px;
+}
+
+.topstrip__coins {
+  font-size: 19px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.topstrip__rate {
+  font-size: 13px;
+  font-weight: 620;
+  color: var(--accent-deep);
+  white-space: nowrap;
+}
+
+.topstrip__stat {
+  font-size: 13px;
+  color: var(--ink-soft);
+  white-space: nowrap;
+}
+
+.topstrip__next {
+  font-size: 12.5px;
+  color: var(--ink-soft);
+  white-space: nowrap;
+}
+
+.topstrip__info {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 1px solid var(--line);
+  color: var(--ink-soft);
+  font-size: 11px;
+  font-style: italic;
+  cursor: help;
+  flex: none;
+}
+
+.topstrip__info:hover,
+.topstrip__info:focus-visible {
+  color: var(--ink);
+  border-color: var(--accent);
+  outline: none;
+}
+
+.topstrip--strained .topstrip__stat:nth-of-type(1) {
+  color: var(--strained);
+}
+
+.topstrip--rotting .topstrip__stat:nth-of-type(1) {
+  color: var(--rotting);
 }
 
 /* ------------------------------------------------------------ hover panel */
@@ -723,16 +774,6 @@ body {
   }
   .panel {
     padding: 13px 15px;
-  }
-}
-
-@media (max-width: 900px) {
-  .hud {
-    gap: 10px;
-    padding: 10px;
-  }
-  .hud__zone {
-    width: 232px;
   }
 }
 

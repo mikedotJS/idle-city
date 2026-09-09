@@ -9,17 +9,10 @@
 
 import type { Tool } from '../render/api'
 import { BUILDINGS, BUILDING_TYPES, buildingCost } from '../sim/buildings'
-import { INCOME_FLOOR, OFFLINE_CAP_SECONDS } from '../sim/config'
+import { OFFLINE_CAP_SECONDS } from '../sim/config'
 import type { BuildingType, CityState, Derived, QueueableType } from '../sim/types'
 import type { HoverInfo, Hud, HudCallbacks } from './api'
-import {
-  formatCoins,
-  formatDuration,
-  formatMultiplier,
-  formatPercent,
-  formatRate,
-  happinessBand,
-} from './format'
+import { formatCoins, formatDuration, formatPercent, formatRate, happinessBand } from './format'
 import type { HappinessKey } from './format'
 
 /**
@@ -91,53 +84,27 @@ interface QueueAddButton {
 }
 
 export function createHud(root: HTMLElement, cb: HudCallbacks): Hud {
-  const hud = el('div', 'hud')
+  // -------------------------------------------------------------- top strip
 
-  // ---------------------------------------------------------------- readouts
-
-  const topLeft = el('div', 'hud__zone hud__zone--tl')
-  const readouts = el('section', 'panel panel--readouts')
-
-  const coinsBlock = el('div', 'coins')
-  coinsBlock.append(el('div', 'label', 'Coins'))
-  const coinsLine = el('div', 'coins__line')
-  const coinsValue = el('span', 'coins__value', '0')
-  const coinsRate = el('span', 'coins__rate', '+0.0/s')
-  coinsLine.append(coinsValue, coinsRate)
-  coinsBlock.append(coinsLine)
-
-  const statGrid = el('div', 'stat-grid')
-
-  const popStat = el('div', 'stat')
-  popStat.append(el('div', 'label', 'People'))
-  const popValue = el('div', 'stat__value', '0')
-  popStat.append(popValue)
-
-  const multStat = el('div', 'stat stat--accent')
-  multStat.append(el('div', 'label', 'Income'))
-  const multValue = el('div', 'stat__value', formatMultiplier(1))
-  multStat.append(multValue)
-
-  statGrid.append(popStat, multStat)
-
-  const happy = el('div', 'happy')
-  const happyHead = el('div', 'happy__head')
-  const happyValue = el('span', 'happy__value', '50%')
-  const happyBadge = el('span', 'badge badge--content', 'content')
-  happyHead.append(el('span', 'label', 'Happiness'), happyValue, happyBadge)
-  const meter = el('div', 'meter')
-  const meterFill = el('div', 'meter__fill meter__fill--content')
-  meter.append(meterFill)
-  const happyNote = el('div', 'hint', 'Liveable. Parks would push it higher.')
-  happy.append(happyHead, meter, happyNote)
-
-  const multNote = el(
-    'p',
-    'note',
-    'Income multiplier = 0.50 + happiness, so 0.50x at worst and 1.50x at best. A happier city earns more from the same buildings, and builds faster too. The rate beside your coins already includes it.',
+  const topStrip = el('section', 'panel topstrip')
+  const tsCoins = el('span', 'topstrip__coins', '0')
+  const tsRate = el('span', 'topstrip__rate', '+0.0/s')
+  const tsHappy = el('span', 'topstrip__stat', '😊 50%')
+  const tsPop = el('span', 'topstrip__stat', '👥 0')
+  const tsNext = el('span', 'topstrip__next', '')
+  const tsInfo = el('span', 'topstrip__info', 'i')
+  tsInfo.tabIndex = 0
+  tsInfo.title =
+    'Income multiplier = 0.50 + happiness, so 0.50x at worst and 1.50x at best — the rate shown here already includes it. A happier city earns more from the same buildings, and builds faster too.'
+  topStrip.append(
+    el('span', 'topstrip__coin-icon', '💰'),
+    tsCoins,
+    tsRate,
+    tsHappy,
+    tsPop,
+    tsNext,
+    tsInfo,
   )
-
-  readouts.append(coinsBlock, statGrid, happy, multNote)
 
   // ------------------------------------------------------------- hover panel
 
@@ -148,8 +115,6 @@ export function createHud(root: HTMLElement, cb: HudCallbacks): Hud {
   const hoverCost = el('div', 'hover__cost')
   hoverCost.hidden = true
   hoverPanel.append(hoverTitle, hoverLines, hoverCost)
-
-  topLeft.append(readouts)
 
   // ------------------------------------------------------------ tool palette
 
@@ -201,16 +166,9 @@ export function createHud(root: HTMLElement, cb: HudCallbacks): Hud {
       'The pale land past your plot is for sale. Click it to buy, and the city will spread into it.',
     ),
   )
-  // One left-hand column, not two. The palette used to live in its own
-  // bottom-left zone, which meant nothing related its height to the readouts'
-  // — and adding three buildings to the registry pushed it up through them and
-  // then off the top of a 1280x720 window. In one flex column the readouts
-  // keep their size, the palette takes what is left, and its list scrolls.
-  topLeft.append(toolsPanel, hoverPanel)
 
   // ------------------------------------------------------------- build queue
 
-  const rightSide = el('div', 'hud__zone hud__zone--tr')
   const queuePanel = el('section', 'panel panel--queue')
   queuePanel.append(el('h2', 'panel__title', 'Build queue'))
   queuePanel.append(
@@ -278,15 +236,12 @@ export function createHud(root: HTMLElement, cb: HudCallbacks): Hud {
   window.addEventListener('click', disarm)
 
   queuePanel.append(queueList, queueRepeat, queueActions)
-  rightSide.append(queuePanel)
 
   // Its own panel, not a third button in the queue's action row. Restarting is
   // not a queue action, and crowding that row made it wrap, which overflowed
   // the panel and pushed the button out of reach entirely.
   const restartPanel = el('section', 'panel panel--restart')
   restartPanel.append(restartButton)
-  rightSide.append(restartPanel)
-
 
   // ------------------------------------------------------------------ toasts
 
@@ -314,8 +269,7 @@ export function createHud(root: HTMLElement, cb: HudCallbacks): Hud {
   )
   offlineOverlay.append(offlineCard)
 
-  hud.append(topLeft, rightSide, toastLayer, offlineOverlay)
-  root.append(hud)
+  root.append(toastLayer, offlineOverlay)
 
   // ------------------------------------------------------------------- state
 
@@ -435,31 +389,26 @@ export function createHud(root: HTMLElement, cb: HudCallbacks): Hud {
   }
 
   function update(state: CityState, derived: Derived): void {
-    setText(coinsValue, formatCoins(advanceCoins(state.coins)))
+    setText(tsCoins, formatCoins(advanceCoins(state.coins)))
 
     if (derived.incomeRate !== lastRate) {
       lastRate = derived.incomeRate
-      setText(coinsRate, '+' + formatRate(derived.incomeRate) + '/s')
+      setText(tsRate, '+' + formatRate(derived.incomeRate) + '/s')
     }
 
     if (derived.population !== lastPopulation) {
       lastPopulation = derived.population
-      setText(popValue, formatCoins(derived.population))
+      setText(tsPop, '👥 ' + formatCoins(derived.population))
     }
 
     const happiness = derived.cityHappiness
     if (!(Math.abs(happiness - lastHappiness) < 0.0005)) {
       lastHappiness = happiness
-      setText(happyValue, formatPercent(happiness))
-      setText(multValue, formatMultiplier(INCOME_FLOOR + happiness))
-      meterFill.style.width = (Math.max(0, Math.min(1, happiness)) * 100).toFixed(1) + '%'
+      setText(tsHappy, '😊 ' + formatPercent(happiness))
       const band = happinessBand(happiness)
       if (band.key !== lastBand) {
         lastBand = band.key
-        setText(happyBadge, band.label)
-        setText(happyNote, band.note)
-        setClass(happyBadge, 'badge badge--' + band.key)
-        setClass(meterFill, 'meter__fill meter__fill--' + band.key)
+        setClass(topStrip, 'panel topstrip topstrip--' + band.key)
       }
     }
 
@@ -486,6 +435,10 @@ export function createHud(root: HTMLElement, cb: HudCallbacks): Hud {
     }
 
     renderQueue(state)
+
+    const nextBuild = state.queue[0]
+    const nextLabel = nextBuild ? '▶ ' + BUILDINGS[nextBuild].label : ''
+    setText(tsNext, nextLabel)
   }
 
   function setHoverInfo(info: HoverInfo | null): void {
@@ -572,5 +525,16 @@ export function createHud(root: HTMLElement, cb: HudCallbacks): Hud {
 
   paintSelection()
 
-  return { update, setTool, setHoverInfo, showOfflineEarnings, toast }
+  return {
+    topStripElement: topStrip,
+    paletteElement: toolsPanel,
+    hoverPanelElement: hoverPanel,
+    queueElement: queuePanel,
+    restartElement: restartPanel,
+    update,
+    setTool,
+    setHoverInfo,
+    showOfflineEarnings,
+    toast,
+  }
 }
