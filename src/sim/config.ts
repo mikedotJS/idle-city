@@ -73,5 +73,12 @@ export const BUILD_INTERVAL = 8
 export const OFFLINE_CAP_SECONDS = 8 * 3600
 
 export const SAVE_KEY = 'micro-city-save'
+/**
+ * Prestige lives under its own key, not inside the city. It has to survive the
+ * two things that destroy a city — starting a new one, and retiring — and it
+ * must NOT ride in the exported save, or the export box becomes a charter
+ * printer: export, retire, import, retire again.
+ */
+export const PRESTIGE_KEY = 'micro-city-prestige'
 export const SAVE_VERSION = 3
 export const AUTOSAVE_INTERVAL = 5 // seconds of sim time

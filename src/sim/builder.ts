@@ -65,11 +65,18 @@ export function pickBuildTile(state: CityState): number | null {
   return chosen
 }
 
-/** What it costs to take a building to its next level. */
+/**
+ * What it costs to take a building to its next level.
+ *
+ * The city's own upgradeDiscount is applied here rather than looked up from
+ * anywhere: it was stamped on at founding, so this stays a pure function of
+ * the city and the builder never learns that prestige exists.
+ */
 export function upgradeCost(state: CityState, building: Building): number | null {
   if (building.level >= MAX_LEVEL) return null
   const next = building.level + 1
-  return Math.round(buildingCost(building.type, state.builtCount[building.type]) * LEVEL_COST[next])
+  const base = buildingCost(building.type, state.builtCount[building.type]) * LEVEL_COST[next]
+  return Math.round(base * state.upgradeDiscount)
 }
 
 /**

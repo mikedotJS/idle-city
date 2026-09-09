@@ -1,0 +1,159 @@
+/*
+ * Prestige panel: retire a city for charter, spend charter on the next
+ * city's starting conditions.
+ *
+ * Mirrors tools-root onto the opposite corner — see the placement comment
+ * at the top of prestige.ts for which fixed islands this was checked
+ * against and why the bottom-left corner is the free one. Collapsed by
+ * default behind a single toggle, same reasoning as tools.ts: most of a
+ * playthrough has no charter and nothing to spend it on.
+ *
+ * Uses the custom properties from style.css's :root — no colours of its own.
+ */
+
+.prestige-root {
+  position: fixed;
+  /* Same offset tools-root uses on the right, mirrored: clears
+     hud__zone--tl's own width (--hud-side) plus a gap, derived rather than
+     copied so widening that column moves this too. */
+  left: calc(var(--hud-side) + 30px);
+  bottom: 18px;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 12px;
+  /* The wrapper itself must never catch a pointer event — only the toggle
+     and the panel, both marked pointer-events: auto below, should. */
+  pointer-events: none;
+}
+
+.prestige-toggle {
+  pointer-events: auto;
+}
+
+.prestige-toggle.is-open {
+  background: var(--accent-wash);
+  border-color: var(--accent);
+}
+
+.prestige-toggle__badge {
+  font-size: 11px;
+  font-weight: 700;
+  color: #fff;
+  background: var(--accent);
+  border-radius: var(--radius-pill);
+  padding: 1px 7px;
+}
+
+.prestige-panel {
+  pointer-events: auto;
+  width: 280px;
+  /* A control must not overflow its own panel, and the panel must not run
+     off a small window — same cap tools.ts uses. */
+  max-width: calc(100vw - 36px);
+  max-height: calc(100vh - 96px);
+  overflow-y: auto;
+}
+
+.prestige-section + .prestige-section {
+  border-top: 1px solid var(--line);
+  padding-top: 12px;
+}
+
+.prestige-section__title {
+  margin: 0 0 8px;
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+
+.prestige-charter {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+}
+
+.prestige-charter__value {
+  font-size: 26px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--accent-deep);
+}
+
+.prestige-charter__unit {
+  font-size: 13px;
+  font-weight: 650;
+  color: var(--ink-soft);
+}
+
+.prestige-note--warn {
+  background: #f7ded7;
+  color: #8d4436;
+}
+
+.prestige-retire-btn {
+  width: 100%;
+  justify-content: center;
+  text-align: center;
+  white-space: normal;
+  line-height: 1.35;
+}
+
+.prestige-retire-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+  pointer-events: none;
+}
+
+.prestige-bank {
+  margin: 0 0 10px;
+  font-size: 12.5px;
+  color: var(--ink-soft);
+}
+
+.prestige-upgrade {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.prestige-upgrade + .prestige-upgrade {
+  margin-top: 12px;
+}
+
+.prestige-upgrade__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.prestige-upgrade__label {
+  font-weight: 650;
+}
+
+.prestige-upgrade__level {
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-soft);
+}
+
+.prestige-buy-btn {
+  align-self: flex-start;
+  justify-content: center;
+}
+
+.prestige-buy-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+  pointer-events: none;
+}
+
+.prestige-starting {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+}

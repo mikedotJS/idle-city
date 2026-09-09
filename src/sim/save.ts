@@ -2,12 +2,20 @@ import {
   MAX_LEVEL,
   OFFLINE_CAP_SECONDS,
   PARCEL_COUNT,
+  PRESTIGE_KEY,
   SAVE_KEY,
   SAVE_VERSION,
   TILE_COUNT,
 } from './config'
 import { BUILDINGS, BUILDING_TYPES } from './buildings'
 import { derive } from './economy'
+import {
+  MIN_UPGRADE_DISCOUNT,
+  UPGRADES,
+  UPGRADE_KEYS,
+  emptyPrestige,
+  type PrestigeState,
+} from './prestige'
 import { EVENT_LIMIT, type CityEvent } from './events'
 import type { Building, BuildingType, CityState, QueueableType } from './types'
 
@@ -70,6 +78,57 @@ export function load(): LoadResult | null {
   state.lastSavedAt = Date.now()
 
   return { state, offlineSeconds, offlineCoins }
+}
+
+/**
+ * Prestige is stored apart from the city on purpose; see PRESTIGE_KEY. A
+ * malformed or missing record is an empty one rather than an error, exactly
+ * like a malformed city is a fresh city.
+ */
+export function loadPrestige(): PrestigeState {
+  const store = storage()
+  if (!store) return emptyPrestige()
+  let raw: string | null = null
+  try {
+    raw = store.getItem(PRESTIGE_KEY)
+  } catch {
+    return emptyPrestige()
+  }
+  if (raw === null) return emptyPrestige()
+
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(raw)
+  } catch {
+    return emptyPrestige()
+  }
+  if (typeof parsed !== 'object' || parsed === null) return emptyPrestige()
+
+  const p = parsed as Record<string, unknown>
+  const out = emptyPrestige()
+  if (isFinite_(p.charter)) out.charter = Math.max(0, Math.floor(p.charter as number))
+  if (isFinite_(p.retired)) out.retired = Math.max(0, Math.floor(p.retired as number))
+
+  const levels = typeof p.levels === 'object' && p.levels !== null ? (p.levels as Record<string, unknown>) : {}
+  for (const key of UPGRADE_KEYS) {
+    const value = levels[key]
+    // Clamped to the table rather than trusted: a hand-edited record must not
+    // be able to name a level the upgrade does not have.
+    if (isFinite_(value)) {
+      out.levels[key] = Math.min(Math.max(Math.floor(value as number), 0), UPGRADES[key].costs.length)
+    }
+  }
+  return out
+}
+
+export function savePrestige(prestige: PrestigeState): void {
+  const store = storage()
+  if (!store) return
+  try {
+    store.setItem(PRESTIGE_KEY, JSON.stringify(prestige))
+  } catch {
+    // A full or blocked storage must never take the sim down.
+  }
 }
 
 export function clearSave(): void {
@@ -181,6 +240,12 @@ function validate(raw: unknown): CityState | null {
     // v1 saves predate terrain. Deriving the seed from the RNG seed gives each
     // returning city a stable map of its own rather than all sharing one.
     terrainSeed: isFinite_(s.terrainSeed) ? (s.terrainSeed as number) | 0 : ((s.rngSeed as number) | 0) ^ 0x5eed,
+    // Saves from before prestige were all founded at full price. Clamped
+    // rather than trusted: a hand-edited save must not be able to name a
+    // discount the upgrade table cannot reach.
+    upgradeDiscount: isFinite_(s.upgradeDiscount)
+      ? Math.min(Math.max(s.upgradeDiscount as number, MIN_UPGRADE_DISCOUNT), 1)
+      : 1,
     nextBuildAt: s.nextBuildAt,
     lastSavedAt: s.lastSavedAt,
     events: validateEvents(s.events),

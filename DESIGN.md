@@ -432,6 +432,44 @@ whoever is at the keyboard, not to the city. The export exists because the save
 lives in `localStorage`, so one routine "clear site data" ends a week of play
 and a static site has nowhere else to put a backup.
 
+### Prestige, and the two upgrades that had to be measured out of it
+
+Retiring a city banks **charter**, and charter is deliberately not the
+leaderboard metric a second time. The board is `happiness x population x
+income`, every factor growing with time, so it ranks the biggest city and two
+players of equal skill are separated by how long they left the tab open.
+Charter is `sqrt(population) x happiness^3`: population still counts, with
+diminishing returns, and happiness dominates. Over three simulated hours a city
+left to grow itself sits at 33-36% happiness and earns *nothing at all*; a city
+whose owner keeps planting amenities where the field is worst reaches 100% and
+earns around twenty. The board ranks the biggest city, prestige ranks the
+best-kept one, and a player can chase either. Prestige does not enter the
+score, and retiring does not disturb a published one.
+
+The invariant charter must never break: it does not touch the tension between
+what pays and what people want to live near. No income multiplier, no happiness
+floor, no cheaper pollution. Everything it grants is fixed at founding and
+carried on the city itself — `CityState.upgradeDiscount` is stamped in by
+`createCity` — so `sim/builder.ts` imports nothing from `sim/prestige.ts` and a
+saved city keeps the terms it was founded on.
+
+The first pair of upgrades was seed money and a **wider starting plot**, and
+measuring them before shipping killed the second one outright. A wider plot is
+a *handicap*: the auto-builder only upgrades a building when it has nowhere
+left to spread, so more land means more sprawl, later density, and a smaller
+city. Three extra parcels took a tended hour from 312 population down to 168.
+Cheaper land measured the same way (288), and so did opening with buildings
+already standing (322). What survives is money at the start and cheaper density
+later — 30% off upgrades takes the same hour from 312 to 354 and from 25
+level-three buildings to 31. One lever for the opening, one for the part where
+the opening stops mattering. Together they take a tended hour from 312
+population to 413, and six cities to buy outright.
+
+That measurement leaves a real property of the game on the record: **because
+the builder densifies only when it is boxed in, anything that gives it more
+room delays the level-three buildings that hold most of the population.** It is
+why buying land trades population for income rather than simply adding both.
+
 ## 10. Still deliberately out of scope
 
-Prestige, research trees, mobile support, tutorial.
+Research trees, mobile support, tutorial.

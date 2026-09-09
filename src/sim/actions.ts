@@ -10,6 +10,7 @@ import { derive, nextLandCost, parcelCost } from './economy'
 import { noteInteraction, recordEvent } from './events'
 import { rememberDemolition } from './history'
 import { nextRandom, parcelNeighbours, parcelOfTile } from './grid'
+import { startingCoins, upgradeDiscount, type PrestigeState } from './prestige'
 import { Terrain, isBuildable, isCoast, terrainFor } from './terrain'
 import type { Building, BuildingType, CityState, QueueableType } from './types'
 
@@ -52,20 +53,23 @@ function draw(state: CityState): number {
   return value
 }
 
-export function createCity(seed?: number): CityState {
+export function createCity(seed?: number, prestige?: PrestigeState): CityState {
   const chosen = seed === undefined ? freshSeed() : (seed | 0 || 1)
+  const terrainSeed = chosen ^ 0x5eed
   const ownedParcels = new Array<boolean>(PARCEL_COUNT).fill(false)
   for (const p of STARTING_PARCELS) ownedParcels[p] = true
 
   return {
     version: SAVE_VERSION,
     time: 0,
-    coins: STARTING_COINS,
+    coins: prestige ? startingCoins(prestige) : STARTING_COINS,
     grid: new Array<Building | null>(TILE_COUNT).fill(null),
     ownedParcels,
     queue: ['house', 'house', 'shop'],
     builtCount: emptyCounts(),
-    terrainSeed: chosen ^ 0x5eed,
+    terrainSeed,
+    // Everything prestige does happens right here, at founding; see sim/prestige.ts.
+    upgradeDiscount: prestige ? upgradeDiscount(prestige) : 1,
     rngSeed: chosen,
     nextBuildAt: 0,
     lastSavedAt: Date.now(),

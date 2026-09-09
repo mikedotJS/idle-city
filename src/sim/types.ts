@@ -51,6 +51,13 @@ export interface CityState {
    * stored, so the map survives a reload without bloating the save.
    */
   terrainSeed: number
+  /**
+   * Multiplier on upgrade costs, 1.0 unless the city was founded under a
+   * prestige that bought it down. Stamped in at founding and saved with the
+   * city, so the auto-builder never has to know prestige exists and a saved
+   * city keeps the terms it was founded on.
+   */
+  upgradeDiscount: number
   /** Sim time of the next auto-build attempt. */
   nextBuildAt: number
   /** Wall-clock ms of the last save, for offline earnings. */
