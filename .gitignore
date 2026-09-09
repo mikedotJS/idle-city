@@ -3,3 +3,6 @@ dist
 .vite
 *.log
 .env.local
+
+# Scratch harnesses written next to the project during a session.
+.tmp-*

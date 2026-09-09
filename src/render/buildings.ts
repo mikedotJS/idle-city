@@ -143,8 +143,12 @@ function cone(r: number, h: number, seg: number, x = 0, y = 0, z = 0): BufferGeo
   return g
 }
 
-function blob(r: number, x = 0, y = 0, z = 0): BufferGeometry {
+/** `sy` flattens or stretches the blob vertically before it is placed — a
+ * landfill heap is a squashed blob, not a round one, and the squash is what
+ * sells it. */
+function blob(r: number, x = 0, y = 0, z = 0, sy = 1): BufferGeometry {
   const g = new IcosahedronGeometry(r, 0)
+  if (sy !== 1) g.scale(1, sy, 1)
   g.translate(x, y, z)
   return g
 }
@@ -345,6 +349,9 @@ const WHITE = new Color(1, 1, 1)
 /** Ratios used as shades of whatever the body colour happens to be. */
 const LIGHTEN = new Color(1.2, 1.2, 1.2)
 const DARKEN = new Color(0.62, 0.62, 0.62)
+/** A rust ratio for barrels and scrap: warmer and more saturated than the
+ * wall, so the odd prop reads as "junk" against any of the nine looks. */
+const RUST = new Color(1.5, 0.82, 0.5)
 
 interface Ctx {
   theme: Theme
@@ -744,6 +751,215 @@ function parkParts(c: Ctx): Parts {
   }
 }
 
+function schoolParts(c: Ctx): Parts {
+  const L = c.level
+  // Broad and low on purpose: a school lifts a whole district a little, so it
+  // should never dominate the block the way a house or shop does at the same
+  // level. Growth reads through the window count and the cupola, not through
+  // height — the opposite of every other building in this file.
+  const H = L === 1 ? 0.34 : L === 2 ? 0.4 : 0.46
+  const bw = 0.8
+  const half = bw / 2
+
+  const body: BufferGeometry[] = [tint(box(bw, H, bw, 0, H / 2, 0), WHITE)]
+  // A dark doorway recess, flush with the wall: an entrance without spending
+  // a single vertex on protruding past the footprint.
+  body.push(tint(box(0.26, H * 0.55, 0.012, 0, H * 0.275, half - 0.002), DARKEN))
+  if (L >= 2) {
+    // A stone beltcourse, the same civic device the house uses one storey up,
+    // here saying "institution" instead of "home". Kept up near the eaves
+    // (>= 0.34) like every other wider-than-body band in this file, so it
+    // never becomes a low ledge for traffic to catch on.
+    body.push(tint(box(bw + 0.02, 0.035, bw + 0.02, 0, H - 0.05, 0), c.trim))
+    // A flagpole beside the entrance. It stands on the ground regardless of
+    // its height, so it belongs in body, not in the roof group that tilts.
+    const poleH = L === 2 ? 0.34 : 0.5
+    body.push(tint(cyl(0.012, 0.016, poleH, 5, 0.3, poleH / 2, half - 0.06), c.trim))
+    const flag = new PlaneGeometry(0.09, 0.055)
+    flag.translate(0.3 + 0.045, poleH - 0.03, half - 0.06)
+    body.push(tint(flag, c.roof))
+  }
+  if (L === 3) {
+    // Shallow steps, tucked inside the footprint rather than past its edge —
+    // footprints do not grow with level, so even a 0.03-tall lip has to stay
+    // inside the same half-extent every other level already claims.
+    body.push(tint(box(0.46, 0.03, 0.1, 0, 0.015, half - 0.07), c.trim))
+  }
+
+  const roof: BufferGeometry[] = []
+  const rise = (L === 1 ? 0.2 : 0.22) * c.theme.pitch
+  if (c.theme.snow) {
+    const eaves = bw + 0.2
+    const prism = gableGeometry(eaves, eaves, rise)
+    prism.translate(0, H, 0)
+    roof.push(tint(prism, c.roof))
+    roof.push(tint(box(eaves, 0.03, eaves, 0, H + 0.015, 0), c.trim))
+    roof.push(tint(snowCap(eaves, eaves, rise, H), c.snow))
+  } else {
+    // A flat civic roof: this reads as a schoolhouse, not a cottage.
+    roof.push(tint(box(bw + 0.04, 0.06, bw + 0.04, 0, H + 0.03, 0), c.roof))
+  }
+  if (L === 3) {
+    // A bell cupola: one flourish that says "the important building", the
+    // way the station's clock tower does for the platform.
+    const cupolaBaseY = H + 0.09
+    roof.push(tint(box(0.14, 0.13, 0.14, 0, cupolaBaseY + 0.065, 0.06), WHITE))
+    roof.push(tint(cone(0.12, 0.13, 4, 0, cupolaBaseY + 0.13 + 0.065, 0.06), c.roof))
+  }
+
+  const win: BufferGeometry[] = []
+  const wOff = [-0.26, 0, 0.26]
+  if (L === 1) {
+    win.push(...windowQuads(half, half, H * 0.52, 0.09, 0.1, wOff))
+  } else if (L === 2) {
+    win.push(...windowQuads(half, half, H * 0.3, 0.09, 0.1, wOff))
+    win.push(...windowQuads(half, half, H * 0.78, 0.08, 0.09, wOff))
+  } else {
+    win.push(...windowQuads(half, half, H * 0.24, 0.08, 0.09, wOff))
+    win.push(...windowQuads(half, half, H * 0.55, 0.08, 0.09, wOff))
+    win.push(...windowQuads(half, half, H * 0.85, 0.07, 0.08, wOff))
+  }
+
+  return {
+    body: mergeParts(body),
+    roof: mergeParts(roof),
+    windows: mergeParts(win.map((g) => tint(g, WHITE))),
+    roofPivotY: H,
+    heightJitter: jitterFor(L, 0.2),
+  }
+}
+
+function harbourParts(c: Ctx): Parts {
+  const L = c.level
+  // The shed is the only thing that grows; the dock itself is finished the
+  // day it is poured, the way a real quay does not widen with use.
+  const shedH = L === 1 ? 0.26 : L === 2 ? 0.32 : 0.38
+  const shedW = 0.46
+  const shedD = 0.36
+  const shedZ = -0.17
+  const deckW = 0.8
+  const deck = 0.045
+
+  const body: BufferGeometry[] = [
+    // A plank deck across the whole tile: this is dockside, not a lawn, and
+    // it is the widest thing here below head height — see CLEARANCE.
+    tint(box(deckW, deck, deckW, 0, deck / 2, 0), c.trim),
+    tint(box(shedW, shedH, shedD, 0, deck + shedH / 2, shedZ), WHITE),
+  ]
+  // Mooring bollards on the water-facing edge. Small enough that the deck
+  // still owns the clearance measurement.
+  for (const x of [-0.28, 0.28]) {
+    body.push(tint(cyl(0.014, 0.02, 0.055, 5, x, deck + 0.0275, 0.3), DARKEN))
+  }
+  // Cargo: the reward's one bit of visible wealth. It only ever grows.
+  body.push(tint(box(0.09, 0.09, 0.09, -0.24, deck + 0.045, 0.14), RUST))
+  if (L >= 2) {
+    body.push(tint(box(0.08, 0.08, 0.08, -0.24, deck + 0.09 + 0.04, 0.14), RUST))
+    body.push(tint(box(0.1, 0.1, 0.1, -0.13, deck + 0.05, 0.04), DARKEN))
+  }
+  if (L === 3) {
+    body.push(tint(cyl(0.05, 0.055, 0.12, 7, 0.08, deck + 0.06, 0.06), DARKEN))
+    body.push(tint(cyl(0.056, 0.056, 0.02, 7, 0.08, deck + 0.13, 0.06), RUST))
+  }
+  // A jib crane: the one thing on this tile taller than a person, so once it
+  // leaves the vertical it lives above 0.34 like every other overhead part.
+  if (L >= 2) {
+    const mastH = L === 2 ? 0.4 : 0.5
+    const mastX = 0.24
+    const mastZ = 0.24
+    body.push(tint(box(0.045, mastH, 0.045, mastX, deck + mastH / 2, mastZ), c.trim))
+    const boomLen = 0.36
+    body.push(
+      tint(box(boomLen, 0.04, 0.04, mastX - boomLen / 2, deck + mastH - 0.02, mastZ), c.trim),
+    )
+    if (L === 3) {
+      // A crate on the hook: the crane is working, not just standing there.
+      const hookX = mastX - boomLen + 0.02
+      body.push(tint(box(0.011, 0.09, 0.011, hookX, deck + mastH - 0.11, mastZ), DARKEN))
+      body.push(tint(box(0.05, 0.05, 0.05, hookX, deck + mastH - 0.19, mastZ), RUST))
+    }
+  }
+
+  const rise = 0.24 * c.theme.pitch
+  const eaves = shedW + (c.theme.snow ? 0.16 : 0.08)
+  const eavesD = shedD + (c.theme.snow ? 0.16 : 0.08)
+  const prism = gableGeometry(eaves, eavesD, rise)
+  prism.translate(0, deck + shedH, shedZ)
+  const roof: BufferGeometry[] = [tint(prism, c.roof)]
+  if (c.theme.snow) {
+    roof.push(tint(box(eaves, 0.025, eavesD, 0, deck + shedH + 0.012, shedZ), c.trim))
+    roof.push(tint(snowCap(eaves, eavesD, rise, deck + shedH), c.snow))
+  }
+
+  const win: BufferGeometry[] = []
+  const halfW = shedW / 2
+  const halfD = shedD / 2
+  win.push(...windowQuads(halfW, halfD, deck + shedH * 0.55, 0.08, 0.09, [0], 0, shedZ))
+  if (L >= 2) {
+    win.push(...windowQuads(halfW, halfD, deck + shedH * 0.85, 0.07, 0.08, [-0.1, 0.1], 0, shedZ))
+  }
+
+  return {
+    body: mergeParts(body),
+    roof: mergeParts(roof),
+    windows: mergeParts(win.map((g) => tint(g, WHITE))),
+    roofPivotY: deck + shedH,
+    heightJitter: jitterFor(L, 0.16),
+  }
+}
+
+function landfillParts(c: Ctx): Parts {
+  const L = c.level
+  // Not a building: no walls, no roofline, just an uneven heap. The footprint
+  // holds still like everything else's — a landfill that crept outward would
+  // be a second, sneakier way to bury a neighbour — so growth is all height
+  // and mess: the peak rises and the junk around its foot accumulates.
+  const body: BufferGeometry[] = [
+    // Two overlapping flattened blobs read as a heap; one round blob reads as
+    // a hill, which is exactly the silhouette this building must not have.
+    tint(blob(0.26, -0.04, 0.09, 0.02, 0.55), c.trim),
+    tint(blob(0.22, 0.1, 0.1, -0.07, 0.5), DARKEN),
+  ]
+  // A rusted barrel, present at every level: the one prop that reads as
+  // "dump" rather than "hill" from across the board.
+  body.push(tint(cyl(0.045, 0.05, 0.11, 7, 0.19, 0.075, 0.17), RUST))
+  body.push(tint(cyl(0.05, 0.05, 0.018, 7, 0.19, 0.14, 0.17), DARKEN))
+  const sheet = box(0.22, 0.01, 0.14, 0, 0, 0)
+  sheet.rotateZ(0.55)
+  sheet.rotateY(0.3)
+  sheet.translate(-0.2, 0.13, -0.13)
+  body.push(tint(sheet, DARKEN))
+  if (L >= 2) {
+    body.push(tint(cyl(0.045, 0.05, 0.11, 7, -0.2, 0.075, 0.15), DARKEN))
+  }
+  if (L === 3) {
+    body.push(tint(cyl(0.04, 0.045, 0.1, 7, 0.03, 0.07, -0.21), RUST))
+    const sheet2 = box(0.16, 0.01, 0.11, 0, 0, 0)
+    sheet2.rotateZ(-0.45)
+    sheet2.translate(0.21, 0.1, -0.06)
+    body.push(tint(sheet2, RUST))
+  }
+  if (c.theme.snow) {
+    // Snow settles into the folds of a heap rather than capping it the way it
+    // caps a ridge, so this is a low patch, not a cap.
+    body.push(tint(blob(0.14, -0.1, 0.15, 0.11, 0.4), c.snow))
+  }
+
+  // The peak: same radius at every level, so the footprint never changes,
+  // but it rises and un-squashes as the pile grows — taller, not wider.
+  const topY = L === 1 ? 0.18 : L === 2 ? 0.24 : 0.3
+  const topSquash = L === 1 ? 0.5 : L === 2 ? 0.65 : 0.8
+  const roof: BufferGeometry[] = [tint(blob(0.17, 0.02, topY, 0.0, topSquash), c.trim)]
+
+  return {
+    body: mergeParts(body),
+    roof: mergeParts(roof),
+    windows: null,
+    roofPivotY: 0.14,
+    heightJitter: jitterFor(L, 0.08),
+  }
+}
+
 function buildParts(type: BuildingType, biome: Biome, level: number): Parts {
   const t = THEMES[type][biome]
   const wall = new Color().setHex(t.wall, SRGBColorSpace)
@@ -765,6 +981,12 @@ function buildParts(type: BuildingType, biome: Biome, level: number): Parts {
       return factoryParts(c)
     case 'station':
       return stationParts(c)
+    case 'school':
+      return schoolParts(c)
+    case 'harbour':
+      return harbourParts(c)
+    case 'landfill':
+      return landfillParts(c)
     default:
       return houseParts(c)
   }

@@ -177,11 +177,18 @@ const CLEARANCE: Record<BuildingType, number> = {
   factory: 0.13, // body 0.74
   park: 0.04, // lawn plate 0.92, and only 0.12 tall
   station: 0.14, // platform runs wide, but the canopy is overhead
-  // These three fall through to houseParts for now, so they share its body.
-  // Whoever gives them their own geometry owns re-measuring these.
-  school: 0.19,
-  harbour: 0.19,
-  landfill: 0.19,
+  // Broad on purpose (a school lifts a whole district, not one corner), so it
+  // gives up more clearance than anything but the park: body 0.8, plus a hair
+  // more from the doorway recess flush against the wall.
+  school: 0.09,
+  // The plank deck covers the tile edge to edge, same as the school's body —
+  // the crane and crates that ride on it stand well above head height and do
+  // not shrink this further.
+  harbour: 0.1,
+  // Not a box, so there is no clean body width to quote: measured off the
+  // actual merged geometry (the two base heap blobs, worst case, rounded down
+  // half a centimetre for safety since a blob's silhouette is not a body's).
+  landfill: 0.18,
 }
 /** An empty tile takes nothing; an agent may hang over bare ground. */
 const OPEN_CLEARANCE = 0.5
