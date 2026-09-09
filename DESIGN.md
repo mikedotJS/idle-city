@@ -112,7 +112,11 @@ Unowned parcels render as flat, desaturated ground with a faint border.
 Each amenity answers a different shape of problem rather than being a bigger
 park. A park fixes one bad corner hard; a school lifts a whole district a
 little; a harbour is worth more than either but you have to buy land to reach a
-shore, so it is a reward for expanding rather than a purchase.
+shore, so it is a reward for expanding rather than a purchase. That reach was
+measured before shipping it, because a building nobody can legally place is not
+a decision: across 400 seeds every one puts a buildable shore tile inside the
+first ring of parcels around the starting plot, so a harbour is one or two land
+purchases away and never further.
 
 The landfill exists to give the factory an opponent, and its numbers had to be
 measured to earn that. At the −1.4 it was first given it was strictly gentler
