@@ -87,7 +87,14 @@ type SoundKey = OneShotKey | AmbientKey
 
 interface SoundDef {
   src: string
-  /** Linear gain at 1x sfx volume. */
+  /**
+   * Linear gain at 1x sfx volume, chosen to bring this specific clip's own
+   * peak level up (or down) to a common target for its category — see the
+   * measurement note below. Not a hand-picked "sounds about right": ElevenLabs
+   * generated these seventeen clips independently, with no shared mastering
+   * pass, and their peaks alone span -24 dB to 0 dB — a raw 16x range before
+   * anything here even runs.
+   */
   gain: number
   /** Positional (HRTF, at a tile/parcel) or fixed at the listener (UI, toasts). */
   spatial: boolean
@@ -97,24 +104,44 @@ interface SoundDef {
   rateJitter?: number
 }
 
+/**
+ * Every `gain` below is `10^((target - measuredPeakDb) / 20)`, not a guess:
+ * decode each clip in a real AudioContext and read its peak sample, then
+ * solve for the multiplier that puts it at the category's target. The first
+ * pass here used flat multipliers close to 1 on the assumption the clips
+ * were already roughly comparable, and they were not — the factory ambience
+ * measured -0.8 dBFS peak against the park's -21.8 dBFS, a 21 dB gap that no
+ * plausible per-building "narrative" multiplier was ever going to close, and
+ * the factory drowned everything else out. Peak rather than RMS, because RMS
+ * penalises a clip like the park's for having silence between birdsong the
+ * way a continuous machinery drone does not, and boosting to match a
+ * continuous clip's RMS would have driven the sparse one's noise floor up
+ * along with it.
+ *
+ * Two targets, not one: -14 dBFS for anything meant to sit in the
+ * background (a toast chime, the ambient beds — several of which can play
+ * at once if the player builds several factories), -6 dBFS for a one-shot
+ * that has to read as a distinct event, and -3 dBFS for the one moment the
+ * game treats as a fanfare.
+ */
 const SOUNDS: Record<SoundKey, SoundDef> = {
-  ui_click: { src: 'sfx/ui_click.mp3', gain: 0.5, spatial: false, maxDurationSec: 0.35, rateJitter: 0.06 },
-  build_pop: { src: 'sfx/build_pop.mp3', gain: 0.55, spatial: true, maxDurationSec: 0.6, rateJitter: 0.08 },
-  level_up: { src: 'sfx/level_up.mp3', gain: 0.6, spatial: true, maxDurationSec: 1.4 },
-  place_industrial: { src: 'sfx/place_industrial.mp3', gain: 0.7, spatial: true, maxDurationSec: 1.3 },
-  place_amenity: { src: 'sfx/place_amenity.mp3', gain: 0.6, spatial: true, maxDurationSec: 1.1 },
-  place_harbour: { src: 'sfx/place_harbour.mp3', gain: 0.65, spatial: true, maxDurationSec: 1.6 },
-  place_station: { src: 'sfx/place_station.mp3', gain: 0.6, spatial: true, maxDurationSec: 1.6 },
-  demolish: { src: 'sfx/demolish.mp3', gain: 0.6, spatial: true, maxDurationSec: 1.0 },
-  buy_land: { src: 'sfx/buy_land.mp3', gain: 0.6, spatial: true, maxDurationSec: 1.3 },
-  dereliction_onset: { src: 'sfx/dereliction_onset.mp3', gain: 0.5, spatial: true, maxDurationSec: 1.1 },
-  dereliction_recover: { src: 'sfx/dereliction_recover.mp3', gain: 0.55, spatial: true, maxDurationSec: 1.1 },
-  toast: { src: 'sfx/toast.mp3', gain: 0.45, spatial: false, maxDurationSec: 0.6 },
-  prestige: { src: 'sfx/prestige.mp3', gain: 0.8, spatial: false, maxDurationSec: 2.4 },
-  amb_factory: { src: 'sfx/amb_factory.mp3', gain: 1, spatial: true },
-  amb_park: { src: 'sfx/amb_park.mp3', gain: 1, spatial: true },
-  amb_water: { src: 'sfx/amb_water.mp3', gain: 1, spatial: true },
-  amb_station: { src: 'sfx/amb_station.mp3', gain: 1, spatial: true },
+  ui_click: { src: 'sfx/ui_click.mp3', gain: 3.16, spatial: false, maxDurationSec: 0.35, rateJitter: 0.06 },
+  build_pop: { src: 'sfx/build_pop.mp3', gain: 5.96, spatial: true, maxDurationSec: 0.6, rateJitter: 0.08 },
+  level_up: { src: 'sfx/level_up.mp3', gain: 0.56, spatial: true, maxDurationSec: 1.4 },
+  place_industrial: { src: 'sfx/place_industrial.mp3', gain: 0.5, spatial: true, maxDurationSec: 1.3 },
+  place_amenity: { src: 'sfx/place_amenity.mp3', gain: 1.06, spatial: true, maxDurationSec: 1.1 },
+  place_harbour: { src: 'sfx/place_harbour.mp3', gain: 0.5, spatial: true, maxDurationSec: 1.6 },
+  place_station: { src: 'sfx/place_station.mp3', gain: 0.51, spatial: true, maxDurationSec: 1.6 },
+  demolish: { src: 'sfx/demolish.mp3', gain: 0.56, spatial: true, maxDurationSec: 1.0 },
+  buy_land: { src: 'sfx/buy_land.mp3', gain: 0.58, spatial: true, maxDurationSec: 1.3 },
+  dereliction_onset: { src: 'sfx/dereliction_onset.mp3', gain: 0.58, spatial: true, maxDurationSec: 1.1 },
+  dereliction_recover: { src: 'sfx/dereliction_recover.mp3', gain: 1.8, spatial: true, maxDurationSec: 1.1 },
+  toast: { src: 'sfx/toast.mp3', gain: 0.68, spatial: false, maxDurationSec: 0.6 },
+  prestige: { src: 'sfx/prestige.mp3', gain: 0.77, spatial: false, maxDurationSec: 2.4 },
+  amb_factory: { src: 'sfx/amb_factory.mp3', gain: 0.22, spatial: true },
+  amb_park: { src: 'sfx/amb_park.mp3', gain: 2.45, spatial: true },
+  amb_water: { src: 'sfx/amb_water.mp3', gain: 0.84, spatial: true },
+  amb_station: { src: 'sfx/amb_station.mp3', gain: 0.2, spatial: true },
 }
 
 /** Which one-shot a manual placement plays. House/shop never reach this — they are queue-placed and get build_pop off the event log instead. */
@@ -132,17 +159,22 @@ function placementSoundFor(type: BuildingType): OneShotKey {
   }
 }
 
-/** Ambient bed per building type, and its own loudness — a landfill's reach is
- *  1.8 tiles against a factory's 3.5, so it should not carry as far either. */
+/**
+ * Ambient bed per building type, and a small narrative adjustment on top of
+ * the measured, already-levelled gain in SOUNDS — this is deliberately a
+ * modest multiplier around 1.0, not a second loudness pass. A landfill's
+ * reach is 1.8 tiles against a factory's 3.5, so it should not carry as far
+ * either; nothing else here has a reason to differ much from the others.
+ */
 const AMBIENT_FOR: Partial<Record<BuildingType, { key: AmbientKey; gain: number; detune: number }>> = {
-  factory: { key: 'amb_factory', gain: 0.5, detune: 0 },
+  factory: { key: 'amb_factory', gain: 1, detune: 0 },
   // Shares the factory drone rather than a dedicated asset — it is the same
   // family of machinery sound — but pitched down and quieter so it reads as
   // duller, smaller plant, not a second factory standing on the same tile.
-  landfill: { key: 'amb_factory', gain: 0.3, detune: -320 },
-  park: { key: 'amb_park', gain: 0.4, detune: 0 },
-  harbour: { key: 'amb_water', gain: 0.42, detune: 0 },
-  station: { key: 'amb_station', gain: 0.4, detune: 0 },
+  landfill: { key: 'amb_factory', gain: 0.6, detune: -320 },
+  park: { key: 'amb_park', gain: 0.85, detune: 0 },
+  harbour: { key: 'amb_water', gain: 0.9, detune: 0 },
+  station: { key: 'amb_station', gain: 0.85, detune: 0 },
 }
 
 export interface SfxState {
