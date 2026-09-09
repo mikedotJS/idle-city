@@ -148,6 +148,7 @@ body {
   padding: 10px 16px;
   pointer-events: auto;
   font-variant-numeric: tabular-nums;
+  max-width: calc(100vw - 36px);
 }
 
 .topstrip__coin-icon {
@@ -517,6 +518,12 @@ body {
   gap: 7px;
   pointer-events: none;
   z-index: 6;
+}
+
+@media (max-width: 959px) {
+  .toasts {
+    bottom: 86px;
+  }
 }
 
 .toast {
