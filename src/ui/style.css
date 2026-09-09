@@ -107,14 +107,6 @@ body {
   letter-spacing: 0.01em;
 }
 
-.label {
-  font-size: 11px;
-  font-weight: 650;
-  letter-spacing: 0.09em;
-  text-transform: uppercase;
-  color: var(--ink-soft);
-}
-
 .hint {
   margin: 0;
   font-size: 12px;
@@ -130,133 +122,6 @@ body {
   background: var(--paper-sunk);
   border-radius: var(--radius-card);
   padding: 9px 11px;
-}
-
-/* ---------------------------------------------------------------- readouts */
-
-.coins__line {
-  display: flex;
-  align-items: baseline;
-  gap: 9px;
-  margin-top: 2px;
-}
-
-.coins__value {
-  font-size: 34px;
-  line-height: 1.05;
-  font-weight: 700;
-  letter-spacing: -0.02em;
-  font-variant-numeric: tabular-nums;
-}
-
-.coins__rate {
-  font-size: 14px;
-  font-weight: 620;
-  color: var(--accent-deep);
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-}
-
-.stat-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 8px;
-}
-
-.stat {
-  background: var(--paper-sunk);
-  border-radius: var(--radius-card);
-  padding: 9px 11px;
-}
-
-.stat--accent {
-  background: var(--accent-wash);
-}
-
-.stat__value {
-  margin-top: 2px;
-  font-size: 21px;
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-  letter-spacing: -0.01em;
-}
-
-.stat--accent .stat__value {
-  color: var(--accent-deep);
-}
-
-.happy {
-  display: flex;
-  flex-direction: column;
-  gap: 7px;
-}
-
-.happy__head {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.happy__head .label {
-  margin-right: auto;
-}
-
-.happy__value {
-  font-size: 16px;
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-}
-
-.badge {
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.03em;
-  padding: 3px 9px;
-  border-radius: var(--radius-pill);
-  color: #fff;
-  background: var(--content);
-}
-
-.badge--thriving {
-  background: var(--thriving);
-}
-.badge--content {
-  background: var(--content);
-}
-.badge--strained {
-  background: var(--strained);
-}
-.badge--rotting {
-  background: var(--rotting);
-}
-
-.meter {
-  height: 10px;
-  border-radius: var(--radius-pill);
-  background: var(--paper-sunk);
-  box-shadow: inset 0 1px 2px rgba(74, 58, 40, 0.1);
-  overflow: hidden;
-}
-
-.meter__fill {
-  height: 100%;
-  width: 50%;
-  border-radius: var(--radius-pill);
-  background: var(--content);
-  transition: width 0.35s ease, background-color 0.35s ease;
-}
-
-.meter__fill--thriving {
-  background: var(--thriving);
-}
-.meter__fill--content {
-  background: var(--content);
-}
-.meter__fill--strained {
-  background: var(--strained);
-}
-.meter__fill--rotting {
-  background: var(--rotting);
 }
 
 /* These four used to get their width for free from the `.hud__zone`
@@ -301,7 +166,8 @@ body {
   white-space: nowrap;
 }
 
-.topstrip__stat {
+.topstrip__stat,
+.topstrip__happy {
   font-size: 13px;
   color: var(--ink-soft);
   white-space: nowrap;
@@ -335,11 +201,11 @@ body {
   outline: none;
 }
 
-.topstrip--strained .topstrip__stat:nth-of-type(1) {
+.topstrip--strained .topstrip__happy {
   color: var(--strained);
 }
 
-.topstrip--rotting .topstrip__stat:nth-of-type(1) {
+.topstrip--rotting .topstrip__happy {
   color: var(--rotting);
 }
 
@@ -766,9 +632,6 @@ body {
 /* ------------------------------------------------------------- small views */
 
 @media (max-height: 760px) {
-  .coins__value {
-    font-size: 28px;
-  }
   .queue-list {
     max-height: 150px;
   }
