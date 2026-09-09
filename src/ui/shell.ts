@@ -24,7 +24,11 @@
  * against the viewport height, not infinite — see .shell-dock__column in
  * shell.css. A panel that caps its own height against 100vh (several do)
  * is layering a redundant, harmless cap on top of that budget, not
- * providing the actual bound itself.
+ * providing the actual bound itself. The same contract extends to the
+ * mobile sheet: a column must also work as the sole content of a
+ * height-capped (60vh) sheet, not just when docked — don't assume a
+ * column can grow arbitrarily tall even off-screen, since the sheet
+ * scrolls it, same principle as the dock.
  */
 
 import './shell.css'
@@ -62,6 +66,23 @@ function buildColumn(section: HudSection): HTMLElement {
   return column
 }
 
+/** A section with no actual content shouldn't get a mobile tab of its own —
+ * see the "empty Social tab" finding in the Phase 4 fix wave. */
+function hasContent(section: HudSection): boolean {
+  return section.panels.some((panel) => panel.childNodes.length > 0)
+}
+
+/** Measures the tab bar's real rendered height (including its own
+ * safe-area-inset padding) and publishes it as a CSS variable, so the sheet
+ * and the toast offset read one real measurement instead of guessing it
+ * independently. Call whenever the tab bar's size could have changed. */
+function publishTabbarHeight(tabbar: HTMLElement): void {
+  const height = tabbar.getBoundingClientRect().height
+  if (height > 0) {
+    document.documentElement.style.setProperty('--shell-tabbar-h', `${height}px`)
+  }
+}
+
 export function createShell(root: HTMLElement, sections: HudSection[]): HudShell {
   const columns = new Map<string, HTMLElement>()
   for (const section of sections) {
@@ -82,9 +103,13 @@ export function createShell(root: HTMLElement, sections: HudSection[]): HudShell
   const tabbar = el('div', 'shell-tabbar')
   const sheet = el('div', 'shell-sheet')
   const tabButtons = new Map<string, HTMLButtonElement>()
-  let activeId = sections[0]?.id
+  const tabSections = sections.filter(hasContent)
+  let activeId = tabSections[0]?.id
 
-  for (const section of sections) {
+  const tabbarResizeObserver = new ResizeObserver(() => publishTabbarHeight(tabbar))
+  tabbarResizeObserver.observe(tabbar)
+
+  for (const section of tabSections) {
     const button = el('button', 'shell-tab', section.label)
     button.type = 'button'
     button.addEventListener('click', () => {
@@ -123,6 +148,8 @@ export function createShell(root: HTMLElement, sections: HudSection[]): HudShell
     } else {
       renderMobile()
       root.append(sheet, tabbar)
+      // The tab bar has real layout only once it's in the DOM.
+      publishTabbarHeight(tabbar)
     }
   }
 
@@ -132,6 +159,7 @@ export function createShell(root: HTMLElement, sections: HudSection[]): HudShell
   return {
     dispose(): void {
       mq.removeEventListener('change', applyMode)
+      tabbarResizeObserver.disconnect()
       for (const dock of docks.values()) dock.remove()
       sheet.remove()
       tabbar.remove()

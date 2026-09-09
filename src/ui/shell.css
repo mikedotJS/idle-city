@@ -3,6 +3,10 @@
  * independently — each anchors straight to its own screen edge, 18px in,
  * matching every other panel's corner margin in this codebase. A section
  * joining or leaving one side never affects the other side's position.
+ *
+ * z-index layers, low to high: docks/top strip (5) < the mobile sheet (6)
+ * < the mobile tab bar (7) < toasts and the activity feed, which must
+ * never lose a stacking fight (8) < full-screen overlays (10).
  */
 
 .shell-dock {
@@ -47,9 +51,11 @@
 
 .shell-dock__label {
   /* One section this phase, so a visible heading would just repeat
-     "Menu" above menu-shaped controls. Kept in the DOM, not the layout,
-     so the mobile tab bar phase can give it a job (the tab's own text)
-     without another markup change. */
+     "Menu" above menu-shaped controls. The mobile tab bar's visible text
+     comes from a separate button element (built in shell.ts), not from
+     promoting this hidden label — this <h2> stays hidden-but-present in
+     both presentations, occupying the desktop dock header slot it
+     already had. */
   position: absolute;
   width: 1px;
   height: 1px;
@@ -94,13 +100,18 @@
 
 .shell-sheet {
   position: fixed;
-  inset: 0;
-  bottom: 68px;
+  left: 0;
+  right: 0;
+  bottom: var(--shell-tabbar-h, 68px);
+  max-height: 60vh;
   z-index: 6;
   overflow-y: auto;
   background: var(--paper);
   padding: 16px;
   pointer-events: auto;
+  border-top-left-radius: var(--radius-panel);
+  border-top-right-radius: var(--radius-panel);
+  box-shadow: var(--shadow-panel);
 }
 
 .shell-sheet .shell-dock__column {

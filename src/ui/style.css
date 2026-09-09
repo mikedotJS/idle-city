@@ -3,8 +3,10 @@
  *
  * Cozy pastel diorama: warm off-white panels, soft shadows, generous rounding,
  * one warm accent. Panels live at the edges of the screen so the little city
- * in the middle stays unobstructed, and nothing but an actual panel ever
- * catches a pointer event.
+ * in the middle stays unobstructed (the mobile sheet, from Phase 4 onward, is
+ * the one deliberate exception — it's bounded to leave the board and top
+ * strip visible above it, not full-screen), and nothing but an actual panel
+ * ever catches a pointer event.
  *
  * No CDN, no webfont, no external asset. Everything is here.
  */
@@ -143,6 +145,7 @@ body {
   transform: translateX(-50%);
   z-index: 5;
   flex-direction: row;
+  flex-wrap: wrap;
   align-items: center;
   gap: 14px;
   padding: 10px 16px;
@@ -517,12 +520,12 @@ body {
   align-items: center;
   gap: 7px;
   pointer-events: none;
-  z-index: 6;
+  z-index: 8;
 }
 
 @media (max-width: 959px) {
   .toasts {
-    bottom: 86px;
+    bottom: calc(var(--shell-tabbar-h, 68px) + 18px);
   }
 }
 
