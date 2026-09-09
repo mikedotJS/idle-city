@@ -142,27 +142,31 @@ interface SoundDef {
  * and -3 dBFS for the one moment the game treats as a fanfare.
  */
 const SOUNDS: Record<SoundKey, SoundDef> = {
-  // Regenerated once already (the first take read as a hard wooden tap) and
-  // still rounded off here on top of that: a short attack fade so the onset
-  // is not instant, and a lowpass so nothing in it reads as a click rather
-  // than a soft thump. It is heard more than any other sound in the game, so
-  // it is the one clip that gets both a friendlier prompt and belt-and-braces
-  // shaping rather than trusting the source recording alone. Gain retargeted
-  // from -20 to -14 dBFS (0.21 -> 0.43) after it shipped at -20 and read as
-  // "quasi inaudible" — see the note above SOUNDS. If it still reads as dull
-  // rather than just quiet, lowpassHz is the next thing to revisit: 2800 Hz
-  // cuts most of the 2-8 kHz transient a click is actually heard by.
+  // Third take: a minimalist-electronic click requested to replace the
+  // wooden-tap lineage entirely, rather than keep shaping that source
+  // further. Its own peak measured -0.1 dBFS, still felt loud and sustained
+  // for its full second when heard raw — that sustain is exactly what
+  // maxDurationSec and the always-on 60ms release in trimmed() exist for; a
+  // one-shot never ends on a hard sample-domain edge no matter how long its
+  // source runs hot, so a cap short enough to read as a tap does not risk a
+  // click-artifact on the cut. No lowpass this time: 2800 Hz existed to tame
+  // a harsher recording's transient, and running a "no metallic ping"
+  // prompt through the filter tuned for the clip it was asked NOT to sound
+  // like would undo the ask rather than clean it up. attackFadeSec stays —
+  // a soft onset costs nothing regardless of source.
   ui_click: {
     src: 'sfx/ui_click.mp3',
-    gain: 0.43,
+    gain: 0.2,
     spatial: false,
     maxDurationSec: 0.3,
     rateJitter: 0.06,
     attackFadeSec: 0.015,
-    lowpassHz: 2800,
   },
   build_pop: { src: 'sfx/build_pop.mp3', gain: 5.96, spatial: true, maxDurationSec: 0.6, rateJitter: 0.08 },
-  level_up: { src: 'sfx/level_up.mp3', gain: 0.56, spatial: true, maxDurationSec: 1.4 },
+  // Replaced with a crystalline two-tone chime for the same minimalist-
+  // electronic identity as the click, above. Its own peak measured -2.3
+  // dBFS; the -6 dBFS target (a "distinct event") is unchanged from before.
+  level_up: { src: 'sfx/level_up.mp3', gain: 0.65, spatial: true, maxDurationSec: 1.4 },
   place_industrial: { src: 'sfx/place_industrial.mp3', gain: 0.5, spatial: true, maxDurationSec: 1.3 },
   place_amenity: { src: 'sfx/place_amenity.mp3', gain: 1.06, spatial: true, maxDurationSec: 1.1 },
   place_harbour: { src: 'sfx/place_harbour.mp3', gain: 0.5, spatial: true, maxDurationSec: 1.6 },
