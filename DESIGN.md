@@ -405,6 +405,19 @@ without the sim needing to say anything about it. Signed on purpose, even
 though only +1 (a level up) is reachable today: the auto-builder never lowers
 a level, but the curve does not assume that stays true.
 
+The same moment also floats a small arrow above the roof — green pointing up,
+red pointing down — so the change reads at a glance even on a board too busy
+to notice one house's silhouette got a touch taller. One geometry serves both
+directions: it is built pivoted at its own tail rather than centred, so a 180
+degree flip about X puts the cone at the other end without moving where it is
+anchored. A first pass floated it right at roofPivotY, which is where a roof
+STARTS rather than its peak, and in a dense block the arrow read as a sliver
+wedged between two neighbours' rooflines rather than something floating
+clearly above them; the clearance above roofPivotY is deliberately generous
+for exactly that reason. A small fixed pool of plain meshes rather than an
+InstancedMesh, since at most a handful ever float at once and each one needs
+its own fade, which instancing has no per-instance channel for.
+
 Tiles beside water or below the peaks carry a biome, and buildings take their
 theme from it. Purely cosmetic — a coastal house and an inland house earn the
 same.

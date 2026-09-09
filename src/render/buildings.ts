@@ -85,6 +85,7 @@ import {
   easeOutBack,
   pulseFade,
   setSrgb,
+  smoothstep,
 } from './palette'
 
 // ---------------------------------------------------------------------------
@@ -154,6 +155,26 @@ function blob(r: number, x = 0, y = 0, z = 0, sy = 1): BufferGeometry {
   if (sy !== 1) g.scale(1, sy, 1)
   g.translate(x, y, z)
   return g
+}
+
+/**
+ * A small low-poly "up" arrow: a hexagonal shaft topped by a hexagonal cone,
+ * pivoted at its own tail (y=0) rather than centred. That tail is what the
+ * level-up/level-down floater positions and rotates about, so rotating this
+ * one shape 180 degrees about X is all a "down" arrow needs — the cone ends
+ * up at the bottom, pointing the other way, still anchored at the same point.
+ */
+function arrowGeometry(): BufferGeometry {
+  const shaftH = 0.17
+  const headH = 0.14
+  const parts = [
+    cyl(0.022, 0.022, shaftH, 6, 0, shaftH / 2, 0),
+    cone(0.068, headH, 6, 0, shaftH + headH / 2, 0),
+  ]
+  const merged = mergeGeometries(parts, false)
+  for (const p of parts) p.dispose()
+  if (!merged) throw new Error('render/buildings: arrow merge failed')
+  return merged
 }
 
 /**
@@ -1148,6 +1169,15 @@ const LEVEL_PULSE_SECONDS = 0.6
 const LEVEL_HOP = 0.05
 /** Peak extra scale at the top of the bounce, on top of the resting size. */
 const LEVEL_SQUASH = 0.1
+/** How far the level-change arrow floats over its own life, in tile units. */
+const ARROW_RISE = 0.26
+/**
+ * Gap left between roofPivotY and the arrow's resting height. Generous on
+ * purpose: roofPivotY is where the roof STARTS, not its peak, and a first
+ * pass at 0.14 left the arrow reading as a sliver wedged between two
+ * neighbouring roofs in a dense block rather than a clearly floating arrow.
+ */
+const ARROW_CLEARANCE = 0.34
 
 export function createBuildings(scene: Scene): BuildingsLayer {
   const bodyMaterial = new MeshStandardMaterial({
@@ -1181,6 +1211,39 @@ export function createBuildings(scene: Scene): BuildingsLayer {
   selectLooks(bodyMaterial)
   selectLooks(windowMaterial)
   selectLooks(depthMaterial)
+
+  // The level-up/level-down arrow. Plain meshes rather than an InstancedMesh:
+  // at most a handful ever float at once (auto-builder upgrades happen one at
+  // a time, and the pulse is over in well under a second), so a small fixed
+  // pool is simpler than instancing and each slot needs its own opacity
+  // anyway, which InstancedMesh has no per-instance channel for.
+  const ARROW_POOL_SIZE = 6
+  const arrowGeom = arrowGeometry()
+  const arrowUpColor = new Color().setHex(RING_GOOD, SRGBColorSpace)
+  const arrowDownColor = new Color().setHex(DANGER_COLOR, SRGBColorSpace)
+  interface ArrowSlot {
+    mesh: Mesh
+    material: MeshBasicMaterial
+  }
+  const arrowPool: ArrowSlot[] = []
+  for (let i = 0; i < ARROW_POOL_SIZE; i++) {
+    const material = new MeshBasicMaterial({
+      transparent: true,
+      depthWrite: false,
+      // A flat, punchy indicator rather than another piece of shaded scenery —
+      // the same reasoning windowMaterial disables tone mapping for, so the
+      // green/red actually reads as green/red instead of the ambient tint.
+      toneMapped: false,
+    })
+    const mesh = new Mesh(arrowGeom, material)
+    mesh.visible = false
+    mesh.frustumCulled = false
+    mesh.castShadow = false
+    mesh.receiveShadow = false
+    mesh.renderOrder = 6
+    scene.add(mesh)
+    arrowPool.push({ mesh, material })
+  }
 
   const entries = new Map<BuildingType, TypeEntry>()
   const byMesh = new Map<Object3D, TypeEntry>()
@@ -1441,6 +1504,10 @@ export function createBuildings(scene: Scene): BuildingsLayer {
   const levelUpColor = new Color().setHex(RING_GOOD, SRGBColorSpace)
 
   function update(u: BuildingsUpdate): void {
+    // Filled as pulsing records turn up below, then any pool slot past what
+    // got used this frame is hidden — see the end of this function.
+    let arrowsUsed = 0
+
     for (const entry of entries.values()) {
       const { records, bodyMesh, roofMesh, windowMesh, looks } = entry
       for (let i = 0; i < records.length; i++) {
@@ -1470,6 +1537,27 @@ export function createBuildings(scene: Scene): BuildingsLayer {
         const bounce = 1 + LEVEL_SQUASH * wobble
 
         const w = tileToWorld(r.tile)
+
+        // The arrow: a separate, non-oscillating drift rather than the bounce
+        // above, so it reads as "this went up/down" instead of jittering with
+        // the building. Gated to the same 0..1 window as everything else here.
+        if (pulseX >= 0 && pulseX < 1 && arrowsUsed < arrowPool.length) {
+          const slot = arrowPool[arrowsUsed++]
+          const drift = ARROW_RISE * smoothstep(0, 1, pulseX) * r.levelPulseSign
+          const restY = looks[r.look].roofPivotY * r.heightScale + ARROW_CLEARANCE
+          slot.mesh.position.set(w.x, restY + drift, w.z)
+          // The geometry's cone points up from its own pivot; flipping it
+          // about X for a downgrade puts the cone at the bottom instead, so it
+          // still points the way the arrow is actually travelling.
+          slot.mesh.rotation.set(r.levelPulseSign < 0 ? Math.PI : 0, 0, 0)
+          slot.material.color.copy(r.levelPulseSign >= 0 ? arrowUpColor : arrowDownColor)
+          // In fast, hold, then out — a flat fade-in/out would either pop in
+          // sharply or spend the whole window fading, and this is meant to be
+          // read at a glance, not stared at.
+          slot.material.opacity = smoothstep(0, 0.12, pulseX) * (1 - smoothstep(0.5, 1, pulseX))
+          slot.mesh.visible = true
+        }
+
         pos.set(w.x, -0.07 * d + LEVEL_HOP * wobble, w.z)
         euler.set(r.lean * 0.05 * d, r.yaw, r.lean * -0.07 * d)
         quat.setFromEuler(euler)
@@ -1522,6 +1610,8 @@ export function createBuildings(scene: Scene): BuildingsLayer {
         windowMesh.visible = u.night > 0.02
       }
     }
+
+    for (let i = arrowsUsed; i < arrowPool.length; i++) arrowPool[i].mesh.visible = false
   }
 
   function tileForHit(object: Object3D, instanceId: number): number | null {
@@ -1568,6 +1658,11 @@ export function createBuildings(scene: Scene): BuildingsLayer {
     }
     for (const mesh of ghosts.values()) scene.remove(mesh)
     for (const geom of ghostGeoms.values()) geom.dispose()
+    for (const slot of arrowPool) {
+      scene.remove(slot.mesh)
+      slot.material.dispose()
+    }
+    arrowGeom.dispose()
     bodyMaterial.dispose()
     windowMaterial.dispose()
     ghostMaterial.dispose()
