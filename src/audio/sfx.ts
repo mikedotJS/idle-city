@@ -128,14 +128,18 @@ interface SoundDef {
  * continuous clip's RMS would have driven the sparse one's noise floor up
  * along with it.
  *
- * Three targets: -20 dBFS for the UI click specifically — it is the one
- * sound in this file bound to every button in the HUD rather than to a
- * single kind of event, so it plays far more often than anything else and
- * has to be the quietest thing here on volume alone — -14 dBFS for
- * everything else meant to sit in the background (a toast chime, the
- * ambient beds — several of which can play at once if the player builds
- * several factories), -6 dBFS for a one-shot that has to read as a distinct
- * event, and -3 dBFS for the one moment the game treats as a fanfare.
+ * Three targets: -14 dBFS for anything meant to sit in the background — a
+ * toast chime, the ambient beds (several of which can play at once if the
+ * player builds several factories), and the UI click, which plays far more
+ * often than anything else and so was first tried a further 6 dB under even
+ * that floor on the theory that "most frequent" should mean "quietest". In
+ * practice that put it under everything else it plays alongside and it read
+ * as barely there at all — reported directly, not measured, because loudest
+ * in principle is not the same question as audible in the room. It now sits
+ * at the same -14 dBFS floor as the rest of this tier: still the quietest
+ * *distinct* sound in the file, just no longer quieter than its own
+ * background — -6 dBFS for a one-shot that has to read as a distinct event,
+ * and -3 dBFS for the one moment the game treats as a fanfare.
  */
 const SOUNDS: Record<SoundKey, SoundDef> = {
   // Regenerated once already (the first take read as a hard wooden tap) and
@@ -143,10 +147,14 @@ const SOUNDS: Record<SoundKey, SoundDef> = {
   // is not instant, and a lowpass so nothing in it reads as a click rather
   // than a soft thump. It is heard more than any other sound in the game, so
   // it is the one clip that gets both a friendlier prompt and belt-and-braces
-  // shaping rather than trusting the source recording alone.
+  // shaping rather than trusting the source recording alone. Gain retargeted
+  // from -20 to -14 dBFS (0.21 -> 0.43) after it shipped at -20 and read as
+  // "quasi inaudible" — see the note above SOUNDS. If it still reads as dull
+  // rather than just quiet, lowpassHz is the next thing to revisit: 2800 Hz
+  // cuts most of the 2-8 kHz transient a click is actually heard by.
   ui_click: {
     src: 'sfx/ui_click.mp3',
-    gain: 0.21,
+    gain: 0.43,
     spatial: false,
     maxDurationSec: 0.3,
     rateJitter: 0.06,
