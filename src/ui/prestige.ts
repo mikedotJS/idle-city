@@ -131,7 +131,7 @@ export function createPrestigePanel(
   const charterRule = el(
     'p',
     'note',
-    'Charter rewards care, not scale: sqrt(population) x happiness cubed. Size barely moves it; happiness dominates it.',
+    'Charter rewards care, not scale. It is sqrt(population) x happiness cubed, so size barely moves it and happiness decides it.',
   )
   const charterZeroNote = el('p', 'note prestige-note--warn', NEGLECTED_HAPPINESS_NOTE)
   charterZeroNote.hidden = true
@@ -148,7 +148,7 @@ export function createPrestigePanel(
     el(
       'p',
       'hint',
-      'Banks the charter above forever, then throws this city away and founds a new one on fresh land. Charter buys starting conditions only — nothing it buys changes a rule once a city is running.',
+      'Banks the charter above forever, then throws this city away and founds a new one on fresh land. Charter buys starting conditions only. Nothing it buys changes a rule once a city is running.',
     ),
   )
 
@@ -181,7 +181,7 @@ export function createPrestigePanel(
     }
     armed = true
     armedCharter = charterFor(getState())
-    setText(retireButton, `Confirm — retire for ${formatCoins(armedCharter)} charter?`)
+    setText(retireButton, `Really retire for ${formatCoins(armedCharter)} charter?`)
     retireButton.classList.add('is-armed')
     armedTimer = window.setTimeout(disarmRetire, 4000)
   })
@@ -202,7 +202,7 @@ export function createPrestigePanel(
   const spendSection = el('div', 'prestige-section')
   spendSection.append(
     el('p', 'prestige-section__title', 'Spend charter'),
-    el('p', 'hint', 'Banked charter, never spent unless you spend it here.'),
+    el('p', 'hint', 'Banked charter. Nothing spends it but you.'),
   )
   const bankLine = el('p', 'prestige-bank')
   spendSection.append(bankLine)
@@ -292,7 +292,7 @@ export function createPrestigePanel(
       // and it does not make anything happier or richer — cheaper density
       // just concentrates whoever moves in near whatever gets built, for
       // better or worse.
-      'Both are fixed the moment a new city is founded and never change after — cheaper upgrades make a city denser, not happier.',
+      'Both are fixed the moment a new city is founded, and never change after. Cheaper upgrades make a city denser, not happier.',
     ),
   )
 

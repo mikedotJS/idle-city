@@ -115,7 +115,7 @@ export function createToolsPanel(
   paintSpeed()
   speedSection.append(
     speedRow,
-    el('p', 'hint', 'Runs the sim faster. The auto-builder speeds up with it.'),
+    el('p', 'hint', 'Runs the whole city faster, the auto-builder with it.'),
   )
 
   // -------------------------------------------------------------------- undo
@@ -138,7 +138,7 @@ export function createToolsPanel(
       // undoDemolition() already popped this entry off the stack even on
       // refusal — it cannot be retried, so say what happened to it.
       callbacks.onToast(
-        `Could not restore the ${label.toLowerCase()} — something else was built on that tile since.`,
+        `Could not restore the ${label.toLowerCase()}. Something else stands on that tile now.`,
       )
     }
     refreshUndo(getState())
@@ -157,7 +157,7 @@ export function createToolsPanel(
     }
     const label = BUILDINGS[demo.building.type].label
     const ago = formatDuration(Math.max(0, state.time - demo.at))
-    setText(undoButton, `Undo: bring back the ${label} (Lv ${demo.building.level}) — demolished ${ago} ago`)
+    setText(undoButton, `Undo: bring back the ${label} (Lv ${demo.building.level}), demolished ${ago} ago`)
     if (undoButton.disabled) undoButton.disabled = false
   }
 
@@ -203,7 +203,7 @@ export function createToolsPanel(
     function fallbackCopy(): void {
       exportTextarea.focus()
       exportTextarea.select()
-      callbacks.onToast('Clipboard unavailable — text is selected, press Ctrl/Cmd+C.')
+      callbacks.onToast('Clipboard blocked. Press Ctrl/Cmd+C to copy the selected text.')
     }
   })
 
@@ -298,7 +298,7 @@ export function createToolsPanel(
   })
   postcardSection.append(
     postcardButton,
-    el('p', 'hint', 'A picture of the board exactly as it looks right now.'),
+    el('p', 'hint', 'A picture of the board as it looks right now.'),
   )
 
   panel.append(speedSection, undoSection, postcardSection, exportSection, importSection)

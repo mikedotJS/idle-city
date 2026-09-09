@@ -221,7 +221,7 @@ function describe(target: PickTarget): HoverInfo {
   const tile = target.tile
   const happiness = derived.field[tile]
   const building = state.grid[tile]
-  const lines = [`Happiness ${(happiness * 100).toFixed(0)}% — ${moodOf(happiness)}`]
+  const lines = [`Happiness ${(happiness * 100).toFixed(0)}%, ${moodOf(happiness)}`]
 
   if (building) {
     const def = BUILDINGS[building.type]

@@ -135,7 +135,7 @@ export function createHud(root: HTMLElement, cb: HudCallbacks): Hud {
   const multNote = el(
     'p',
     'note',
-    'Income multiplier = 0.50 + happiness, so 0.50x at worst and 1.50x at best. A happier city earns more from the same buildings, and builds faster too. The rate beside your coins already has it applied.',
+    'Income multiplier = 0.50 + happiness, so 0.50x at worst and 1.50x at best. A happier city earns more from the same buildings, and builds faster too. The rate beside your coins already includes it.',
   )
 
   readouts.append(coinsBlock, statGrid, happy, multNote)
