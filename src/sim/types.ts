@@ -1,6 +1,14 @@
 import type { CityEvent } from './events'
 
-export type BuildingType = 'house' | 'shop' | 'factory' | 'park' | 'station'
+export type BuildingType =
+  | 'house'
+  | 'shop'
+  | 'factory'
+  | 'park'
+  | 'station'
+  | 'school'
+  | 'harbour'
+  | 'landfill'
 
 /** Types the build queue may contain. Factory and park are placed by hand. */
 export type QueueableType = 'house' | 'shop'

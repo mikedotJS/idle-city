@@ -1,6 +1,5 @@
 import {
   BASE_HAPPINESS,
-  FACTORY_COINS,
   HABITABLE_HAPPINESS,
   INCOME_FLOOR,
   LAND_BASE_COST,
@@ -13,6 +12,7 @@ import {
   SHOP_RADIUS,
   STARTING_PARCELS,
 } from './config'
+import { BUILDINGS } from './buildings'
 import { computeField } from './field'
 import { tileDistance } from './grid'
 import type { CityState, Derived } from './types'
@@ -78,8 +78,12 @@ export function derive(state: CityState): Derived {
       const cap = SHOP_POP_CAP * LEVEL_OUTPUT[b.level]
       const near = Math.min(populationNear(state, field, i, SHOP_RADIUS), cap)
       base += near * SHOP_COINS_PER_POP
-    } else if (b.type === 'factory') {
-      base += FACTORY_COINS * LEVEL_OUTPUT[b.level]
+    } else {
+      // Driven off the registry rather than a list of type names here. A
+      // second earning building type used to mean editing this branch too,
+      // and forgetting to was silent: the building simply earned nothing.
+      const flat = BUILDINGS[b.type].coins
+      if (flat !== undefined) base += flat * LEVEL_OUTPUT[b.level]
     }
   }
 

@@ -211,6 +211,15 @@ export function isBuildable(map: TerrainMap, tile: number): boolean {
   return map.terrain[tile] === Terrain.Plain
 }
 
+/**
+ * A land tile that touches water — the sand strip. Same array the renderer
+ * draws the beach from, so "looks like it is on the shore" and "counts as the
+ * shore" can never drift apart.
+ */
+export function isCoast(map: TerrainMap, tile: number): boolean {
+  return map.beach[tile] === 1
+}
+
 export function biomeOf(map: TerrainMap, tile: number): Biome {
   return map.biome[tile] as Biome
 }

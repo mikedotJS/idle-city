@@ -5,11 +5,11 @@ import {
   STARTING_PARCELS,
   TILE_COUNT,
 } from './config'
-import { BUILDINGS, buildingCost } from './buildings'
+import { BUILDINGS, BUILDING_TYPES, buildingCost } from './buildings'
 import { nextLandCost } from './economy'
 import { noteInteraction, recordEvent } from './events'
 import { nextRandom, parcelNeighbours, parcelOfTile } from './grid'
-import { Terrain, isBuildable, terrainFor } from './terrain'
+import { Terrain, isBuildable, isCoast, terrainFor } from './terrain'
 import type { Building, BuildingType, CityState, QueueableType } from './types'
 
 /**
@@ -25,6 +25,16 @@ import type { Building, BuildingType, CityState, QueueableType } from './types'
 function freshSeed(): number {
   const n = (Date.now() ^ Math.floor(Math.random() * 0xffffffff)) | 0
   return n || 1
+}
+
+/**
+ * Every known type at zero. Written out as a literal until adding a type meant
+ * remembering to edit that literal too, which nothing enforced.
+ */
+function emptyCounts(): Record<BuildingType, number> {
+  const counts = {} as Record<BuildingType, number>
+  for (const type of BUILDING_TYPES) counts[type] = 0
+  return counts
 }
 
 export type ActionResult = { ok: true } | { ok: false; reason: string }
@@ -53,7 +63,7 @@ export function createCity(seed?: number): CityState {
     grid: new Array<Building | null>(TILE_COUNT).fill(null),
     ownedParcels,
     queue: ['house', 'house', 'shop'],
-    builtCount: { house: 0, shop: 0, factory: 0, park: 0, station: 0 },
+    builtCount: emptyCounts(),
     terrainSeed: chosen ^ 0x5eed,
     rngSeed: chosen,
     nextBuildAt: 0,
@@ -92,6 +102,7 @@ export function placeManual(state: CityState, type: BuildingType, tile: number):
   if (!isBuildable(map, tile)) {
     return fail(map.terrain[tile] === Terrain.Water ? 'You cannot build on water' : 'Too steep to build on')
   }
+  if (def.coastOnly && !isCoast(map, tile)) return fail(`A ${def.label.toLowerCase()} needs a shoreline`)
   if (state.grid[tile]) return fail('That tile is taken')
 
   const cost = buildingCost(type, state.builtCount[type])

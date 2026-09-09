@@ -305,6 +305,21 @@ const THEMES: Record<BuildingType, Theme[]> = {
     theme(0xefe6d2, 0x8bb7bd, 0xfdf8ec, 0x8fb87c, 0.45, false),
     theme(0xa6845e, 0x5f544a, 0xd9c8ac, 0x4c7a5a, 1.55, true),
   ],
+  school: [
+    plainTheme('school', 0xf3e8d6, 0x6fa473),
+    theme(0xf2ead9, 0x8fb9be, 0xfdf7ea, 0x8fb87c, 0.45, false),
+    theme(0xa8825f, 0x64564b, 0xdccbb0, 0x4c7a5a, 1.55, true),
+  ],
+  harbour: [
+    plainTheme('harbour', 0xeef2ee, 0x6fa473),
+    theme(0xe6efee, 0x6f9aa2, 0xffffff, 0x8fb87c, 0.35, false),
+    theme(0x8c9a97, 0x4d6469, 0xd3dcd8, 0x4c7a5a, 1.35, true),
+  ],
+  landfill: [
+    plainTheme('landfill', 0xb7ad9a, 0x8a9a6e),
+    theme(0xa9a893, 0x6e675c, 0xc8c2ac, 0x8a9a6e, 0.3, false),
+    theme(0x7f7a6c, 0x565248, 0xa8a292, 0x60775a, 0.3, true),
+  ],
   park: [
     plainTheme('park', 0xd9cdb4, BUILDINGS.park.roofColor),
     theme(0xdccca6, 0x86ae74, 0xf0e6cd, 0x86ae74, 1.0, false),

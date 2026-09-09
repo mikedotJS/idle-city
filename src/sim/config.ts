@@ -46,6 +46,12 @@ export const SHOP_POP_CAP = 25
 
 export const POP_PER_HOUSE = 4
 export const FACTORY_COINS = 5
+/**
+ * Deliberately worse value than a factory per coin spent (0.018/coin against
+ * 0.025), and it escalates faster. The landfill is the polluter you can afford
+ * in the first five minutes, not the one you want in the twentieth.
+ */
+export const LANDFILL_COINS = 1.6
 
 /** Dereliction hysteresis, in seconds of sim time. */
 export const DERELICT_HAPPINESS = 0.25

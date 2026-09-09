@@ -177,6 +177,11 @@ const CLEARANCE: Record<BuildingType, number> = {
   factory: 0.13, // body 0.74
   park: 0.04, // lawn plate 0.92, and only 0.12 tall
   station: 0.14, // platform runs wide, but the canopy is overhead
+  // These three fall through to houseParts for now, so they share its body.
+  // Whoever gives them their own geometry owns re-measuring these.
+  school: 0.19,
+  harbour: 0.19,
+  landfill: 0.19,
 }
 /** An empty tile takes nothing; an agent may hang over bare ground. */
 const OPEN_CLEARANCE = 0.5
