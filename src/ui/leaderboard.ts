@@ -65,12 +65,13 @@ export function createLeaderboardUI(
   overlay.hidden = true
   const card = el('section', 'panel panel--board')
 
+  const headingRow = el('div', 'board__heading')
   const heading = el('h2', 'board__title', 'World leaderboard')
-  const subtitle = el(
-    'p',
-    'note',
-    'Ranked by happiness x population x income. Every factor grows with time, so a long session outranks a tidy plan.',
-  )
+  const infoBadge = el('span', 'board__info', 'i')
+  infoBadge.title =
+    'Ranked by happiness x population x income. Every factor grows with time, so a long session outranks a tidy plan.'
+  infoBadge.tabIndex = 0
+  headingRow.append(heading, infoBadge)
 
   // Auth form
   const form = el('form', 'board__auth')
@@ -124,7 +125,7 @@ export function createLeaderboardUI(
   const closeButton = el('button', 'btn btn--ghost', 'Back to the city')
   closeButton.type = 'button'
 
-  card.append(heading, subtitle, form, account, publishRow, status, list, closeButton)
+  card.append(headingRow, form, account, publishRow, status, list, closeButton)
   overlay.append(card)
   root.append(launcher, overlay)
 

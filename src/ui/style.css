@@ -934,10 +934,37 @@ body {
   padding: 22px 24px;
 }
 
+.board__heading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .board__title {
   margin: 0;
   font-size: 19px;
   color: var(--ink);
+}
+
+.board__info {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 1px solid var(--line);
+  color: var(--ink-soft);
+  font-size: 11px;
+  font-style: italic;
+  cursor: help;
+}
+
+.board__info:hover,
+.board__info:focus-visible {
+  color: var(--ink);
+  border-color: var(--accent);
+  outline: none;
 }
 
 .board__auth,
