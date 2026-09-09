@@ -1,19 +1,21 @@
 /**
  * Reads and writes the global board.
  *
- * The table is named `public_leaderboard` on purpose: Based opens reads on a
- * `public_*` table to every signed-in caller while keeping writes scoped to the
- * row owner. That is what makes a board possible at all — a table with
- * `user_id` is private to each player, and one without is writable by anybody,
- * so before that prefix existed the only way to let everyone read the board was
- * to let everyone overwrite the top of it.
+ * The `leaderboard` table on the Based project carries the `shared` access
+ * policy: every signed-in caller reads every row, but each caller can only
+ * create, update or delete the row `user_id` forces to be their own. Neither
+ * of Based's other two policies can do this — `owner-scoped` also scopes
+ * *reads* to the caller's own row (nobody could see the board), and
+ * `public-read` restricts writes to the project's single owner account (no
+ * player could publish their own score). `shared` was added to Based
+ * specifically for this table.
  */
 
 import { scoreOf } from '../sim/score'
 import type { CityState } from '../sim/types'
 import type { BasedClient, BasedUser } from './based'
 
-export const BOARD_TABLE = 'public_leaderboard'
+export const BOARD_TABLE = 'leaderboard'
 
 /** Column names arrive camelCased: Based derives them from the SQLite schema. */
 export interface BoardEntry {
