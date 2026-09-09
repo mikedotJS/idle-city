@@ -54,6 +54,29 @@ export function easeOutBack(x: number): number {
   return 1 + BACK_C3 * u * u * u + BACK_C1 * u * u
 }
 
+/** How fast a level-change bounce dies away. Shared so the wobble and its own fade agree. */
+const PULSE_DECAY = 4.5
+
+/**
+ * A single decaying "boing": rises, overshoots back the other way once, and is
+ * at rest by x=1. Signed, so a caller can flip it for the opposite reaction
+ * (settling down instead of popping up) rather than authoring a second curve.
+ * Zero outside 0..1, so a timestamp from long ago costs nothing to hold onto —
+ * no separate "has this finished" check is needed anywhere that uses it.
+ */
+export function bouncePulse(x: number): number {
+  if (x <= 0 || x >= 1) return 0
+  return Math.sin(x * Math.PI * 2.4) * Math.exp(-x * PULSE_DECAY)
+}
+
+/**
+ * The envelope bouncePulse rides, isolated for anything that should fade
+ * rather than wobble — a colour flash looks wrong oscillating in sign.
+ */
+export function pulseFade(x: number): number {
+  return x <= 0 || x >= 1 ? 0 : Math.exp(-x * PULSE_DECAY)
+}
+
 // ---------------------------------------------------------------------------
 // Ground: the happiness ramp. This is the primary UI of the whole game.
 // ---------------------------------------------------------------------------

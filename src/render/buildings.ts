@@ -78,9 +78,12 @@ import type { BuildingType, CityState } from '../sim/types'
 import {
   DANGER_COLOR,
   DERELICT_TINT,
+  RING_GOOD,
   WINDOW_GLOW,
+  bouncePulse,
   clamp01,
   easeOutBack,
+  pulseFade,
   setSrgb,
 } from './palette'
 
@@ -1074,6 +1077,18 @@ interface Record_ {
   derelict: boolean
   /** Smoothed 0..1 so dereliction fades in rather than popping. */
   derelictAmt: number
+  /**
+   * Sim time this building's level last changed. -Infinity if it never has
+   * (or the record is fresh), which the pulse curves in update() simply read
+   * as "long over" — no separate null check needed anywhere that uses it.
+   */
+  levelPulseAt: number
+  /**
+   * +1 grew a floor, -1 lost one; flips the bounce so a downgrade sinks
+   * instead of popping. Only +1 happens today — the auto-builder never lowers
+   * a level — but the pulse itself does not assume that stays true.
+   */
+  levelPulseSign: number
   /** Static per-instance body colour, hue/lightness jittered from the variant. */
   color: Color
   yaw: number
@@ -1127,6 +1142,12 @@ export interface BuildingsLayer {
 
 const SPAWN_SECONDS = 0.4
 const DERELICT_FADE = 1.4
+/** How long a level-change bounce plays, from the moment it fires. */
+const LEVEL_PULSE_SECONDS = 0.6
+/** Peak vertical hop, in tile units. A storey is roughly 0.2-0.3 tall, so this reads as a bump, not a jump. */
+const LEVEL_HOP = 0.05
+/** Peak extra scale at the top of the bounce, on top of the resting size. */
+const LEVEL_SQUASH = 0.1
 
 export function createBuildings(scene: Scene): BuildingsLayer {
   const bodyMaterial = new MeshStandardMaterial({
@@ -1323,10 +1344,22 @@ export function createBuildings(scene: Scene): BuildingsLayer {
   let biomeMap: Uint8Array | null = null
 
   function sync(state: CityState): void {
-    // Carry the smoothed dereliction across a rebuild so it does not restart.
-    const carry = new Map<number, { bornAt: number; amt: number }>()
+    // Carry the smoothed dereliction, and any level-change bounce still
+    // playing, across a rebuild so neither restarts on every unrelated sync.
+    const carry = new Map<
+      number,
+      { bornAt: number; amt: number; look: number; pulseAt: number; pulseSign: number }
+    >()
     for (const entry of entries.values()) {
-      for (const r of entry.records) carry.set(r.tile, { bornAt: r.bornAt, amt: r.derelictAmt })
+      for (const r of entry.records) {
+        carry.set(r.tile, {
+          bornAt: r.bornAt,
+          amt: r.derelictAmt,
+          look: r.look,
+          pulseAt: r.levelPulseAt,
+          pulseSign: r.levelPulseSign,
+        })
+      }
       entry.records.length = 0
     }
 
@@ -1341,8 +1374,16 @@ export function createBuildings(scene: Scene): BuildingsLayer {
       const biome = terrain.biome[tile] as Biome
       const look = lookIndex(biome, b.level)
       const prev = carry.get(tile)
-      const amt =
-        prev && prev.bornAt === b.bornAt ? prev.amt : b.derelict ? 1 : 0
+      // Same tile AND the same bornAt: bornAt is stamped once at
+      // spawnBuilding() and an upgrade never touches it, so this is the one
+      // reliable way to tell "this building levelled" from "this building was
+      // demolished and something else now stands here" — a bare tile match
+      // cannot tell the two apart.
+      const sameBuilding = prev !== undefined && prev.bornAt === b.bornAt
+      const amt = sameBuilding ? prev!.amt : b.derelict ? 1 : 0
+      // Biome never changes under a standing building, so a changed look at
+      // the same tile and bornAt can only mean the level changed.
+      const leveled = sameBuilding && prev!.look !== look
       entry.records.push({
         tile,
         variant: b.variant,
@@ -1350,6 +1391,8 @@ export function createBuildings(scene: Scene): BuildingsLayer {
         bornAt: b.bornAt,
         derelict: b.derelict,
         derelictAmt: amt,
+        levelPulseAt: leveled ? state.time : sameBuilding ? prev!.pulseAt : -Infinity,
+        levelPulseSign: leveled ? Math.sign(look - prev!.look) : sameBuilding ? prev!.pulseSign : 1,
         color: jitteredColor(b.type, biome, b.variant),
         // Four cardinal orientations plus a couple of degrees of slop, so a row
         // of identical houses does not read as a repeated stamp.
@@ -1391,6 +1434,11 @@ export function createBuildings(scene: Scene): BuildingsLayer {
   const derelictColor = setSrgb(new Color(), DERELICT_TINT)
   const dangerColor = new Color().setHex(DANGER_COLOR, SRGBColorSpace)
   const glowColor = setSrgb(new Color(), WINDOW_GLOW)
+  // Same sage already used for a positive emission ring, reused rather than a
+  // new colour, so "this got better" reads consistently across the game. A
+  // downgrade flashes derelictColor instead — the taupe that already means
+  // decline everywhere else.
+  const levelUpColor = new Color().setHex(RING_GOOD, SRGBColorSpace)
 
   function update(u: BuildingsUpdate): void {
     for (const entry of entries.values()) {
@@ -1411,11 +1459,21 @@ export function createBuildings(scene: Scene): BuildingsLayer {
         const d = r.derelictAmt
         const grow = easeOutBack((u.time - r.bornAt) / SPAWN_SECONDS)
 
+        // A level change gets its own brief bounce on top of everything else:
+        // wobble drives the motion (signed, so a downgrade sinks instead of
+        // popping), glow drives how hard the colour flashes. Both are simply
+        // 0 once LEVEL_PULSE_SECONDS has passed, so nothing here needs an
+        // "is a pulse playing" branch.
+        const pulseX = (u.time - r.levelPulseAt) / LEVEL_PULSE_SECONDS
+        const wobble = bouncePulse(pulseX) * r.levelPulseSign
+        const glow = pulseFade(pulseX)
+        const bounce = 1 + LEVEL_SQUASH * wobble
+
         const w = tileToWorld(r.tile)
-        pos.set(w.x, -0.07 * d, w.z)
+        pos.set(w.x, -0.07 * d + LEVEL_HOP * wobble, w.z)
         euler.set(r.lean * 0.05 * d, r.yaw, r.lean * -0.07 * d)
         quat.setFromEuler(euler)
-        scale.set(grow, grow * r.heightScale * (1 - 0.1 * d), grow)
+        scale.set(grow * bounce, grow * r.heightScale * (1 - 0.1 * d) * bounce, grow * bounce)
         matrix.compose(pos, quat, scale)
         bodyMesh.setMatrixAt(i, matrix)
         if (windowMesh) windowMesh.setMatrixAt(i, matrix)
@@ -1438,6 +1496,7 @@ export function createBuildings(scene: Scene): BuildingsLayer {
         tmpColor.copy(r.color)
         if (d > 0) tmpColor.lerp(derelictColor, 0.6 * d)
         if (u.demolishTile === r.tile) tmpColor.lerp(dangerColor, 0.7)
+        if (glow > 0) tmpColor.lerp(r.levelPulseSign >= 0 ? levelUpColor : derelictColor, glow * 0.5)
         // Keep silhouettes from going to mud once the sun is down.
         if (u.night > 0) tmpColor.multiplyScalar(1 + 0.14 * u.night)
         bodyMesh.setColorAt(i, tmpColor)

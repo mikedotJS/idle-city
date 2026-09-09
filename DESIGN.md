@@ -392,6 +392,19 @@ full plot, which is exactly where the income curve used to flatten. Level scales
 a factory's emission strength but not its range, so upgrading one makes the same
 neighbourhood worse rather than poisoning a wider one.
 
+A level change gets a brief bounce: a signed, decaying wobble
+(`bouncePulse`/`pulseFade` in `render/palette.ts`) drives a small hop and
+squash-stretch on the instance, plus a colour flash toward the same sage
+already used for a positive emission ring (or the same taupe dereliction
+already uses, for the direction that doesn't happen yet). It is detected in
+`buildings.ts`'s `sync()` purely by noticing a tile's `look` index changed
+while its `bornAt` did not — bornAt is stamped once at spawn and an upgrade
+never touches it, so that comparison tells "this building levelled" apart
+from "this building was demolished and something else stands here now"
+without the sim needing to say anything about it. Signed on purpose, even
+though only +1 (a level up) is reachable today: the auto-builder never lowers
+a level, but the curve does not assume that stays true.
+
 Tiles beside water or below the peaks carry a biome, and buildings take their
 theme from it. Purely cosmetic — a coastal house and an inland house earn the
 same.
