@@ -137,7 +137,7 @@ const activity = createActivityPanel(uiRoot, {
   },
 })
 
-const prestigePanel = createPrestigePanel(uiRoot, () => prestige, {
+const prestigePanel = createPrestigePanel(() => prestige, {
   onRetire: () => {
     // Bank it before anything is destroyed, and persist it before the reload:
     // a charter that only exists in memory when the page navigates away is a
@@ -177,7 +177,7 @@ const tools = createToolsPanel(currentCity, {
   onPostcard: () => renderer.postcard(),
 })
 
-createShell(uiRoot, [{ id: 'menu', label: 'Menu', panels: [musicSound.element, tools.element] }])
+createShell(uiRoot, [{ id: 'menu', label: 'Menu', panels: [musicSound.element, tools.element, prestigePanel.element] }])
 
 // Browsers block audio until the page has been interacted with, so the first
 // real gesture is what actually starts playback. Placing a park counts.

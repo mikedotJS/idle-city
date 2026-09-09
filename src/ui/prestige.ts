@@ -17,23 +17,9 @@
  * furniture around the board. The toggle carries a live charter badge once
  * there is any, so the panel finds the player instead of the other way round.
  *
- * Layout: this project has shipped the invisible-overlap bug twice — a
- * correctly wired button hidden under another fixed-position panel, reported
- * as "I click and nothing happens" both times — so every fixed island gets
- * checked against all the others before picking a spot. Checked against:
- *   - .hud__zone--tl (left column, full height: readouts + build palette)
- *   - .hud__zone--tr (right column, top two rows: queue, restart, music)
- *   - .panel--board-launch (fixed, right:18/bottom:18, up to 230px)
- *   - .tools-root (fixed, right: hud-side+30, bottom:18)
- *   - .activity-root (fixed, top-centre, 420px, z-index 6)
- *   - .toasts (bottom-centre, inside the .hud grid's middle column)
- * The bottom-right corner already stacks two islands (board-launch, then
- * tools-root to its left); the bottom-left corner is empty by the same
- * measure, so this panel mirrors tools-root onto that side: fixed, anchored
- * `left: calc(var(--hud-side) + 30px)` — the same offset tools-root uses on
- * the right, which is what actually clears hud__zone--tl's own width — and
- * `bottom: 18px`. Kept to a modest 280px so even fully expanded it sits well
- * clear of the toasts, which are centred in the board column.
+ * Positioned by ui/shell.ts's .shell-dock now, alongside Tools and the
+ * music/sound controls, instead of picking its own fixed spot — see
+ * shell.ts's header comment for why that arrangement was retired.
  */
 
 import './prestige.css'
@@ -62,6 +48,8 @@ export interface PrestigeCallbacks {
 }
 
 export interface PrestigePanel {
+  /** The panel's root element. */
+  element: HTMLElement
   /** Called every animation frame. Cheap: bail early when nothing changed. */
   update(state: CityState): void
   dispose(): void
@@ -99,7 +87,6 @@ interface UpgradeRow {
 }
 
 export function createPrestigePanel(
-  root: HTMLElement,
   getPrestige: () => PrestigeState,
   callbacks: PrestigeCallbacks,
 ): PrestigePanel {
@@ -331,7 +318,6 @@ export function createPrestigePanel(
   })
 
   wrap.append(toggleButton, panel)
-  root.append(wrap)
 
   // ------------------------------------------------------------------ frame
 
@@ -414,5 +400,5 @@ export function createPrestigePanel(
     wrap.remove()
   }
 
-  return { update, dispose }
+  return { element: wrap, update, dispose }
 }

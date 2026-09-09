@@ -11,14 +11,9 @@
  * Uses the custom properties from style.css's :root — no colours of its own.
  */
 
+/* Positioned by ui/shell.ts's .shell-dock now, not on its own — see
+   shell.ts's header comment. */
 .prestige-root {
-  position: fixed;
-  /* Same offset tools-root uses on the right, mirrored: clears
-     hud__zone--tl's own width (--hud-side) plus a gap, derived rather than
-     copied so widening that column moves this too. */
-  left: calc(var(--hud-side) + 30px);
-  bottom: 18px;
-  z-index: 5;
   display: flex;
   flex-direction: column;
   align-items: flex-start;
