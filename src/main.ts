@@ -8,6 +8,8 @@ import { createFriendsUI } from './ui/friends'
 import { createRenderer } from './render/scene'
 import type { PickTarget, Renderer, Tool } from './render/api'
 import { createHud } from './ui/hud'
+import { createShell } from './ui/shell'
+import { createMusicSoundControls } from './ui/musicsound'
 import { createActivityPanel } from './ui/activity'
 import { createToolsPanel } from './ui/tools'
 import { createPrestigePanel } from './ui/prestige'
@@ -102,6 +104,12 @@ const hud: Hud = createHud(uiRoot, {
     clearSave()
     window.location.reload()
   },
+  onToastShown: () => {
+    sfx.playToast()
+  },
+})
+
+const musicSound = createMusicSoundControls({
   onToggleMusic: () => {
     music.setEnabled(!music.getState().enabled)
   },
@@ -114,13 +122,11 @@ const hud: Hud = createHud(uiRoot, {
   onSfxVolume: (level) => {
     sfx.setVolume(level)
   },
-  onToastShown: () => {
-    sfx.playToast()
-  },
 })
+music.subscribe((musicState) => musicSound.setMusicState(musicState))
+sfx.subscribe((sfxState) => musicSound.setSfxState(sfxState))
 
-music.subscribe((musicState) => hud.setMusicState(musicState))
-sfx.subscribe((sfxState) => hud.setSfxState(sfxState))
+createShell(uiRoot, [{ id: 'menu', label: 'Menu', panels: [musicSound.element] }])
 
 createLeaderboardUI(uiRoot, leaderboard, currentCity)
 createFriendsUI(uiRoot, friends, (confirmedCount) => {

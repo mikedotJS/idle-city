@@ -1,0 +1,46 @@
+/*
+ * The dock: every section's panels, side by side. Provisionally anchored
+ * where tools.ts's own launcher used to sit (right: hud-side+30, bottom:18)
+ * — proven clear of the leaderboard/friends launchers, which are not on the
+ * shell yet. Revisited once the Social and Ville sections join (see the
+ * design doc's migration order) and this needs to account for all of them
+ * at once instead of reusing one panel's old safe spot.
+ */
+
+.shell-dock {
+  position: fixed;
+  right: calc(var(--hud-side) + 30px);
+  bottom: 18px;
+  z-index: 5;
+  display: flex;
+  align-items: flex-end;
+  gap: 16px;
+  /* The dock itself must never catch a pointer event — only what's inside
+     a section's own panels should, same rule tools.ts and prestige.ts
+     already followed for their own wrappers. */
+  pointer-events: none;
+}
+
+.shell-dock__column {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 12px;
+  pointer-events: none;
+}
+
+.shell-dock__column > * {
+  pointer-events: auto;
+}
+
+.shell-dock__label {
+  /* One section this phase, so a visible heading would just repeat
+     "Menu" above menu-shaped controls. Kept in the DOM, not the layout,
+     so the mobile tab bar phase can give it a job (the tab's own text)
+     without another markup change. */
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+}
