@@ -2,11 +2,11 @@
  * Prestige panel: retire a city for charter, spend charter on the next
  * city's starting conditions.
  *
- * Mirrors tools-root onto the opposite corner — see the placement comment
- * at the top of prestige.ts for which fixed islands this was checked
- * against and why the bottom-left corner is the free one. Collapsed by
- * default behind a single toggle, same reasoning as tools.ts: most of a
- * playthrough has no charter and nothing to spend it on.
+ * One of three panels docked together in the shell's Menu section (see
+ * ui/shell.ts), alongside Tools and the music/sound controls — no longer
+ * positioned into a corner of its own. Collapsed by default behind a
+ * single toggle, same reasoning as tools.ts: most of a playthrough has no
+ * charter and nothing to spend it on.
  *
  * Uses the custom properties from style.css's :root — no colours of its own.
  */
@@ -16,11 +16,8 @@
 .prestige-root {
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
+  align-items: flex-end;
   gap: 12px;
-  /* The wrapper itself must never catch a pointer event — only the toggle
-     and the panel, both marked pointer-events: auto below, should. */
-  pointer-events: none;
 }
 
 .prestige-toggle {

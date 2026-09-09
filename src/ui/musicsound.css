@@ -4,6 +4,12 @@
  * position: fixed.
  */
 
+.musicsound-root {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
 /* ------------------------------------------------------------------- music */
 
 .panel--music {

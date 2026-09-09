@@ -11,6 +11,12 @@
  * Desktop-only for now: sections dock side by side, always visible. The
  * mobile bottom tab bar this is designed to grow into is a later pass — see
  * docs/superpowers/specs/2026-09-09-hud-shell-redesign-design.md.
+ *
+ * Contract for future sections: a section's column is bounded and scrollable
+ * against the viewport height, not infinite — see .shell-dock__column in
+ * shell.css. A panel that caps its own height against 100vh (several do)
+ * is layering a redundant, harmless cap on top of that budget, not
+ * providing the actual bound itself.
  */
 
 import './shell.css'

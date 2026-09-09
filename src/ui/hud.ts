@@ -282,8 +282,7 @@ export function createHud(root: HTMLElement, cb: HudCallbacks): Hud {
 
   // Its own panel, not a third button in the queue's action row. Restarting is
   // not a queue action, and crowding that row made it wrap, which overflowed
-  // the panel and hid the button under the music panel below — where it was
-  // visible, correctly placed, and completely dead.
+  // the panel and pushed the button out of reach entirely.
   const restartPanel = el('section', 'panel panel--restart')
   restartPanel.append(restartButton)
   rightSide.append(restartPanel)

@@ -27,6 +27,9 @@
   align-items: flex-end;
   gap: 12px;
   pointer-events: none;
+  max-height: calc(100vh - 36px);
+  overflow-y: auto;
+  min-height: 0;
 }
 
 .shell-dock__column > * {
