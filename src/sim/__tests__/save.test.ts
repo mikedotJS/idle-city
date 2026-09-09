@@ -67,6 +67,13 @@ describe('save/load', () => {
     ageSaveBy(3600) // one hour away
 
     const result = load()!
+    // `savedAt` must stay the original save time — a cross-device sync
+    // comparison (sim/citysync.ts) needs this to survive `load()` resetting
+    // `state.lastSavedAt` to now for its own, unrelated bookkeeping (see the
+    // field's own doc comment on LoadResult).
+    const rawSavedAt = JSON.parse(store.getItem(SAVE_KEY)!).lastSavedAt
+    expect(result.savedAt).toBe(rawSavedAt)
+    expect(result.savedAt).not.toBe(result.state.lastSavedAt)
     expect(result.offlineSeconds).toBeCloseTo(3600, 0)
     expect(result.offlineCoins).toBeCloseTo(rate * result.offlineSeconds, 4)
     expect(result.state.coins).toBeCloseTo(coinsAtSave + result.offlineCoins, 4)

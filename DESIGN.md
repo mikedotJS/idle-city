@@ -447,6 +447,19 @@ outweighs actually building a city. Nothing stops a player from confirming a
 as the unverified score above: harmless to other players, but not proof
 against someone gaming their own number.
 
+The same sign-in also carries the city itself between devices. Every local
+save (autosave, tab close) also pushes the running city to a `cities` row
+scoped to that account by Based's `owner-scoped` policy — nobody else can
+read or write it. Signing in on a second device — or just reopening the game
+already signed in — pulls that row and compares it against whatever is
+running locally by real save time; whichever is newer wins outright and
+replaces the other. There is no merge: a city is one coherent grid, queue and
+history, and splicing two together would produce a city neither device ever
+actually had. This is a cloud *save*, not live play across devices — two
+tabs open on the same account at once will each keep playing their own copy
+until one of them saves, at which point the next reconciliation on either
+side picks the newer one.
+
 ### Spatial sound design
 
 Music says how the city feels in general; this says what it is doing right

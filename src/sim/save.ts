@@ -44,6 +44,15 @@ export interface LoadResult {
   state: CityState
   offlineSeconds: number
   offlineCoins: number
+  /**
+   * The real wall-clock time this exact save was actually written, before
+   * `state.lastSavedAt` below gets reset to now (so a reload without an
+   * intervening save doesn't double-credit the same offline stretch a
+   * second time). A cross-device sync comparison (see sim/citysync.ts) needs
+   * this original value — `state.lastSavedAt` on the returned state no
+   * longer means what its name says by the time this function returns.
+   */
+  savedAt: number
 }
 
 export function load(): LoadResult | null {
@@ -67,6 +76,7 @@ export function load(): LoadResult | null {
 
   const state = validate(parsed)
   if (!state) return null
+  const savedAt = state.lastSavedAt
 
   // The sim is frozen offline: no growth, no decay, no catch-up ticks, and
   // state.time does not advance. Coins accrue at the rate the saved layout had.
@@ -77,7 +87,7 @@ export function load(): LoadResult | null {
   state.coins += offlineCoins
   state.lastSavedAt = Date.now()
 
-  return { state, offlineSeconds, offlineCoins }
+  return { state, offlineSeconds, offlineCoins, savedAt }
 }
 
 /**

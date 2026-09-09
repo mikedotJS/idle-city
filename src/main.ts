@@ -5,6 +5,7 @@ import { createLeaderboard } from './net/leaderboard'
 import { createLeaderboardUI } from './ui/leaderboard'
 import { createFriends } from './net/friends'
 import { createFriendsUI } from './ui/friends'
+import { createCitySync } from './net/citysync'
 import { createRenderer } from './render/scene'
 import type { PickTarget, Renderer, Tool } from './render/api'
 import { createHud } from './ui/hud'
@@ -28,6 +29,7 @@ import { derive } from './sim/economy'
 import { clearSave, load, loadPrestige, save, savePrestige } from './sim/save'
 import { retire } from './sim/prestige'
 import { forgetDemolitions } from './sim/history'
+import { remoteIsNewer } from './sim/citysync'
 import { BUILDINGS, buildingCost } from './sim/buildings'
 import { AUTOSAVE_INTERVAL, OFFLINE_CAP_SECONDS, PARCEL_SIZE, SIM_DT } from './sim/config'
 import { buildableTilesInParcel, terrainFor } from './sim/terrain'
@@ -52,8 +54,31 @@ const loaded = load()
 let state: CityState = loaded ? loaded.state : createCity(undefined, prestige)
 let derived: Derived = derive(state)
 
+/**
+ * When this device's running city was actually last saved, for real —
+ * unlike `state.lastSavedAt`, which `load()` resets to "now" the moment a
+ * save loads (see sim/save.ts's own comment on `LoadResult.savedAt`) so a
+ * reload without an intervening save doesn't double-credit offline coins.
+ * A brand new city (no local save at all) starts at 0, so any real cloud
+ * city always wins the very first reconciliation — see sim/citysync.ts.
+ */
+let localSavedAt = loaded ? loaded.savedAt : 0
+
 function currentCity(): CityState {
   return state
+}
+
+/**
+ * The one place a local save also leaves the device. Every call site that
+ * used to call `save(state)` directly calls this instead, so nothing needs
+ * its own copy of "and push it, if signed in" — `citySync.push` is already a
+ * no-op when nobody is signed in or no backend is configured, same as the
+ * leaderboard's autopublish.
+ */
+function persist(): void {
+  save(state)
+  localSavedAt = state.lastSavedAt
+  void citySync.push(state)
 }
 
 let tool: Tool = { kind: 'none' }
@@ -75,6 +100,7 @@ const basedClient = createBasedClient({
 })
 const leaderboard = createLeaderboard(basedClient)
 const friends = createFriends(basedClient)
+const citySync = createCitySync(basedClient)
 
 /**
  * Confirmed friend count, pushed here by the friends panel whenever it
@@ -168,13 +194,60 @@ const tools = createToolsPanel(currentCity, {
     derived = derive(state, friendCount)
     forgetDemolitions()
     structureDirty = true
-    save(state)
+    persist()
   },
   onStructureChanged: () => {
     structureDirty = true
   },
   onToast: (message) => hud.toast(message),
   onPostcard: () => renderer.postcard(),
+})
+
+// Reconciles this device's running city against whatever the signed-in
+// account last saved to the cloud. `remoteIsNewer` decides; either way,
+// `persist()` at the end catches the loser up (and, on this device's very
+// first reconciliation, replaces `localSavedAt`'s placeholder with the real
+// thing). Runs on sign-in and, while signed in, every CLOUD_PULL_INTERVAL_MS
+// after that — a sign-in event alone only catches a city up with whatever
+// the cloud already held at that moment; a tab left open needs to keep
+// noticing what other devices push after that, or "always in sync" would
+// only ever be true right at the moment of signing in.
+let reconciling = false
+
+async function reconcileCloudCity(): Promise<void> {
+  if (reconciling) return
+  reconciling = true
+  try {
+    const remote = await citySync.pull()
+    if (remote && remoteIsNewer(localSavedAt, remote)) {
+      state = remote
+      derived = derive(state, friendCount)
+      forgetDemolitions()
+      structureDirty = true
+      hud.toast('Loaded your city from another device.')
+    }
+    persist()
+  } catch {
+    // Best-effort, like the leaderboard's autopublish — a missed sync just
+    // retries on the next save.
+  } finally {
+    reconciling = false
+  }
+}
+
+const CLOUD_PULL_INTERVAL_MS = 60_000
+let cloudPullTimer: ReturnType<typeof setInterval> | null = null
+
+citySync.onChange((user) => {
+  if (user) {
+    void reconcileCloudCity()
+    if (!cloudPullTimer) {
+      cloudPullTimer = setInterval(() => void reconcileCloudCity(), CLOUD_PULL_INTERVAL_MS)
+    }
+  } else if (cloudPullTimer) {
+    clearInterval(cloudPullTimer)
+    cloudPullTimer = null
+  }
 })
 
 createShell(uiRoot, hud.topStripElement, [
@@ -336,7 +409,7 @@ let restarting = false
 function goAway(): void {
   if (restarting) return
   if (awaySince === null) awaySince = Date.now()
-  save(state)
+  persist()
 }
 
 function comeBack(): void {
@@ -359,7 +432,7 @@ window.addEventListener('pagehide', goAway)
 window.addEventListener('pagehide', () => music.dispose())
 window.addEventListener('pagehide', () => sfx.dispose())
 window.addEventListener('beforeunload', () => {
-  if (!restarting) save(state)
+  if (!restarting) persist()
 })
 
 window.addEventListener('keydown', (event) => {
@@ -409,7 +482,7 @@ function frame(now: number): void {
     sinceSave += dt
     if (sinceSave >= AUTOSAVE_INTERVAL && !restarting) {
       sinceSave = 0
-      save(state)
+      persist()
     }
   }
 
