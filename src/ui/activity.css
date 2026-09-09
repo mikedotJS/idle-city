@@ -1,14 +1,15 @@
 /*
  * The activity panel: "what the city did while you weren't looking."
  *
- * Placed top-centre, not bottom-centre. Toasts already own the bottom-centre
- * spot (see .toasts in style.css) and fire on ordinary clicks, so a report
- * that can appear the instant the player looks back would otherwise land on
- * top of - or directly under - a toast from whatever they just did. The panel
- * sits directly below the always-visible top strip rather than at the very
- * top of the screen, and still reads as a notification bar dropping in from
- * off-screen, not a permanent HUD element competing with the strip for the
- * same space.
+ * Placed top-centre, not bottom-centre. Toasts and the dock bar (ui/shell.ts)
+ * already own the bottom-centre spot and fire/sit there on ordinary play, so
+ * a report that can appear the instant the player looks back would otherwise
+ * land on top of - or directly under - a toast, or behind the bar. The
+ * always-visible readout that used to float top-center moved into the dock
+ * bar at the bottom, so the top of the screen is free again: this sits at
+ * the same small corner margin every other panel in this HUD uses, and
+ * still reads as a notification bar dropping in from off-screen, not a
+ * permanent HUD element.
  *
  * Same rule as everywhere else in this HUD: the full-width wrapper is
  * pointer-events: none so it never shadows the board underneath it, and only
@@ -17,7 +18,7 @@
 
 .activity-wrap {
   position: fixed;
-  top: 83px;
+  top: 18px;
   left: 0;
   right: 0;
   z-index: 8;
@@ -120,9 +121,6 @@
 }
 
 @media (max-width: 560px) {
-  .activity-wrap {
-    top: 12px;
-  }
   .activity-panel {
     width: calc(100vw - 24px);
   }

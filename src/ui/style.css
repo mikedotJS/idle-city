@@ -138,20 +138,19 @@ body {
 
 /* --------------------------------------------------------------- topstrip */
 
+/*
+ * Just the readout now — no card of its own. It used to be its own
+ * fixed-position panel, floating top-center; ui/shell.ts now embeds it
+ * directly inside the bottom dock bar's own card, so it only needs to be a
+ * flex row of numbers, not a positioned panel.
+ */
 .topstrip {
-  position: fixed;
-  top: 18px;
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 5;
+  display: flex;
   flex-direction: row;
-  flex-wrap: wrap;
   align-items: center;
-  gap: 14px;
-  padding: 10px 16px;
-  pointer-events: auto;
+  gap: 12px;
+  min-width: 0;
   font-variant-numeric: tabular-nums;
-  max-width: calc(100vw - 36px);
 }
 
 .topstrip__coin-icon {
@@ -513,7 +512,11 @@ body {
 .toasts {
   position: fixed;
   left: 50%;
-  bottom: 18px;
+  /* The dock bar sits bottom-center at every viewport size now (see
+     ui/shell.ts), so toasts clear it unconditionally — this used to be a
+     mobile-only override, back when only the mobile tab bar occupied this
+     spot and desktop's docks left the bottom edge free. */
+  bottom: calc(var(--dock-bar-h, 68px) + 18px);
   transform: translateX(-50%);
   display: flex;
   flex-direction: column;
@@ -521,12 +524,6 @@ body {
   gap: 7px;
   pointer-events: none;
   z-index: 8;
-}
-
-@media (max-width: 959px) {
-  .toasts {
-    bottom: calc(var(--shell-tabbar-h, 68px) + 18px);
-  }
 }
 
 .toast {

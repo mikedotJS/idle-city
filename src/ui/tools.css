@@ -10,7 +10,7 @@
  * Uses the custom properties from style.css's :root — no colours of its own.
  */
 
-/* Positioned by ui/shell.ts's .shell-dock now, not on its own — see
+/* Positioned by ui/shell.ts's .dock-popover now, not on its own — see
    shell.ts's header comment. */
 .tools-root {
   display: flex;

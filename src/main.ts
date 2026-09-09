@@ -108,7 +108,6 @@ const hud: Hud = createHud(uiRoot, {
     sfx.playToast()
   },
 })
-uiRoot.append(hud.topStripElement)
 
 const musicSound = createMusicSoundControls({
   onToggleMusic: () => {
@@ -178,23 +177,20 @@ const tools = createToolsPanel(currentCity, {
   onPostcard: () => renderer.postcard(),
 })
 
-createShell(uiRoot, [
+createShell(uiRoot, hud.topStripElement, [
   {
     id: 'ville',
     label: 'Ville',
-    side: 'left',
     panels: [hud.paletteElement, hud.hoverPanelElement, hud.queueElement, hud.restartElement],
   },
   {
     id: 'menu',
     label: 'Menu',
-    side: 'right',
     panels: [musicSound.element, tools.element, prestigePanel.element],
   },
   {
     id: 'social',
     label: 'Social',
-    side: 'right',
     panels: [leaderboardUI.launcher, friendsUI.launcher],
   },
 ])

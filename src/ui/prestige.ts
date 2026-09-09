@@ -17,7 +17,7 @@
  * furniture around the board. The toggle carries a live charter badge once
  * there is any, so the panel finds the player instead of the other way round.
  *
- * Positioned by ui/shell.ts's .shell-dock now, alongside Tools and the
+ * Positioned by ui/shell.ts's .dock-popover now, alongside Tools and the
  * music/sound controls, instead of picking its own fixed spot — see
  * shell.ts's header comment for why that arrangement was retired.
  */

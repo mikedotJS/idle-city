@@ -86,7 +86,7 @@ interface QueueAddButton {
 export function createHud(root: HTMLElement, cb: HudCallbacks): Hud {
   // -------------------------------------------------------------- top strip
 
-  const topStrip = el('section', 'panel topstrip')
+  const topStrip = el('section', 'topstrip')
   const tsCoins = el('span', 'topstrip__coins', '0')
   const tsRate = el('span', 'topstrip__rate', '+0.0/s')
   const tsHappy = el('span', 'topstrip__happy', '😊 50%')
@@ -408,7 +408,7 @@ export function createHud(root: HTMLElement, cb: HudCallbacks): Hud {
       const band = happinessBand(happiness)
       if (band.key !== lastBand) {
         lastBand = band.key
-        setClass(topStrip, 'panel topstrip topstrip--' + band.key)
+        setClass(topStrip, 'topstrip topstrip--' + band.key)
       }
     }
 

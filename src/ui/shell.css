@@ -1,61 +1,104 @@
 /*
- * The dock: every section's panels, side by side. Left and right dock
- * independently — each anchors straight to its own screen edge, 18px in,
- * matching every other panel's corner margin in this codebase. A section
- * joining or leaving one side never affects the other side's position.
+ * One bar, centered at the bottom, at every viewport size — see shell.ts's
+ * header comment for why this replaced the earlier left/right dock plus
+ * mobile tab bar split. Only these rules change between screen sizes: the
+ * DOM shell.ts builds is identical on a phone and on a desktop monitor.
  *
- * z-index layers, low to high: docks/top strip (5) < the mobile sheet (6)
- * < the mobile tab bar (7) < toasts and the activity feed, which must
- * never lose a stacking fight (8) < full-screen overlays (10).
+ * z-index layers, low to high: the bar and its popover (5) < toasts and the
+ * activity feed, which must never lose a stacking fight (8) < full-screen
+ * overlays (10). Kept a two-step gap from the previous five-step scale
+ * because there is no longer a separate tabbar/sheet pair to slot between
+ * them — the bar and popover are peers now, one nav element and one content
+ * surface, not a background layer under a foreground one.
  */
 
-.shell-dock {
+.dock-bar {
   position: fixed;
+  left: 50%;
   bottom: 18px;
+  transform: translateX(-50%);
   z-index: 5;
   display: flex;
-  align-items: flex-end;
-  gap: 16px;
-  /* The dock itself must never catch a pointer event — only what's inside
-     a section's own panels should, same rule tools.ts and prestige.ts
-     already followed for their own wrappers. */
-  pointer-events: none;
-}
-
-.shell-dock--left {
-  left: 18px;
-}
-
-.shell-dock--right {
-  right: 18px;
-}
-
-.shell-dock__column {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 12px;
-  pointer-events: none;
-  max-height: calc(100vh - 36px);
-  overflow-y: auto;
-  min-height: 0;
-}
-
-.shell-dock__column > * {
+  align-items: center;
+  gap: 14px;
+  max-width: calc(100vw - 24px);
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-pill);
+  box-shadow: var(--shadow-panel);
+  padding: 8px 10px 8px 18px;
+  padding-bottom: calc(8px + env(safe-area-inset-bottom, 0px));
   pointer-events: auto;
 }
 
-.shell-dock--left .shell-dock__column {
-  align-items: flex-start;
+.dock-bar__stats {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  min-width: 0;
+  overflow: hidden;
 }
 
-.shell-dock__label {
-  /* One section this phase, so a visible heading would just repeat
-     "Menu" above menu-shaped controls. The mobile tab bar's visible text
-     comes from a separate button element (built in shell.ts), not from
-     promoting this hidden label — this <h2> stays hidden-but-present in
-     both presentations, occupying the desktop dock header slot it
-     already had. */
+.dock-bar__divider {
+  width: 1px;
+  height: 24px;
+  flex: none;
+  background: var(--line);
+}
+
+.dock-bar__tabs {
+  display: flex;
+  gap: 4px;
+  flex: none;
+}
+
+.dock-tab {
+  appearance: none;
+  border: none;
+  background: transparent;
+  color: var(--ink-soft);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 620;
+  cursor: pointer;
+  min-height: 40px;
+  padding: 0 14px;
+  border-radius: var(--radius-pill);
+  white-space: nowrap;
+}
+
+.dock-tab.is-active {
+  background: var(--accent-wash);
+  color: var(--accent-deep);
+}
+
+.dock-popover {
+  position: fixed;
+  left: 50%;
+  bottom: calc(var(--dock-bar-h, 68px) + 10px);
+  transform: translateX(-50%);
+  z-index: 5;
+  max-width: calc(100vw - 24px);
+  max-height: calc(100vh - var(--dock-bar-h, 68px) - 36px);
+  overflow-y: auto;
+  pointer-events: auto;
+}
+
+.dock-popover__column {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  width: max-content;
+  max-width: 100%;
+  margin: 0 auto;
+}
+
+.dock-popover__label {
+  /* One heading per section this phase, so a visible one would just repeat
+     the tab's own label above shapes that already say what they are.
+     Stays hidden-but-present for the same reason it did in the previous
+     shell: a landmark for assistive tech, not a second visible title. */
   position: absolute;
   width: 1px;
   height: 1px;
@@ -63,59 +106,35 @@
   clip: rect(0, 0, 0, 0);
 }
 
-/* ---------------------------------------------------------------- mobile */
+/* ------------------------------------------------------- narrow / portrait */
 
-.shell-tabbar {
-  position: fixed;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  z-index: 7;
-  display: flex;
-  gap: 4px;
-  padding: 8px 8px calc(env(safe-area-inset-bottom, 0px) + 8px);
-  background: var(--paper);
-  border-top: 1px solid var(--line);
-  pointer-events: auto;
+@media (max-width: 599px) {
+  .dock-bar {
+    gap: 8px;
+    padding: 6px 6px 6px 14px;
+  }
+  /* The full readout (happiness, population, next build) is the first
+     thing to go on the narrowest phones — coins and the income rate are
+     the two numbers worth glancing at one-handed; the rest is a tap away
+     inside Ville/Menu. */
+  .dock-bar__stats .topstrip__happy,
+  .dock-bar__stats .topstrip__stat,
+  .dock-bar__stats .topstrip__next,
+  .dock-bar__stats .topstrip__info {
+    display: none;
+  }
+  .dock-tab {
+    padding: 0 11px;
+    font-size: 12.5px;
+  }
 }
 
-.shell-tab {
-  flex: 1;
-  min-height: 44px;
-  appearance: none;
-  border: none;
-  border-radius: var(--radius-card);
-  background: transparent;
-  color: var(--ink-soft);
-  font: inherit;
-  font-size: 13px;
-  font-weight: 620;
-  cursor: pointer;
-}
+/* ---------------------------------------------------------- landscape / mid */
 
-.shell-tab.is-active {
-  background: var(--accent-wash);
-  color: var(--accent-deep);
-}
-
-.shell-sheet {
-  position: fixed;
-  left: 0;
-  right: 0;
-  bottom: var(--shell-tabbar-h, 68px);
-  max-height: 60vh;
-  z-index: 6;
-  overflow-y: auto;
-  background: var(--paper);
-  padding: 16px;
-  pointer-events: auto;
-  border-top-left-radius: var(--radius-panel);
-  border-top-right-radius: var(--radius-panel);
-  box-shadow: var(--shadow-panel);
-}
-
-.shell-sheet .shell-dock__column {
-  max-height: none;
-  overflow-y: visible;
-  align-items: stretch;
+@media (min-width: 600px) and (max-width: 959px) {
+  /* Width came back (a phone turned sideways, a small tablet), so the full
+     readout fits again — only the popover's height budget stays tight. */
+  .dock-popover {
+    max-height: min(50vh, calc(100vh - var(--dock-bar-h, 68px) - 36px));
+  }
 }

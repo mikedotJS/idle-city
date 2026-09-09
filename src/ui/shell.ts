@@ -1,34 +1,29 @@
 /**
  * The shell: the single place every HUD section gets positioned.
  *
- * Replaces each panel positioning itself independently with `position:
- * fixed` — prestige.ts's header comment documents the invisible-overlap bug
- * that arrangement shipped twice. A section here is a label plus the panels
- * that belong to it; the shell decides where they render, and every panel
- * stops needing to know about every other panel's coordinates to avoid
- * covering them.
+ * One floating bar, centered at the bottom of the screen, at every viewport
+ * size — no more separate desktop docks and mobile tab bar. The bar carries
+ * the always-visible readout (coins, income/s, happiness, population, next
+ * build — handed in as `topStrip`, still built and updated by hud.ts) and a
+ * tab for each section (Ville / Menu / Social). Tapping a tab opens a
+ * popover directly above the bar showing that section's panels; tapping the
+ * same tab again — or picking another one — closes or swaps it. Only CSS
+ * media queries change between screen sizes (padding, which stats stay
+ * visible, the popover's width): the DOM and the interaction are identical
+ * on a phone and on a desktop monitor, which is the whole point of building
+ * one shared block instead of a dock/tabbar split that only ever grew
+ * further apart with each phase.
  *
- * At or above 960px wide, sections dock side by side, always visible — the
- * same layout Phases 1-3 built. Below 960px, a bottom tab bar switches
- * between full-height sheets, one section's content visible at a time. In
- * both cases the same DOM nodes move between presentations rather than
- * being rebuilt, so state inside a panel survives a tab switch or a resize
- * across the breakpoint.
+ * Replaces the earlier left/right `.shell-dock` + mobile `.shell-tabbar` /
+ * `.shell-sheet` split: that arrangement kept a fixed top strip separate
+ * from two side docks and, below 960px, a third independent tab bar — three
+ * things to keep positioned against each other instead of one.
  *
- * Left and right dock independently: each side renders its own dock only
- * when it has at least one section, anchored straight to its own screen
- * edge. Adding, removing, or resizing a section on one side never moves
- * the other side's dock.
- *
- * Contract for future sections: a section's column is bounded and scrollable
- * against the viewport height, not infinite — see .shell-dock__column in
- * shell.css. A panel that caps its own height against 100vh (several do)
- * is layering a redundant, harmless cap on top of that budget, not
- * providing the actual bound itself. The same contract extends to the
- * mobile sheet: a column must also work as the sole content of a
- * height-capped (60vh) sheet, not just when docked — don't assume a
- * column can grow arbitrarily tall even off-screen, since the sheet
- * scrolls it, same principle as the dock.
+ * Contract for future sections: the popover is bounded and scrollable
+ * against the viewport height, not infinite — see .dock-popover in
+ * shell.css. A panel that caps its own height against 100vh (several do) is
+ * layering a redundant, harmless cap on top of that budget, not providing
+ * the actual bound itself.
  */
 
 import './shell.css'
@@ -47,8 +42,6 @@ function el<K extends keyof HTMLElementTagNameMap>(
 export interface HudSection {
   id: string
   label: string
-  /** Which side of the screen this section's column docks to. */
-  side: 'left' | 'right'
   /** One or more panels rendered together under this section's heading. */
   panels: HTMLElement[]
 }
@@ -57,112 +50,95 @@ export interface HudShell {
   dispose(): void
 }
 
-const DESKTOP_QUERY = '(min-width: 960px)'
-
 function buildColumn(section: HudSection): HTMLElement {
-  const column = el('div', 'shell-dock__column')
+  const column = el('div', 'dock-popover__column')
   column.dataset.section = section.id
-  column.append(el('h2', 'shell-dock__label', section.label), ...section.panels)
+  column.append(el('h2', 'dock-popover__label', section.label), ...section.panels)
   return column
 }
 
-/** A section with no actual content shouldn't get a mobile tab of its own —
- * see the "empty Social tab" finding in the Phase 4 fix wave. */
+/** A section with no actual content shouldn't get a tab of its own — see
+ * the "empty Social tab" finding from the previous shell's mobile phase. */
 function hasContent(section: HudSection): boolean {
   return section.panels.some((panel) => panel.childNodes.length > 0)
 }
 
-/** Measures the tab bar's real rendered height (including its own
- * safe-area-inset padding) and publishes it as a CSS variable, so the sheet
- * and the toast offset read one real measurement instead of guessing it
- * independently. Call whenever the tab bar's size could have changed. */
-function publishTabbarHeight(tabbar: HTMLElement): void {
-  const height = tabbar.getBoundingClientRect().height
+/** Measures the bar's real rendered height (including its own
+ * safe-area-inset padding) and publishes it as a CSS variable, so the
+ * popover and the toast offset read one real measurement instead of
+ * guessing it independently. Needed at every breakpoint now: the bar sits
+ * bottom-center on desktop too, where toasts used to have the run of the
+ * bottom edge to themselves. */
+function publishBarHeight(bar: HTMLElement): void {
+  const height = bar.getBoundingClientRect().height
   if (height > 0) {
-    document.documentElement.style.setProperty('--shell-tabbar-h', `${height}px`)
+    document.documentElement.style.setProperty('--dock-bar-h', `${height}px`)
   }
 }
 
-export function createShell(root: HTMLElement, sections: HudSection[]): HudShell {
+export function createShell(
+  root: HTMLElement,
+  topStrip: HTMLElement,
+  sections: HudSection[],
+): HudShell {
+  const tabSections = sections.filter(hasContent)
   const columns = new Map<string, HTMLElement>()
-  for (const section of sections) {
+  for (const section of tabSections) {
     columns.set(section.id, buildColumn(section))
   }
 
-  // ------------------------------------------------------------- desktop
+  const bar = el('div', 'dock-bar')
+  const stats = el('div', 'dock-bar__stats')
+  stats.append(topStrip)
+  const divider = el('div', 'dock-bar__divider')
+  const tabs = el('div', 'dock-bar__tabs')
+  bar.append(stats, divider, tabs)
 
-  const docks = new Map<'left' | 'right', HTMLElement>()
-  for (const side of ['left', 'right'] as const) {
-    if (sections.some((section) => section.side === side)) {
-      docks.set(side, el('div', `shell-dock shell-dock--${side}`))
-    }
-  }
+  const popover = el('div', 'dock-popover')
+  popover.hidden = true
 
-  // ------------------------------------------------------------- mobile
-
-  const tabbar = el('div', 'shell-tabbar')
-  const sheet = el('div', 'shell-sheet')
   const tabButtons = new Map<string, HTMLButtonElement>()
-  const tabSections = sections.filter(hasContent)
-  let activeId = tabSections[0]?.id
+  // Closed by default at every size: the bar alone is the resting state,
+  // and nothing forces a section open just because the screen is narrow —
+  // the previous mobile tab bar always had one sheet open on first paint.
+  let activeId: string | null = null
 
-  const tabbarResizeObserver = new ResizeObserver(() => publishTabbarHeight(tabbar))
-  tabbarResizeObserver.observe(tabbar)
-
-  for (const section of tabSections) {
-    const button = el('button', 'shell-tab', section.label)
-    button.type = 'button'
-    button.addEventListener('click', () => {
-      activeId = section.id
-      renderMobile()
-    })
-    tabButtons.set(section.id, button)
-    tabbar.append(button)
-  }
-
-  function renderMobile(): void {
+  function render(): void {
     for (const [id, button] of tabButtons) {
-      button.classList.toggle('is-active', id === activeId)
+      const active = id === activeId
+      button.classList.toggle('is-active', active)
+      button.setAttribute('aria-pressed', String(active))
     }
     const column = activeId ? columns.get(activeId) : undefined
-    sheet.replaceChildren(...(column ? [column] : []))
+    popover.replaceChildren(...(column ? [column] : []))
+    popover.hidden = !column
   }
 
-  // --------------------------------------------------------- mode switch
-
-  const mq = window.matchMedia(DESKTOP_QUERY)
-
-  function applyMode(): void {
-    // Detach from wherever a column currently lives before re-attaching it —
-    // appending an already-attached node moves it, but a stale empty dock
-    // or sheet left behind looks like an empty panel rather than nothing.
-    for (const dock of docks.values()) dock.remove()
-    sheet.remove()
-    tabbar.remove()
-
-    if (mq.matches) {
-      for (const section of sections) {
-        docks.get(section.side)?.append(columns.get(section.id)!)
-      }
-      for (const dock of docks.values()) root.append(dock)
-    } else {
-      renderMobile()
-      root.append(sheet, tabbar)
-      // The tab bar has real layout only once it's in the DOM.
-      publishTabbarHeight(tabbar)
-    }
+  for (const section of tabSections) {
+    const button = el('button', 'dock-tab', section.label)
+    button.type = 'button'
+    button.setAttribute('aria-pressed', 'false')
+    button.addEventListener('click', () => {
+      activeId = activeId === section.id ? null : section.id
+      render()
+    })
+    tabButtons.set(section.id, button)
+    tabs.append(button)
   }
 
-  mq.addEventListener('change', applyMode)
-  applyMode()
+  const barResizeObserver = new ResizeObserver(() => publishBarHeight(bar))
+  barResizeObserver.observe(bar)
+
+  root.append(popover, bar)
+  // The bar has real layout only once it's in the DOM.
+  publishBarHeight(bar)
+  render()
 
   return {
     dispose(): void {
-      mq.removeEventListener('change', applyMode)
-      tabbarResizeObserver.disconnect()
-      for (const dock of docks.values()) dock.remove()
-      sheet.remove()
-      tabbar.remove()
+      barResizeObserver.disconnect()
+      popover.remove()
+      bar.remove()
     },
   }
 }
