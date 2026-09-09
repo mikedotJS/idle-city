@@ -108,6 +108,7 @@ const hud: Hud = createHud(uiRoot, {
     sfx.playToast()
   },
 })
+uiRoot.append(hud.topStripElement)
 
 const musicSound = createMusicSoundControls({
   onToggleMusic: () => {
@@ -178,8 +179,24 @@ const tools = createToolsPanel(currentCity, {
 })
 
 createShell(uiRoot, [
-  { id: 'menu', label: 'Menu', panels: [musicSound.element, tools.element, prestigePanel.element] },
-  { id: 'social', label: 'Social', panels: [leaderboardUI.launcher, friendsUI.launcher] },
+  {
+    id: 'ville',
+    label: 'Ville',
+    side: 'left',
+    panels: [hud.paletteElement, hud.hoverPanelElement, hud.queueElement, hud.restartElement],
+  },
+  {
+    id: 'menu',
+    label: 'Menu',
+    side: 'right',
+    panels: [musicSound.element, tools.element, prestigePanel.element],
+  },
+  {
+    id: 'social',
+    label: 'Social',
+    side: 'right',
+    panels: [leaderboardUI.launcher, friendsUI.launcher],
+  },
 ])
 
 // Browsers block audio until the page has been interacted with, so the first
