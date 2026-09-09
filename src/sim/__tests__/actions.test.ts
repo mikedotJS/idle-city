@@ -161,3 +161,35 @@ describe('queue', () => {
     expect(state.queue).toEqual([])
   })
 })
+
+describe('a new city is its own city', () => {
+  it('gives every unseeded city a different map and build order', () => {
+    // This defaulted to a constant, so every new city was the same city: same
+    // lake, same ridge, same order of building. Terrain varied by seed and
+    // nothing ever varied the seed.
+    const seeds = new Set<number>()
+    const terrains = new Set<number>()
+    for (let i = 0; i < 40; i++) {
+      const city = createCity()
+      seeds.add(city.rngSeed)
+      terrains.add(city.terrainSeed)
+    }
+    expect(seeds.size).toBeGreaterThan(35)
+    expect(terrains.size).toBeGreaterThan(35)
+  })
+
+  it('stays exactly reproducible when a seed is given', () => {
+    expect(createCity(7).terrainSeed).toBe(createCity(7).terrainSeed)
+    expect(createCity(7).rngSeed).toBe(createCity(7).rngSeed)
+    expect(createCity(7).rngSeed).not.toBe(createCity(8).rngSeed)
+  })
+
+  it('never lands on a zero seed, which would mean the flat world', () => {
+    // terrainSeed 0 is the deliberate no-terrain escape hatch used by tests.
+    // A real city falling into it by accident would silently lose its geography.
+    for (let i = 0; i < 200; i++) {
+      expect(createCity().rngSeed).not.toBe(0)
+      expect(createCity().terrainSeed).not.toBe(0)
+    }
+  })
+})

@@ -936,3 +936,10 @@ body {
   font-size: 12px;
   color: var(--ink-soft);
 }
+
+/* A destructive action should not look like the buttons beside it. */
+.btn--danger.is-armed {
+  border-color: var(--rotting);
+  background: var(--rotting);
+  color: var(--paper);
+}

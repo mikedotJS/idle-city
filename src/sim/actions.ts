@@ -11,8 +11,20 @@ import { nextRandom, parcelNeighbours, parcelOfTile } from './grid'
 import { Terrain, isBuildable, terrainFor } from './terrain'
 import type { Building, BuildingType, CityState, QueueableType } from './types'
 
-/** Default RNG seed, so an unseeded new city is still reproducible in tests. */
-const DEFAULT_SEED = 1
+/**
+ * A brand new city gets a fresh random seed, so its terrain and its build order
+ * are its own. Passing a seed explicitly keeps everything reproducible, which is
+ * what tests and the pacing harness rely on.
+ *
+ * This defaulted to a constant until it was noticed that every new city was
+ * therefore the SAME city: same lake, same ridge, same order of building, for
+ * everyone, forever. Terrain existed and varied by seed, but nothing ever
+ * varied the seed.
+ */
+function freshSeed(): number {
+  const n = (Date.now() ^ Math.floor(Math.random() * 0xffffffff)) | 0
+  return n || 1
+}
 
 export type ActionResult = { ok: true } | { ok: false; reason: string }
 
@@ -29,6 +41,7 @@ function draw(state: CityState): number {
 }
 
 export function createCity(seed?: number): CityState {
+  const chosen = seed === undefined ? freshSeed() : (seed | 0 || 1)
   const ownedParcels = new Array<boolean>(PARCEL_COUNT).fill(false)
   for (const p of STARTING_PARCELS) ownedParcels[p] = true
 
@@ -40,8 +53,8 @@ export function createCity(seed?: number): CityState {
     ownedParcels,
     queue: ['house', 'house', 'shop'],
     builtCount: { house: 0, shop: 0, factory: 0, park: 0, station: 0 },
-    terrainSeed: (seed ?? DEFAULT_SEED) ^ 0x5eed,
-    rngSeed: (seed ?? DEFAULT_SEED) | 0 || DEFAULT_SEED,
+    terrainSeed: chosen ^ 0x5eed,
+    rngSeed: chosen,
     nextBuildAt: 0,
     lastSavedAt: Date.now(),
   }

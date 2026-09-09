@@ -17,7 +17,7 @@ import {
 } from './sim/actions'
 import { step } from './sim/tick'
 import { derive } from './sim/economy'
-import { load, save } from './sim/save'
+import { clearSave, load, save } from './sim/save'
 import { BUILDINGS, buildingCost } from './sim/buildings'
 import { AUTOSAVE_INTERVAL, OFFLINE_CAP_SECONDS, SIM_DT } from './sim/config'
 import type { CityState, Derived } from './sim/types'
@@ -53,6 +53,14 @@ const hud: Hud = createHud(uiRoot, {
   },
   onClearQueue: () => {
     clearQueue(state)
+  },
+  onRestart: () => {
+    // Order matters. The page saves on unload, so clearing and then reloading
+    // would write this very city straight back over the blank slate — the same
+    // trap that silently defeated the biome harness. Suppress saving first.
+    restarting = true
+    clearSave()
+    window.location.reload()
   },
   onToggleMusic: () => {
     music.setEnabled(!music.getState().enabled)
@@ -165,7 +173,11 @@ function moodOf(happiness: number): string {
  */
 let awaySince: number | null = null
 
+/** Set while a restart is in flight, so nothing writes the old city back. */
+let restarting = false
+
 function goAway(): void {
+  if (restarting) return
   if (awaySince === null) awaySince = Date.now()
   save(state)
 }
@@ -188,7 +200,9 @@ document.addEventListener('visibilitychange', () => {
 })
 window.addEventListener('pagehide', goAway)
 window.addEventListener('pagehide', () => music.dispose())
-window.addEventListener('beforeunload', () => save(state))
+window.addEventListener('beforeunload', () => {
+  if (!restarting) save(state)
+})
 
 window.addEventListener('keydown', (event) => {
   if (event.key === 'Escape') setTool({ kind: 'none' })
@@ -219,7 +233,7 @@ function frame(now: number): void {
     }
 
     sinceSave += dt
-    if (sinceSave >= AUTOSAVE_INTERVAL) {
+    if (sinceSave >= AUTOSAVE_INTERVAL && !restarting) {
       sinceSave = 0
       save(state)
     }

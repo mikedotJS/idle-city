@@ -13,7 +13,8 @@
     "shot": "node scripts/shot.mjs",
     "audio-check": "node scripts/audio-check.mjs",
     "board-check": "node scripts/board-check.mjs",
-    "biome-check": "node scripts/biome-check.mjs"
+    "biome-check": "node scripts/biome-check.mjs",
+    "restart-check": "node scripts/restart-check.mjs"
   },
   "dependencies": {
     "three": "^0.180.0"

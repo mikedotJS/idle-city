@@ -15,6 +15,8 @@ export interface HudCallbacks {
   onSelectTool(tool: Tool): void
   onQueue(type: QueueableType): void
   onClearQueue(): void
+  /** Abandon this city and start a new one on fresh land. Destructive. */
+  onRestart(): void
   onToggleMusic(): void
   onMusicVolume(volume: number): void
 }

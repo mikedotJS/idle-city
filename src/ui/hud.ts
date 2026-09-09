@@ -236,6 +236,37 @@ export function createHud(root: HTMLElement, cb: HudCallbacks): Hud {
   clearButton.addEventListener('click', () => cb.onClearQueue())
   queueActions.append(clearButton)
 
+  // A restart throws the city away, so it asks twice. The second press is the
+  // confirmation, and moving the pointer away or waiting cancels it — nobody
+  // should lose three hours to a misclick next to "Pause building".
+  const restartButton = el('button', 'btn btn--ghost btn--danger', 'New city')
+  restartButton.type = 'button'
+  restartButton.title = 'Abandon this city and start again on fresh land.'
+  let armed = false
+  let armedTimer = 0
+
+  function disarm(): void {
+    if (!armed) return
+    armed = false
+    window.clearTimeout(armedTimer)
+    setText(restartButton, 'New city')
+    restartButton.classList.remove('is-armed')
+  }
+
+  restartButton.addEventListener('click', () => {
+    if (armed) {
+      disarm()
+      cb.onRestart()
+      return
+    }
+    armed = true
+    setText(restartButton, 'Really? This deletes it')
+    restartButton.classList.add('is-armed')
+    armedTimer = window.setTimeout(disarm, 4000)
+  })
+  restartButton.addEventListener('pointerleave', disarm)
+  queueActions.append(restartButton)
+
   queuePanel.append(queueList, queueRepeat, queueActions)
   rightSide.append(queuePanel)
 
