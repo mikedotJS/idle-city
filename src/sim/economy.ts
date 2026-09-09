@@ -2,9 +2,11 @@ import {
   BASE_HAPPINESS,
   HABITABLE_HAPPINESS,
   INCOME_FLOOR,
+  LAND_BARREN_FLOOR,
   LAND_BASE_COST,
   LAND_COST_GROWTH,
   PARCEL_COUNT,
+  PARCEL_SIZE,
   LEVEL_OUTPUT,
   POP_PER_HOUSE,
   SHOP_COINS_PER_POP,
@@ -14,7 +16,8 @@ import {
 } from './config'
 import { BUILDINGS } from './buildings'
 import { computeField } from './field'
-import { tileDistance } from './grid'
+import { parcelNeighbours, tileDistance } from './grid'
+import { buildableTilesInParcel, terrainFor } from './terrain'
 import type { CityState, Derived } from './types'
 
 /** A house holds people only while it is standing and its tile is pleasant enough. */
@@ -45,12 +48,41 @@ function housedCount(state: CityState, tile: number): number {
   return b ? POP_PER_HOUSE * LEVEL_OUTPUT[b.level] : 0
 }
 
-/** Cost of the next parcel given how many are owned, or null if all are owned. */
-export function nextLandCost(state: CityState): number | null {
+/**
+ * What one specific parcel costs, or null if it is already owned.
+ *
+ * Two factors. The escalation is how many parcels you already hold, which is
+ * what keeps the city from swallowing the board; the second is how much of
+ * THIS parcel you could actually build on. Charging the same for a lake as for
+ * a meadow made terrain a pure tax — you saw the water, you paid full price
+ * for it, and nothing in the game acknowledged that you had been handed three
+ * usable tiles instead of nine. Now the map is priced.
+ */
+export function parcelCost(state: CityState, parcel: number): number | null {
+  if (state.ownedParcels[parcel]) return null
   let owned = 0
   for (const o of state.ownedParcels) if (o) owned++
   if (owned >= PARCEL_COUNT) return null
-  return Math.round(LAND_BASE_COST * Math.pow(LAND_COST_GROWTH, owned - STARTING_PARCELS.length))
+
+  const escalation = LAND_BASE_COST * Math.pow(LAND_COST_GROWTH, owned - STARTING_PARCELS.length)
+  const usable = buildableTilesInParcel(terrainFor(state), parcel) / (PARCEL_SIZE * PARCEL_SIZE)
+  return Math.round(escalation * (LAND_BARREN_FLOOR + (1 - LAND_BARREN_FLOOR) * usable))
+}
+
+/**
+ * The cheapest parcel you could buy right now, or null when there is none.
+ * This is the number the HUD quotes: with per-parcel pricing there is no
+ * single "next" price any more, and the useful thing to say is the floor.
+ */
+export function nextLandCost(state: CityState): number | null {
+  let cheapest: number | null = null
+  for (let parcel = 0; parcel < PARCEL_COUNT; parcel++) {
+    if (state.ownedParcels[parcel]) continue
+    if (!parcelNeighbours(parcel).some((n) => state.ownedParcels[n])) continue
+    const cost = parcelCost(state, parcel)
+    if (cost !== null && (cheapest === null || cost < cheapest)) cheapest = cost
+  }
+  return cheapest
 }
 
 export function derive(state: CityState): Derived {

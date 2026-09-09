@@ -22,7 +22,8 @@ import { derive } from './sim/economy'
 import { clearSave, load, save } from './sim/save'
 import { forgetDemolitions } from './sim/history'
 import { BUILDINGS, buildingCost } from './sim/buildings'
-import { AUTOSAVE_INTERVAL, OFFLINE_CAP_SECONDS, SIM_DT } from './sim/config'
+import { AUTOSAVE_INTERVAL, OFFLINE_CAP_SECONDS, PARCEL_SIZE, SIM_DT } from './sim/config'
+import { buildableTilesInParcel, terrainFor } from './sim/terrain'
 import type { CityState, Derived } from './sim/types'
 
 const canvas = document.getElementById('scene') as HTMLCanvasElement
@@ -162,10 +163,21 @@ function refreshHover(): void {
 
 function describe(target: PickTarget): HoverInfo {
   if (target.kind === 'parcel') {
-    const cost = landCost(state)
+    const cost = landCost(state, target.parcel)
+    // Say how much of it is usable before the money is spent, not after. The
+    // price already reflects it, and a number that moves for reasons the
+    // player cannot see reads as a bug rather than as terrain.
+    const usable = buildableTilesInParcel(terrainFor(state), target.parcel)
+    const total = PARCEL_SIZE * PARCEL_SIZE
+    const lines =
+      usable === total
+        ? [`${total} tiles, all of them buildable. The city spreads into it as soon as you own it.`]
+        : usable === 0
+          ? [`${total} tiles and nothing to build on. Worth owning only to reach what is past it.`]
+          : [`${total} tiles, ${usable} of them buildable. The rest is water or rock.`]
     return {
       title: 'Unclaimed land',
-      lines: ['Nine tiles. The city will spread into it as soon as you own it.'],
+      lines,
       cost: cost ?? undefined,
       affordable: cost !== null && state.coins >= cost,
     }

@@ -53,6 +53,13 @@ export const FACTORY_COINS = 5
  */
 export const LANDFILL_COINS = 1.6
 
+/**
+ * What a parcel with nothing buildable in it still costs, as a fraction of a
+ * full one. Not zero: an all-water parcel is the bridge to whatever is past it,
+ * so it has to stay purchasable, and free land nobody wants is not a decision.
+ */
+export const LAND_BARREN_FLOOR = 0.35
+
 /** Dereliction hysteresis, in seconds of sim time. */
 export const DERELICT_HAPPINESS = 0.25
 export const DERELICT_DELAY = 30

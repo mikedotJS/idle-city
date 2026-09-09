@@ -6,7 +6,7 @@ import {
   TILE_COUNT,
 } from './config'
 import { BUILDINGS, BUILDING_TYPES, buildingCost } from './buildings'
-import { nextLandCost } from './economy'
+import { nextLandCost, parcelCost } from './economy'
 import { noteInteraction, recordEvent } from './events'
 import { rememberDemolition } from './history'
 import { nextRandom, parcelNeighbours, parcelOfTile } from './grid'
@@ -153,7 +153,7 @@ export function buyParcel(state: CityState, parcel: number): ActionResult {
     return fail('Must border land you own')
   }
 
-  const cost = nextLandCost(state)
+  const cost = parcelCost(state, parcel)
   if (cost === null) return fail('You already own that land')
   if (state.coins < cost) return fail('Not enough coins')
 
@@ -173,6 +173,10 @@ export function clearQueue(state: CityState): void {
 }
 
 /** Cost of the next parcel given how many are owned, or null if all owned. */
-export function landCost(state: CityState): number | null {
-  return nextLandCost(state)
+/**
+ * With no parcel: the cheapest one going, for the HUD. With one: what that
+ * parcel costs, for the hover panel over it.
+ */
+export function landCost(state: CityState, parcel?: number): number | null {
+  return parcel === undefined ? nextLandCost(state) : parcelCost(state, parcel)
 }

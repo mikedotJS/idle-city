@@ -88,7 +88,17 @@ The world is a **12×12 tile grid** split into **3×3-tile parcels** (16 parcels
 You start owning the centre four (a 6×6 plot, 36 tiles).
 
 Buying a parcel requires it to be orthogonally adjacent to land you own.
-Price: `400 × 1.7^(parcels owned − 4)`.
+Price: `400 × 1.7^(parcels owned − 4)`, scaled by how much of that particular
+parcel you could actually build on — `0.35 + 0.65 × (buildable tiles / 9)`.
+
+The escalation is what stops the city swallowing the board; the second factor
+is what stops terrain being a pure tax. Before it, a parcel that was half lake
+cost exactly what a meadow cost, so discovering water was simply being charged
+full price for four usable tiles and told nothing about it. A parcel with
+nothing buildable in it still costs 35%, because it is the bridge to whatever
+lies past it and free land nobody wants is not a decision. The hover panel now
+says how many of the nine tiles are usable before the money is spent — a price
+that moves for reasons the player cannot see reads as a bug, not as terrain.
 
 Parcels rather than whole blocks so the city outline goes irregular as it
 grows — an L-shaped or ragged city reads far better as a diorama than a
