@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { createCity, placeManual } from '../actions'
+import { createCity, placeManual, placementProblem } from '../actions'
 import { BUILDINGS, buildingCost } from '../buildings'
 import {
   BASE_HAPPINESS,
@@ -153,5 +153,34 @@ describe('the registry is the only list of building types', () => {
     for (const type of Object.keys(BUILDINGS)) {
       expect(state.builtCount[type as keyof typeof state.builtCount]).toBe(0)
     }
+  })
+})
+
+describe('one rule for whether a building may go there', () => {
+  it('agrees with placeManual on every tile of a real map', () => {
+    // The renderer's ghost asks placementProblem and the click calls
+    // placeManual. If they can ever disagree, the ghost is a lie: it sat green
+    // on grass for a harbour and only refused once the player committed.
+    for (const type of ['factory', 'park', 'school', 'harbour', 'landfill', 'station'] as const) {
+      const probe = createCity(11)
+      probe.ownedParcels.fill(true)
+      probe.coins = 500
+      for (let tile = 0; tile < probe.grid.length; tile++) {
+        const predicted = placementProblem(probe, type, tile)
+        const state = createCity(11)
+        state.ownedParcels.fill(true)
+        state.coins = 500
+        const actual = placeManual(state, type, tile)
+        expect(actual.ok).toBe(predicted === null)
+        if (!actual.ok) expect(actual.reason).toBe(predicted)
+      }
+    }
+  })
+
+  it('refuses for want of coins, so the ghost can say so before the click', () => {
+    const state = createCity(11)
+    state.ownedParcels.fill(true)
+    state.coins = 0
+    expect(placementProblem(state, 'park', tileIndex(5, 5))).toBe('Not enough coins')
   })
 })

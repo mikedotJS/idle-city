@@ -13,6 +13,7 @@ import {
   Vector2,
   WebGLRenderer,
 } from 'three'
+import { placementProblem } from '../sim/actions'
 import { BUILDINGS } from '../sim/buildings'
 import { parcelOfTile } from '../sim/grid'
 import { PARCELS_PER_SIDE, PARCEL_SIZE, WORLD_SIZE } from '../sim/config'
@@ -162,7 +163,8 @@ export function createRenderer(canvas: HTMLCanvasElement, cb: RendererCallbacks)
       const def = BUILDINGS[tool.type]
       ghostType = tool.type
       ghostTile = tile
-      blocked = !!(lastState && lastState.grid[tile])
+      // The sim's own answer, not a second one. See placementProblem().
+      blocked = lastState === null || placementProblem(lastState, tool.type, tile) !== null
       if (def.emit) {
         ringRange = def.emit.range
         ringGood = def.emit.strength >= 0

@@ -94,22 +94,39 @@ export function spawnBuilding(state: CityState, type: BuildingType, tile: number
   return b
 }
 
-export function placeManual(state: CityState, type: BuildingType, tile: number): ActionResult {
+/**
+ * Why this placement would be refused, or null if it would go through.
+ *
+ * Split out of placeManual so the renderer's ghost can ask the same question
+ * without committing to it. It used to answer that question itself, with its
+ * own rule — "is the tile occupied" — which meant a harbour ghost sat happily
+ * on grass in the middle of the plot and only refused on the click. Two rules
+ * for one decision, and the looser one was the one the player saw.
+ */
+export function placementProblem(
+  state: CityState,
+  type: BuildingType,
+  tile: number,
+): string | null {
   const def = BUILDINGS[type]
-  if (def.placement !== 'manual') return fail(`${def.label}s are built by the queue`)
-  if (!Number.isInteger(tile) || tile < 0 || tile >= TILE_COUNT) return fail('Outside the world')
-  if (!state.ownedParcels[parcelOfTile(tile)]) return fail('You do not own that land')
+  if (def.placement !== 'manual') return `${def.label}s are built by the queue`
+  if (!Number.isInteger(tile) || tile < 0 || tile >= TILE_COUNT) return 'Outside the world'
+  if (!state.ownedParcels[parcelOfTile(tile)]) return 'You do not own that land'
   const map = terrainFor(state)
   if (!isBuildable(map, tile)) {
-    return fail(map.terrain[tile] === Terrain.Water ? 'You cannot build on water' : 'Too steep to build on')
+    return map.terrain[tile] === Terrain.Water ? 'You cannot build on water' : 'Too steep to build on'
   }
-  if (def.coastOnly && !isCoast(map, tile)) return fail(`A ${def.label.toLowerCase()} needs a shoreline`)
-  if (state.grid[tile]) return fail('That tile is taken')
+  if (def.coastOnly && !isCoast(map, tile)) return `A ${def.label.toLowerCase()} needs a shoreline`
+  if (state.grid[tile]) return 'That tile is taken'
+  if (state.coins < buildingCost(type, state.builtCount[type])) return 'Not enough coins'
+  return null
+}
 
-  const cost = buildingCost(type, state.builtCount[type])
-  if (state.coins < cost) return fail('Not enough coins')
+export function placeManual(state: CityState, type: BuildingType, tile: number): ActionResult {
+  const problem = placementProblem(state, type, tile)
+  if (problem !== null) return fail(problem)
 
-  state.coins -= cost
+  state.coins -= buildingCost(type, state.builtCount[type])
   spawnBuilding(state, type, tile)
   noteInteraction(state)
   return OK
