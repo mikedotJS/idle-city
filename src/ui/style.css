@@ -139,7 +139,8 @@ body {
 .topstrip {
   position: fixed;
   top: 18px;
-  left: 18px;
+  left: 50%;
+  transform: translateX(-50%);
   z-index: 5;
   flex-direction: row;
   align-items: center;
