@@ -113,12 +113,10 @@ export function createLeaderboardUI(
   cityName.maxLength = 24
   cityName.placeholder = 'Name your city'
   cityName.className = 'board__input'
+  cityName.title = 'Publishes on its own every minute while you’re signed in.'
   cityName.value = savedCityName()
-  const publishButton = el('button', 'btn btn--primary', 'Publish my score')
-  publishButton.type = 'button'
-  publishButton.title = 'Also happens on its own every minute while you’re signed in.'
   const publishNote = el('p', 'hint')
-  publishRow.append(cityName, publishButton, publishNote)
+  publishRow.append(cityName, publishNote)
 
   const list = el('ol', 'board__list')
   const status = el('p', 'board__status', 'Sign in to see the board.')
@@ -251,29 +249,6 @@ export function createLeaderboardUI(
 
   signOutButton.addEventListener('click', async () => {
     await board.signOut()
-  })
-
-  publishButton.addEventListener('click', async () => {
-    if (busy) return
-    busy = true
-    publishButton.disabled = true
-    publishNote.textContent = 'Publishing...'
-    try {
-      const entry = await board.publish(getState(), cityName.value)
-      try {
-        localStorage.setItem(CITY_NAME_KEY, entry.cityName)
-      } catch {
-        // Remembering the name is a convenience, not part of publishing.
-      }
-      cityName.value = entry.cityName
-      publishNote.textContent = `Published ${entry.cityName} at ${formatCoins(entry.score)}.`
-      await refresh()
-    } catch (error) {
-      publishNote.textContent = `Could not publish: ${(error as Error).message}`
-    } finally {
-      busy = false
-      publishButton.disabled = false
-    }
   })
 
   // ------------------------------------------------------------- autopublish
