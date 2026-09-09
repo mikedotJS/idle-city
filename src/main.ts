@@ -113,6 +113,7 @@ const tools = createToolsPanel(uiRoot, currentCity, {
     structureDirty = true
   },
   onToast: (message) => hud.toast(message),
+  onPostcard: () => renderer.postcard(),
 })
 
 // Browsers block audio until the page has been interacted with, so the first

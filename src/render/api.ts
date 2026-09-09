@@ -28,5 +28,7 @@ export interface Renderer {
    * screen and what the player is missing is which one, not where.
    */
   flashTile(tile: number): void
+  /** A PNG data URL of the board exactly as it currently looks. */
+  postcard(): string
   dispose(): void
 }

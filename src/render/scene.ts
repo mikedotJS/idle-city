@@ -178,6 +178,20 @@ export function createRenderer(canvas: HTMLCanvasElement, cb: RendererCallbacks)
     ground.flash(tile)
   }
 
+  /**
+   * A picture of the city as it stands.
+   *
+   * Renders and reads the canvas back in the same synchronous task on purpose.
+   * The drawing buffer is not preserved between frames — preserving it costs
+   * memory and a copy on every single frame for the sake of an action taken
+   * once in a session — so anything that yields first, toBlob() included,
+   * reads back a cleared buffer and hands the player a blank rectangle.
+   */
+  function postcard(): string {
+    renderer.render(scene, rig.camera)
+    return renderer.domElement.toDataURL('image/png')
+  }
+
   /** The tile whose building the demolish tool is currently aimed at. */
   function demolishTile(): number | null {
     if (tool.kind !== 'demolish') return null
@@ -314,5 +328,5 @@ export function createRenderer(canvas: HTMLCanvasElement, cb: RendererCallbacks)
     renderer.dispose()
   }
 
-  return { sync, frame, setTool, flashTile, dispose }
+  return { sync, frame, setTool, flashTile, postcard, dispose }
 }

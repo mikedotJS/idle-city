@@ -30,6 +30,8 @@ export interface ToolsCallbacks {
   onStructureChanged(): void
   /** Show a transient message through the existing HUD toast. */
   onToast(message: string): void
+  /** A PNG data URL of the board as it currently looks. */
+  onPostcard(): string
 }
 
 export interface ToolsPanel {
@@ -271,7 +273,35 @@ export function createToolsPanel(
 
   // ----------------------------------------------------------------- assemble
 
-  panel.append(speedSection, undoSection, exportSection, importSection)
+  // --------------------------------------------------------------- postcard
+
+  const postcardSection = el('div', 'tools-section')
+  postcardSection.append(el('p', 'tools-section__title', 'Postcard'))
+  const postcardButton = el('button', 'btn', 'Save a picture')
+  postcardButton.type = 'button'
+  postcardButton.addEventListener('click', () => {
+    const url = callbacks.onPostcard()
+    // A canvas that never drew is a 1x1 transparent PNG, whose data URL is
+    // tiny. Handing the player a blank file is worse than telling them.
+    if (url.length < 1000) {
+      callbacks.onToast('The board has not drawn yet.')
+      return
+    }
+    const link = el('a')
+    link.href = url
+    const stamp = new Date().toISOString().slice(0, 16).replace(/[:T]/g, '-')
+    link.download = `micro-city-${stamp}.png`
+    // Never added to the document: an <a> only has to exist to be clicked, and
+    // appending it means remembering to remove it on every path out of here.
+    link.click()
+    callbacks.onToast('Postcard saved.')
+  })
+  postcardSection.append(
+    postcardButton,
+    el('p', 'hint', 'A picture of the board exactly as it looks right now.'),
+  )
+
+  panel.append(speedSection, undoSection, postcardSection, exportSection, importSection)
 
   toggleButton.addEventListener('click', () => {
     const opening = panel.hidden
