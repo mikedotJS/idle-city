@@ -116,6 +116,7 @@ export function createLeaderboardUI(
   cityName.value = savedCityName()
   const publishButton = el('button', 'btn btn--primary', 'Publish my score')
   publishButton.type = 'button'
+  publishButton.title = 'Also happens on its own every minute while you’re signed in.'
   const publishNote = el('p', 'hint')
   publishRow.append(cityName, publishButton, publishNote)
 
@@ -275,9 +276,54 @@ export function createLeaderboardUI(
     }
   })
 
+  // ------------------------------------------------------------- autopublish
+
+  // Keeps a signed-in player's row current without them having to remember
+  // to click "Publish my score" — the whole point of a live board. Silent on
+  // failure: a missed tick just retries in a minute, and a manual click still
+  // reports its own errors.
+  const AUTO_PUBLISH_INTERVAL_MS = 60_000
+  let autoPublishTimer: ReturnType<typeof setInterval> | null = null
+
+  async function autoPublish(): Promise<void> {
+    if (!user || busy) return
+    busy = true
+    try {
+      const entry = await board.publish(getState(), cityName.value)
+      try {
+        localStorage.setItem(CITY_NAME_KEY, entry.cityName)
+      } catch {
+        // Remembering the name is a convenience, not part of publishing.
+      }
+      if (!overlay.hidden) {
+        cityName.value = entry.cityName
+        publishNote.textContent = `Published ${entry.cityName} at ${formatCoins(entry.score)}.`
+        await refresh()
+      }
+    } catch {
+      // See above — a background miss isn't worth surfacing.
+    } finally {
+      busy = false
+    }
+  }
+
+  function startAutoPublish(): void {
+    if (autoPublishTimer) return
+    autoPublishTimer = setInterval(() => void autoPublish(), AUTO_PUBLISH_INTERVAL_MS)
+  }
+
+  function stopAutoPublish(): void {
+    if (autoPublishTimer) {
+      clearInterval(autoPublishTimer)
+      autoPublishTimer = null
+    }
+  }
+
   board.onChange((next) => {
     user = next
     paintAuth()
+    if (user) startAutoPublish()
+    else stopAutoPublish()
     if (!overlay.hidden) void refresh()
   })
 
@@ -286,6 +332,7 @@ export function createLeaderboardUI(
 
   return {
     dispose(): void {
+      stopAutoPublish()
       window.removeEventListener('keydown', onKey, true)
       launcher.remove()
       overlay.remove()
