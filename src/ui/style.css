@@ -124,6 +124,10 @@ body {
   flex-direction: column;
   gap: 12px;
   min-height: 0;
+  /* Never let a panel be squeezed shorter than its own content. When one is,
+     the content spills out of the bottom and lands on whatever sits below,
+     which silently swallows its clicks. */
+  flex-shrink: 0;
 }
 
 .panel__title {
@@ -942,4 +946,15 @@ body {
   border-color: var(--rotting);
   background: var(--rotting);
   color: var(--paper);
+}
+
+/* Reserve the width both labels have to fit in, so arming cannot reflow the row. */
+.btn--danger {
+  min-width: 108px;
+}
+
+.panel--restart {
+  flex-direction: row;
+  justify-content: flex-end;
+  padding: 10px 14px;
 }

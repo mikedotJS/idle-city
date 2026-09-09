@@ -57,12 +57,16 @@ check('a city is running', before !== null, `terrainSeed ${before}, people ${peo
 await button.click()
 await page.waitForTimeout(300)
 const armedText = await page.locator('.btn--danger').textContent()
-check('one press only arms it', /Really/.test(armedText ?? ''), JSON.stringify(armedText))
+check('one press only arms it', /Confirm/.test(armedText ?? ''), JSON.stringify(armedText))
 
-// Moving away must cancel: nobody loses hours to a stray click.
-await page.mouse.move(10, 10)
+// Cancelling is a click elsewhere. It is deliberately NOT pointerleave: that
+// guard cancelled the very press it was meant to protect.
+await page.mouse.click(700, 40)
 await page.waitForTimeout(400)
-check('moving away disarms it', /^New city$/.test((await page.locator('.btn--danger').textContent()) ?? ''))
+check(
+  'a click elsewhere disarms it',
+  /^New city$/.test((await page.locator('.btn--danger').textContent()) ?? ''),
+)
 
 await button.click()
 await page.waitForTimeout(300)
@@ -74,6 +78,46 @@ check('the city was actually replaced', after !== null && after !== before, `${b
 
 const peopleAfter = await page.locator('.stat__value').first().textContent()
 check('and it started from nothing', Number(peopleAfter) < Number(peopleBefore), `${peopleBefore} -> ${peopleAfter}`)
+
+// The case that actually mattered. A locator click re-centres on the element
+// every time; a person clicks the same screen point twice. That difference hid
+// a dead button behind a passing test: arming reflowed the row, the button
+// overflowed its panel, and the panel below swallowed the second press.
+await page.evaluate(() => localStorage.clear())
+await page.reload({ waitUntil: 'load' })
+await page.waitForTimeout(4000)
+
+const box = await page.locator('.btn--danger').boundingBox()
+const px = box.x + box.width / 2
+const py = box.y + box.height / 2
+
+const owner = await page.evaluate(
+  ([x, y]) => {
+    const el = document.elementFromPoint(x, y)
+    return el ? `${el.tagName}.${String(el.className)}` : 'nothing'
+  },
+  [px, py],
+)
+check('nothing covers the button', owner.includes('BUTTON'), owner)
+
+await page.mouse.click(px, py)
+await page.waitForTimeout(350)
+check(
+  'arming does not move the button out from under the pointer',
+  /Confirm/.test((await page.locator('.btn--danger').textContent()) ?? ''),
+  JSON.stringify(await page.locator('.btn--danger').textContent()),
+)
+
+const seedBeforeHuman = await seedOf()
+await page.mouse.click(px, py)
+// Long enough for the fresh city to autosave, so the new seed is readable.
+await page.waitForTimeout(10000)
+const seedAfterHuman = await seedOf()
+check(
+  'two presses at the same point restart the city',
+  seedAfterHuman !== null && seedAfterHuman !== seedBeforeHuman,
+  `${seedBeforeHuman} -> ${seedAfterHuman}`,
+)
 
 await browser.close()
 if (errors.length) console.log(`\nconsole errors:\n${errors.slice(0, 5).join('\n')}`)

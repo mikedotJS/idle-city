@@ -253,22 +253,37 @@ export function createHud(root: HTMLElement, cb: HudCallbacks): Hud {
     restartButton.classList.remove('is-armed')
   }
 
-  restartButton.addEventListener('click', () => {
+  restartButton.addEventListener('click', (event) => {
+    event.stopPropagation()
     if (armed) {
       disarm()
       cb.onRestart()
       return
     }
     armed = true
-    setText(restartButton, 'Really? This deletes it')
+    setText(restartButton, 'Confirm?')
     restartButton.classList.add('is-armed')
     armedTimer = window.setTimeout(disarm, 4000)
   })
-  restartButton.addEventListener('pointerleave', disarm)
-  queueActions.append(restartButton)
+
+  // Cancelling on pointerleave was the obvious guard and it broke the button
+  // outright: arming widened it, the row reflowed, the pointer ended up outside
+  // its own box, pointerleave fired, and the press disarmed itself in under a
+  // frame. Every click armed and cancelled, so nothing ever happened. The
+  // confirm label is now short enough to fit the reserved width, and cancelling
+  // is a click somewhere else or four seconds of hesitation.
+  window.addEventListener('click', disarm)
 
   queuePanel.append(queueList, queueRepeat, queueActions)
   rightSide.append(queuePanel)
+
+  // Its own panel, not a third button in the queue's action row. Restarting is
+  // not a queue action, and crowding that row made it wrap, which overflowed
+  // the panel and hid the button under the music panel below — where it was
+  // visible, correctly placed, and completely dead.
+  const restartPanel = el('section', 'panel panel--restart')
+  restartPanel.append(restartButton)
+  rightSide.append(restartPanel)
 
   // ------------------------------------------------------------------- music
 
