@@ -72,38 +72,106 @@
   color: var(--accent-deep);
 }
 
+/*
+ * One card for whatever tab is open — a title, a close button, then that
+ * section's panels underneath — instead of each panel keeping its own
+ * bordered, shadowed box stacked under the last. The card itself supplies
+ * the background/border/shadow every individual panel used to bring on its
+ * own; the rule block below strips that duplicate chrome from panels once
+ * they're nested here (a plain top divider replaces it, same idea as
+ * tools.css's own `.tools-section + .tools-section` rule), so a panel that
+ * still floats on its own elsewhere in the HUD (there is none today, but a
+ * future one might) is unaffected outside `.dock-popover`.
+ */
 .dock-popover {
   position: fixed;
   left: 50%;
   bottom: calc(var(--dock-bar-h, 68px) + 10px);
   transform: translateX(-50%);
   z-index: 5;
+  display: flex;
+  flex-direction: column;
+  width: max-content;
   max-width: calc(100vw - 24px);
   max-height: calc(100vh - var(--dock-bar-h, 68px) - 36px);
-  overflow-y: auto;
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-panel);
+  box-shadow: var(--shadow-panel);
   pointer-events: auto;
+}
+
+.dock-popover__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: none;
+  padding: 16px 16px 0;
+}
+
+.dock-popover__title {
+  margin: 0;
+  margin-right: auto;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.dock-popover__close {
+  appearance: none;
+  border: none;
+  background: var(--paper-sunk);
+  color: var(--ink-soft);
+  cursor: pointer;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  font-size: 15px;
+  line-height: 1;
+}
+
+.dock-popover__close:hover {
+  color: var(--ink);
+}
+
+.dock-popover__close:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.dock-popover__body {
+  min-height: 0;
+  overflow-y: auto;
+  padding: 14px 16px 16px;
 }
 
 .dock-popover__column {
   display: flex;
   flex-direction: column;
-  align-items: center;
-  gap: 12px;
-  width: max-content;
-  max-width: 100%;
-  margin: 0 auto;
+  align-items: stretch;
+  gap: 0;
 }
 
-.dock-popover__label {
-  /* One heading per section this phase, so a visible one would just repeat
-     the tab's own label above shapes that already say what they are.
-     Stays hidden-but-present for the same reason it did in the previous
-     shell: a landmark for assistive tech, not a second visible title. */
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
-  clip: rect(0, 0, 0, 0);
+/* Every panel this shell docks (hud.ts, tools.ts, prestige.ts,
+   musicsound.ts, leaderboard.ts, friends.ts) carries the base `.panel`
+   class for its own border/shadow/background/padding when it floated on
+   its own. Nested in one card now, that chrome would just double up as a
+   second box inside the first — drop it here and use a plain divider
+   between stacked panels instead. */
+.dock-popover__column .panel {
+  background: none;
+  border: none;
+  box-shadow: none;
+  border-radius: 0;
+  padding: 12px 0;
+}
+
+.dock-popover__column > *:first-child {
+  padding-top: 0;
+}
+
+.dock-popover__column > * + * {
+  border-top: 1px solid var(--line);
+  padding-top: 12px;
 }
 
 /* ------------------------------------------------------- narrow / portrait */

@@ -260,8 +260,8 @@ body {
 /* ----------------------------------------------------------- tool palette */
 
 .tool-list {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
   gap: 8px;
   min-height: 0;
   overflow-y: auto;

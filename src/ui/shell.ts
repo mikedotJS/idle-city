@@ -53,7 +53,7 @@ export interface HudShell {
 function buildColumn(section: HudSection): HTMLElement {
   const column = el('div', 'dock-popover__column')
   column.dataset.section = section.id
-  column.append(el('h2', 'dock-popover__label', section.label), ...section.panels)
+  column.append(...section.panels)
   return column
 }
 
@@ -94,9 +94,23 @@ export function createShell(
   const tabs = el('div', 'dock-bar__tabs')
   bar.append(stats, divider, tabs)
 
+  // One card for whatever tab is open: a title (the active section's own
+  // label — one heading, not a second hidden one under it) and a close
+  // button next to it, then that section's panels underneath. Every open
+  // section renders as this one surface rather than each panel keeping its
+  // own bordered, shadowed card stacked under the last — see shell.css.
   const popover = el('div', 'dock-popover')
   popover.hidden = true
+  const popoverHead = el('div', 'dock-popover__head')
+  const popoverTitle = el('h2', 'dock-popover__title')
+  const popoverClose = el('button', 'dock-popover__close', '×')
+  popoverClose.type = 'button'
+  popoverClose.setAttribute('aria-label', 'Close')
+  popoverHead.append(popoverTitle, popoverClose)
+  const popoverBody = el('div', 'dock-popover__body')
+  popover.append(popoverHead, popoverBody)
 
+  const sectionsById = new Map(tabSections.map((section) => [section.id, section]))
   const tabButtons = new Map<string, HTMLButtonElement>()
   // Closed by default at every size: the bar alone is the resting state,
   // and nothing forces a section open just because the screen is narrow —
@@ -109,10 +123,17 @@ export function createShell(
       button.classList.toggle('is-active', active)
       button.setAttribute('aria-pressed', String(active))
     }
+    const section = activeId ? sectionsById.get(activeId) : undefined
     const column = activeId ? columns.get(activeId) : undefined
-    popover.replaceChildren(...(column ? [column] : []))
+    popoverTitle.textContent = section?.label ?? ''
+    popoverBody.replaceChildren(...(column ? [column] : []))
     popover.hidden = !column
   }
+
+  popoverClose.addEventListener('click', () => {
+    activeId = null
+    render()
+  })
 
   for (const section of tabSections) {
     const button = el('button', 'dock-tab', section.label)
