@@ -7,6 +7,7 @@ import type { PickTarget, Renderer, Tool } from './render/api'
 import { createHud } from './ui/hud'
 import { createActivityPanel } from './ui/activity'
 import { createToolsPanel } from './ui/tools'
+import { createPrestigePanel } from './ui/prestige'
 import type { HoverInfo, Hud } from './ui/api'
 import {
   buyParcel,
@@ -19,7 +20,8 @@ import {
 } from './sim/actions'
 import { step } from './sim/tick'
 import { derive } from './sim/economy'
-import { clearSave, load, save } from './sim/save'
+import { clearSave, load, loadPrestige, save, savePrestige } from './sim/save'
+import { retire } from './sim/prestige'
 import { forgetDemolitions } from './sim/history'
 import { BUILDINGS, buildingCost } from './sim/buildings'
 import { AUTOSAVE_INTERVAL, OFFLINE_CAP_SECONDS, PARCEL_SIZE, SIM_DT } from './sim/config'
@@ -29,13 +31,20 @@ import type { CityState, Derived } from './sim/types'
 const canvas = document.getElementById('scene') as HTMLCanvasElement
 const uiRoot = document.getElementById('ui') as HTMLElement
 
+/**
+ * Read before the city, because founding one consults it: prestige is applied
+ * at founding and nowhere else. It lives under its own storage key and
+ * survives everything that destroys a city.
+ */
+const prestige = loadPrestige()
+
 const loaded = load()
 /**
  * Mutable, because importing a city replaces it wholesale rather than editing
  * it in place. Everything that outlives a frame reads it through currentCity()
  * for that reason; a stored reference goes stale the moment an import lands.
  */
-let state: CityState = loaded ? loaded.state : createCity()
+let state: CityState = loaded ? loaded.state : createCity(undefined, prestige)
 let derived: Derived = derive(state)
 
 function currentCity(): CityState {
@@ -95,6 +104,26 @@ const activity = createActivityPanel(uiRoot, {
   onGoTo: (tile) => {
     renderer.flashTile(tile)
   },
+})
+
+const prestigePanel = createPrestigePanel(uiRoot, () => prestige, {
+  onRetire: () => {
+    // Bank it before anything is destroyed, and persist it before the reload:
+    // a charter that only exists in memory when the page navigates away is a
+    // city retired for nothing.
+    const gained = retire(prestige, state)
+    savePrestige(prestige)
+    forgetDemolitions()
+    // Same order as a restart, for the same reason — the page saves on unload,
+    // so clearing and then reloading would write this very city back over the
+    // blank slate. Suppress saving first.
+    restarting = true
+    clearSave()
+    hud.toast(`Retired for ${gained} charter.`)
+    window.location.reload()
+  },
+  onPrestigeChanged: () => savePrestige(prestige),
+  onToast: (message) => hud.toast(message),
 })
 
 const tools = createToolsPanel(uiRoot, currentCity, {
@@ -323,6 +352,7 @@ function frame(now: number): void {
   hud.update(state, derived)
   activity.update(state)
   tools.update(state)
+  prestigePanel.update(state)
 }
 
 if (loaded && loaded.offlineSeconds > 60) {
