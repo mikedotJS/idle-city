@@ -102,6 +102,16 @@ interface SoundDef {
   maxDurationSec?: number
   /** +/- fraction of playbackRate jittered per play, so a repeated cue is not identical every time. */
   rateJitter?: number
+  /**
+   * Ramp the gain up over this many seconds instead of starting at full
+   * volume instantly. A generated one-shot's attack is whatever the model
+   * gave it; this is the one knob here for softening it without touching the
+   * clip, for a sound played often enough (every button in the HUD) that its
+   * attack is heard far more than its content.
+   */
+  attackFadeSec?: number
+  /** Lowpass cutoff in Hz, for rounding off a clip's high end rather than trusting the source recording to already be soft. */
+  lowpassHz?: number
 }
 
 /**
@@ -118,14 +128,31 @@ interface SoundDef {
  * continuous clip's RMS would have driven the sparse one's noise floor up
  * along with it.
  *
- * Two targets, not one: -14 dBFS for anything meant to sit in the
- * background (a toast chime, the ambient beds — several of which can play
- * at once if the player builds several factories), -6 dBFS for a one-shot
- * that has to read as a distinct event, and -3 dBFS for the one moment the
- * game treats as a fanfare.
+ * Three targets: -20 dBFS for the UI click specifically — it is the one
+ * sound in this file bound to every button in the HUD rather than to a
+ * single kind of event, so it plays far more often than anything else and
+ * has to be the quietest thing here on volume alone — -14 dBFS for
+ * everything else meant to sit in the background (a toast chime, the
+ * ambient beds — several of which can play at once if the player builds
+ * several factories), -6 dBFS for a one-shot that has to read as a distinct
+ * event, and -3 dBFS for the one moment the game treats as a fanfare.
  */
 const SOUNDS: Record<SoundKey, SoundDef> = {
-  ui_click: { src: 'sfx/ui_click.mp3', gain: 3.16, spatial: false, maxDurationSec: 0.35, rateJitter: 0.06 },
+  // Regenerated once already (the first take read as a hard wooden tap) and
+  // still rounded off here on top of that: a short attack fade so the onset
+  // is not instant, and a lowpass so nothing in it reads as a click rather
+  // than a soft thump. It is heard more than any other sound in the game, so
+  // it is the one clip that gets both a friendlier prompt and belt-and-braces
+  // shaping rather than trusting the source recording alone.
+  ui_click: {
+    src: 'sfx/ui_click.mp3',
+    gain: 0.21,
+    spatial: false,
+    maxDurationSec: 0.3,
+    rateJitter: 0.06,
+    attackFadeSec: 0.015,
+    lowpassHz: 2800,
+  },
   build_pop: { src: 'sfx/build_pop.mp3', gain: 5.96, spatial: true, maxDurationSec: 0.6, rateJitter: 0.08 },
   level_up: { src: 'sfx/level_up.mp3', gain: 0.56, spatial: true, maxDurationSec: 1.4 },
   place_industrial: { src: 'sfx/place_industrial.mp3', gain: 0.5, spatial: true, maxDurationSec: 1.3 },
@@ -437,8 +464,28 @@ export function createSfx(): Sfx {
       }
 
       const gain = context.createGain()
-      gain.gain.value = def.gain
-      source.connect(gain)
+      if (def.attackFadeSec) {
+        // Starting from 0 and ramping up is the difference between "instant"
+        // and "soft" for an onset the source recording did not already round
+        // off — the ear reads the first few milliseconds far more than it
+        // reads the rest of a 150ms clip.
+        const now = context.currentTime
+        gain.gain.setValueAtTime(0, now)
+        gain.gain.linearRampToValueAtTime(def.gain, now + def.attackFadeSec)
+      } else {
+        gain.gain.value = def.gain
+      }
+
+      // source -> [lowpass?] -> gain -> [panner ->] bus
+      let chainEnd: AudioNode = source
+      if (def.lowpassHz) {
+        const lowpass = context.createBiquadFilter()
+        lowpass.type = 'lowpass'
+        lowpass.frequency.value = def.lowpassHz
+        chainEnd.connect(lowpass)
+        chainEnd = lowpass
+      }
+      chainEnd.connect(gain)
 
       if (def.spatial && at) {
         const panner = makePanner(context, at.x, at.z)

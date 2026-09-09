@@ -6,7 +6,11 @@
  *
  * There is no DOM trace of a PannerNode the way there is an <audio> element
  * for music, so this reads src/audio/sfx.ts's dev-only window.__sfxPlayed
- * log instead — see the comment above it.
+ * log instead — see the comment above it. Every one-shot's actual logPlay()
+ * call happens inside an async decode, which can trail a click by anywhere
+ * from a few milliseconds (cached) to several hundred (first use, or several
+ * sounds decoding at once) — so this polls for what it expects rather than
+ * fixing a wait long enough to cover the slowest plausible case and hoping.
  *
  *   npm run dev          # in one shell
  *   npm run sfx-check    # in another
@@ -16,6 +20,8 @@ import { join } from 'node:path'
 import { chromium } from 'playwright'
 
 const URL = process.env.SHOT_URL ?? 'http://localhost:5173/'
+const POLL_MS = 150
+const POLL_TIMEOUT_MS = 3000
 
 function findChromium() {
   const root = process.env.PLAYWRIGHT_BROWSERS_PATH
@@ -48,14 +54,30 @@ const check = (name, ok, detail) => {
 
 const played = () => page.evaluate(() => window.__sfxPlayed ?? [])
 const clearLog = () => page.evaluate(() => window.__sfxPlayed?.splice(0))
-// playOneShot's own logging happens inside an async decode; a click's log
-// entry can land a beat after the click itself resolves.
-const settle = () => page.waitForTimeout(250)
+
+/**
+ * Poll window.__sfxPlayed until `predicate` finds a match or POLL_TIMEOUT_MS
+ * passes. Returns the matching entry, or null. Never clears the log itself —
+ * callers decide when a scenario is done with it.
+ */
+async function waitForPlay(predicate) {
+  const deadline = Date.now() + POLL_TIMEOUT_MS
+  for (;;) {
+    const entry = (await played()).find(predicate)
+    if (entry) return entry
+    if (Date.now() >= deadline) return null
+    await page.waitForTimeout(POLL_MS)
+  }
+}
+
+/** A settle long enough for a click's synchronous game-state effects to have
+ *  landed, without asserting anything about the (separately polled) sound. */
+const settle = () => page.waitForTimeout(200)
 
 await page.goto(URL, { waitUntil: 'load' })
 await page.evaluate(() => localStorage.clear())
 await page.reload({ waitUntil: 'load' })
-await page.waitForTimeout(1500)
+await page.waitForTimeout(2000)
 
 check('the dev sfx trace is present', Array.isArray(await played()))
 check('nothing played before any gesture', (await played()).length === 0, JSON.stringify(await played()))
@@ -64,16 +86,20 @@ check('nothing played before any gesture', (await played()).length === 0, JSON.s
 const board = await page.locator('#scene').boundingBox()
 await page.mouse.click(board.x + board.width * 0.5, board.y + board.height * 0.5)
 await settle()
+await clearLog()
 
 // Select the park tool (a manual placement — the one thing sound design
 // cannot pick up from the event log, so main.ts calls playPlacement() itself
 // right after a successful placement). The auto-builder plants its very
 // first house at sim time zero, at the tile nearest the plot's centre, so
 // the centre itself cannot be trusted empty — try a spread of points across
-// the owned plot until one lands on open ground.
+// the owned plot until one lands on open ground. A failed attempt still
+// toasts, so wait for *some* sound before deciding a candidate missed,
+// rather than racing a fixed timeout against whichever sound wins.
 const parkButton = page.getByRole('button', { name: /Park/ })
 await parkButton.click()
 await settle()
+await clearLog()
 
 const candidates = [
   [0.5, 0.32],
@@ -90,24 +116,16 @@ let placedTile = null
 for (const [fx, fy] of candidates) {
   await clearLog()
   await page.mouse.click(board.x + board.width * fx, board.y + board.height * fy)
-  await settle()
-  const entry = (await played()).find((e) => e.startsWith('oneshot:place_amenity@'))
-  if (entry) {
+  const entry = await waitForPlay((e) => e.startsWith('oneshot:place_amenity@') || e === 'oneshot:toast')
+  if (entry?.startsWith('oneshot:place_amenity@')) {
     placedTile = [fx, fy]
     break
   }
 }
 check('placing a park plays a positioned one-shot', placedTile !== null, JSON.stringify(await played()))
 
-// The ambient bed is a much larger file than a one-shot click, so its first
-// fetch + decode can genuinely take longer than one settle() — poll rather
-// than fix a single wait long enough to cover the slowest possible run.
-let ambientStarted = null
-for (let i = 0; i < 8 && !ambientStarted; i++) {
-  await page.waitForTimeout(250)
-  ambientStarted = (await played()).find((e) => e.startsWith('ambient-start:amb_park@'))
-}
-check("the park's ambient loop starts", ambientStarted !== null && ambientStarted !== undefined, JSON.stringify(await played()))
+const ambientStarted = await waitForPlay((e) => e.startsWith('ambient-start:amb_park@'))
+check("the park's ambient loop starts", ambientStarted !== null, JSON.stringify(await played()))
 
 // Demolish the very tile that just succeeded.
 const demolishButton = page.getByRole('button', { name: /Demolish/ })
@@ -118,19 +136,11 @@ if (placedTile) {
   const [fx, fy] = placedTile
   await page.mouse.click(board.x + board.width * fx, board.y + board.height * fy)
 }
-await settle()
 
-const afterDemolish = await played()
-check(
-  'demolishing it plays the demolish one-shot',
-  afterDemolish.some((e) => e.startsWith('oneshot:demolish@')),
-  JSON.stringify(afterDemolish),
-)
-check(
-  'and stops its ambient loop',
-  afterDemolish.some((e) => e.startsWith('ambient-stop:amb_park@')),
-  JSON.stringify(afterDemolish),
-)
+const demolished = await waitForPlay((e) => e.startsWith('oneshot:demolish@'))
+check('demolishing it plays the demolish one-shot', demolished !== null, JSON.stringify(await played()))
+const ambientStopped = await waitForPlay((e) => e.startsWith('ambient-stop:amb_park@'))
+check('and stops its ambient loop', ambientStopped !== null, JSON.stringify(await played()))
 
 // The demolish tool is still selected and the tile it just cleared is now
 // empty: pressing the same spot again finds nothing to demolish, which
@@ -139,18 +149,20 @@ if (placedTile) {
   const [fx, fy] = placedTile
   await clearLog()
   await page.mouse.click(board.x + board.width * fx, board.y + board.height * fy)
-  await settle()
-  check('a toast (here: nothing to demolish) plays its own chime', (await played()).includes('oneshot:toast'))
+  const toasted = await waitForPlay((e) => e === 'oneshot:toast')
+  check('a toast (here: nothing to demolish) plays its own chime', toasted !== null)
 }
 
 // Mute actually mutes: nothing should log a play even though the player
-// keeps placing things, on ground never touched by the steps above.
+// keeps placing things, on ground never touched by the steps above. There is
+// nothing to poll *for* here — this waits out a fixed window on purpose,
+// long enough to have caught any of the plays above if muting had failed.
 await page.locator('.sound__toggle').click()
 await settle()
 await clearLog()
 await parkButton.click()
 await page.mouse.click(board.x + board.width * 0.22, board.y + board.height * 0.5)
-await settle()
+await page.waitForTimeout(1200)
 check('muting sound stops further playback', (await played()).length === 0, JSON.stringify(await played()))
 
 await browser.close()
