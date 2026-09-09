@@ -16,6 +16,25 @@ export interface RendererCallbacks {
   onHover(target: PickTarget | null): void
 }
 
+/**
+ * Where the camera is and which way it faces, in plain numbers rather than
+ * three.js types — main.ts orchestrates the renderer and the spatial audio
+ * engine without either one importing three.js itself. Forward and up are
+ * unit vectors; audio/sfx.ts feeds them straight to the Web Audio listener so
+ * a factory's hum pans as the camera orbits around it.
+ */
+export interface ListenerPose {
+  x: number
+  y: number
+  z: number
+  fx: number
+  fy: number
+  fz: number
+  ux: number
+  uy: number
+  uz: number
+}
+
 export interface Renderer {
   /** Called only when the grid or owned parcels changed. Rebuilds instances. */
   sync(state: CityState, derived: Derived): void
@@ -30,5 +49,7 @@ export interface Renderer {
   flashTile(tile: number): void
   /** A PNG data URL of the board exactly as it currently looks. */
   postcard(): string
+  /** The camera's current position and facing, for the spatial audio listener. */
+  listenerPose(): ListenerPose
   dispose(): void
 }

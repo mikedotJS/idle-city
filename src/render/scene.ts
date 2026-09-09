@@ -11,6 +11,7 @@ import {
   Raycaster,
   Scene as ThreeScene,
   Vector2,
+  Vector3,
   WebGLRenderer,
 } from 'three'
 import { placementProblem } from '../sim/actions'
@@ -19,7 +20,7 @@ import { parcelOfTile } from '../sim/grid'
 import { PARCELS_PER_SIDE, PARCEL_SIZE, WORLD_SIZE } from '../sim/config'
 import { computeRoads } from '../sim/roads'
 import type { CityState, Derived } from '../sim/types'
-import type { PickTarget, Renderer, RendererCallbacks, Tool } from './api'
+import type { ListenerPose, PickTarget, Renderer, RendererCallbacks, Tool } from './api'
 import { createBuildings } from './buildings'
 import { createCameraRig } from './camera'
 import { createGround } from './ground'
@@ -192,6 +193,29 @@ export function createRenderer(canvas: HTMLCanvasElement, cb: RendererCallbacks)
     return renderer.domElement.toDataURL('image/png')
   }
 
+  // Scratch vectors for listenerPose(): the camera moves every frame and this
+  // is called every frame, so it must not allocate.
+  const listenerForward = new Vector3()
+  const listenerUp = new Vector3()
+
+  /** Camera position and facing, in plain numbers, for the spatial audio listener. */
+  function listenerPose(): ListenerPose {
+    rig.camera.getWorldDirection(listenerForward)
+    listenerUp.copy(rig.camera.up).applyQuaternion(rig.camera.quaternion)
+    const p = rig.camera.position
+    return {
+      x: p.x,
+      y: p.y,
+      z: p.z,
+      fx: listenerForward.x,
+      fy: listenerForward.y,
+      fz: listenerForward.z,
+      ux: listenerUp.x,
+      uy: listenerUp.y,
+      uz: listenerUp.z,
+    }
+  }
+
   /** The tile whose building the demolish tool is currently aimed at. */
   function demolishTile(): number | null {
     if (tool.kind !== 'demolish') return null
@@ -328,5 +352,5 @@ export function createRenderer(canvas: HTMLCanvasElement, cb: RendererCallbacks)
     renderer.dispose()
   }
 
-  return { sync, frame, setTool, flashTile, postcard, dispose }
+  return { sync, frame, setTool, flashTile, postcard, listenerPose, dispose }
 }

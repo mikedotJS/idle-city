@@ -435,6 +435,89 @@ behaviour so it cannot drift unnoticed. Scores are computed by the browser: the
 backend cannot yet recompute them, so a score can be inflated even though no
 player can overwrite another's row.
 
+### Spatial sound design
+
+Music says how the city feels in general; this says what it is doing right
+now, and where. Every voice — a house popping into existence, a factory
+starting to hum, a park's chime — is a Web Audio `PannerNode` in HRTF mode,
+positioned at the world coordinate of the tile it belongs to, with the
+listener moved every frame to the orbiting camera's own position and facing.
+Orbit around a factory and its hum genuinely pans across the stereo field;
+that is the entire reason this is Web Audio nodes rather than an
+`HTMLAudioElement` with a volume trick, and it is why `render/api.ts` grew a
+`listenerPose()` — plain numbers, not a three.js `Vector3`, so `audio/` still
+never imports `render/`.
+
+**One-shots ride the event log the activity panel already reads.**
+`state.events` already says `built`, `upgraded`, `derelict`, `recovered`,
+`demolished`, `land` and exactly where each happened — sound design just
+listens to it, rather than a second notification path threaded through every
+call site in `main.ts`. The one placement that log does not carry is a manual
+one: a factory, park, school, harbour, station or landfill never calls
+`recordEvent` (only the auto-builder and dereliction do), so `main.ts` calls
+`playPlacement()` itself, once, right where `placeManual()` already succeeds.
+Everything else — five kinds of event, six building types' worth of
+dereliction and recovery, every future event kind this log ever grows — asks
+nothing further of `main.ts`.
+
+The log is also a bounded ring (`EVENT_LIMIT` in `sim/events.ts`) that splices
+from the front, so a naive index cursor would silently start reading the
+wrong entry the moment eviction ran. The cursor is an object reference
+instead: each frame, walk back from the end of `state.events` looking for the
+event last processed, and sound out everything newer. A city replaced
+wholesale — restart, import, retire, prestige, a fresh reload — hands this a
+brand new `events` array that never contains the old reference, which reads
+as "nothing has happened since last frame" rather than as a stranger's
+history to replay as sound. The same mechanism protects a player who mutes
+mid-session: the cursor keeps advancing while the audio is silent, so
+unmuting resumes rather than firing a burst of everything that happened while
+quiet.
+
+**Ambient loops are reconciled against the grid, not remembered as a list.**
+Every frame, whatever tile currently holds a factory, landfill, park, harbour
+or station is compared against the set of currently-looping voices; anything
+missing starts, anything no longer wanted fades out over half a second and
+stops. A landfill shares the factory's drone rather than getting a dedicated
+asset — pitched down and quieter, since its pollution only reaches 1.8 tiles
+against the factory's 3.5 — because it is the same family of sound with a
+smaller, duller plant, not a second factory standing on the tile. A school
+gets no ambient bed at all: it does not have an obvious sound of its own the
+way running machinery or lapping water do, and a loop with nothing to say
+would just be noise.
+
+**The clips came from ElevenLabs' text-to-sound model, and none of them
+came back exactly as asked.** A "0.4 second wooden pop" arrived three seconds
+long; a "12 second seamless loop" arrived anywhere from one second to twelve
+depending on the prompt. Rather than iterate prompts until the numbers agreed
+— a process with no natural stopping point — every clip is decoded once and
+run through the same two-stage cleanup: `audio/trim.ts`'s `silenceRange()`
+strips the near-silence a generated clip routinely opens and closes on (a
+model pads for phrasing, not for a cue that has to trigger the same instant
+every time), and one-shots additionally get a hard duration cap with a short
+fade into the cut. Ambient loops get silence trimmed and nothing else — a
+loop wraps back to its own start every cycle, and fading its tail to zero
+would turn that wrap into an audible dip instead of removing one. `trim.ts` is
+pure functions over `Float32Array` channel data rather than `AudioBuffer`
+methods specifically so it can be exercised by `vitest`, which has no real
+`AudioContext` to hand it.
+
+A shared `ConvolverNode`, fed a short exponential-decay noise burst generated
+at startup, gives every voice one small, consistent room instead of each one
+sounding like it was recorded in a different booth — the impulse response is
+code, not a file, for the same reason every building in `render/buildings.ts`
+is generated geometry rather than an asset: this project ships no binary it
+did not have to.
+
+`scripts/sfx-check.mjs` verifies the whole chain in a real browser, the way
+`audio-check.mjs` already does for music. It has no DOM element to inspect —
+a `PannerNode` leaves no trace the way an `<audio>` tag does — so
+`audio/sfx.ts` keeps a dev-only trace on `window.__sfxPlayed`, stripped
+entirely from a production build by `import.meta.env.DEV`, and the check
+reads that instead: silent before a gesture, a manual placement plays a
+positioned one-shot and starts its ambient loop, demolishing it stops the
+loop, a toast chimes regardless of why it was shown, and muting silences
+everything that follows.
+
 ### Telling the player what happened, and letting them undo it
 
 The loop is a city that grows itself into trouble, but trouble has to be

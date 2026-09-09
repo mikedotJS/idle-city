@@ -1,4 +1,5 @@
 import { createMusic } from './audio/music'
+import { createSfx } from './audio/sfx'
 import { createBasedClient } from './net/based'
 import { createLeaderboard } from './net/leaderboard'
 import { createLeaderboardUI } from './ui/leaderboard'
@@ -56,6 +57,7 @@ let hovered: PickTarget | null = null
 let structureDirty = true
 
 const music = createMusic()
+const sfx = createSfx()
 
 // The board is optional infrastructure. With no backend configured the client
 // reports itself unconfigured and the UI never enters the DOM, so the static
@@ -94,9 +96,19 @@ const hud: Hud = createHud(uiRoot, {
   onMusicVolume: (level) => {
     music.setVolume(level)
   },
+  onToggleSfx: () => {
+    sfx.setEnabled(!sfx.getState().enabled)
+  },
+  onSfxVolume: (level) => {
+    sfx.setVolume(level)
+  },
+  onToastShown: () => {
+    sfx.playToast()
+  },
 })
 
 music.subscribe((musicState) => hud.setMusicState(musicState))
+sfx.subscribe((sfxState) => hud.setSfxState(sfxState))
 
 createLeaderboardUI(uiRoot, leaderboard, currentCity)
 
@@ -113,6 +125,7 @@ const prestigePanel = createPrestigePanel(uiRoot, () => prestige, {
     // city retired for nothing.
     const gained = retire(prestige, state)
     savePrestige(prestige)
+    sfx.playPrestige()
     forgetDemolitions()
     // Same order as a restart, for the same reason — the page saves on unload,
     // so clearing and then reloading would write this very city back over the
@@ -148,8 +161,24 @@ const tools = createToolsPanel(uiRoot, currentCity, {
 // Browsers block audio until the page has been interacted with, so the first
 // real gesture is what actually starts playback. Placing a park counts.
 for (const event of ['pointerdown', 'keydown'] as const) {
-  window.addEventListener(event, () => music.unlock(), { passive: true })
+  window.addEventListener(
+    event,
+    () => {
+      music.unlock()
+      sfx.unlock()
+    },
+    { passive: true },
+  )
 }
+
+// One delegated listener rather than wiring a click sound into every button
+// in every panel (hud.ts, tools.ts, prestige.ts, activity.ts, leaderboard.ts):
+// every button in the HUD is a real <button>, so this covers all of them —
+// present and future — without any of those files needing to know sound
+// design exists.
+uiRoot.addEventListener('click', (event) => {
+  if ((event.target as HTMLElement).closest('button')) sfx.playClick()
+})
 
 function setTool(next: Tool): void {
   tool = next
@@ -176,6 +205,10 @@ function onPick(target: PickTarget): void {
   if (tool.kind === 'place') {
     const result = placeManual(state, tool.type, target.tile)
     if (!result.ok) return hud.toast(result.reason)
+    // Manual placement never touches state.events (see sim/events.ts — only
+    // the auto-builder and dereliction record there), so it is the one thing
+    // sound design cannot pick up by watching the log; tell it directly.
+    sfx.playPlacement(tool.type, target.tile)
     // The tool stays selected so several can be placed in a row; Escape clears it.
     structureDirty = true
     return refreshHover()
@@ -287,6 +320,7 @@ document.addEventListener('visibilitychange', () => {
 })
 window.addEventListener('pagehide', goAway)
 window.addEventListener('pagehide', () => music.dispose())
+window.addEventListener('pagehide', () => sfx.dispose())
 window.addEventListener('beforeunload', () => {
   if (!restarting) save(state)
 })
@@ -349,6 +383,7 @@ function frame(now: number): void {
   }
 
   renderer.frame(simDt, state, derived)
+  sfx.update(state, renderer.listenerPose())
   hud.update(state, derived)
   activity.update(state)
   tools.update(state)
