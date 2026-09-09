@@ -4,10 +4,11 @@
  * Placed top-centre, not bottom-centre. Toasts already own the bottom-centre
  * spot (see .toasts in style.css) and fire on ordinary clicks, so a report
  * that can appear the instant the player looks back would otherwise land on
- * top of - or directly under - a toast from whatever they just did. Top-centre
- * is empty in every other panel's layout and reads as a notification bar
- * dropping in from off-screen, not a permanent HUD element competing with the
- * corner panels for attention.
+ * top of - or directly under - a toast from whatever they just did. The panel
+ * sits directly below the always-visible top strip rather than at the very
+ * top of the screen, and still reads as a notification bar dropping in from
+ * off-screen, not a permanent HUD element competing with the strip for the
+ * same space.
  *
  * Same rule as everywhere else in this HUD: the full-width wrapper is
  * pointer-events: none so it never shadows the board underneath it, and only
@@ -16,7 +17,7 @@
 
 .activity-wrap {
   position: fixed;
-  top: 18px;
+  top: 83px;
   left: 0;
   right: 0;
   z-index: 6;

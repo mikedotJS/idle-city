@@ -32,12 +32,15 @@ makes the game genuinely playable, one-handed, on a phone.
 - **Top strip content:** coins, income/s, happiness, population, next-build
   badge — the full current top-left readout, not a trimmed version.
 - **Grouping:**
-  - **Ville** — build palette ("Place by hand"), the build queue, and the
-    activity feed (folded in here rather than kept as its own floating
-    panel).
+  - **Ville** — build palette ("Place by hand") and the build queue.
   - **Social** — Leaderboard, Friends.
   - **Menu** — speed control, undo demolition, export city, Prestige,
     music/sound toggles and volume.
+- The activity feed stays its own standalone, independently-positioned
+  notification layer — NOT folded into Ville. It's transient/occasional
+  (recent events), closer in kind to a toast than to persistent dock
+  content, and a later phase found no clear benefit to adding a fifth
+  panel's worth of height pressure to Ville's column for it.
 - Toasts stay a separate, transient overlay system — unaffected by which
   tab is active, just repositioned to clear the mobile tab bar.
 
@@ -112,7 +115,10 @@ the implementation plan, not resolved here.
 `main.ts` changes from calling `createXUI(uiRoot, ...)` (each wiring itself
 into the DOM) to registering each section's providers with
 `createShell(uiRoot, { ville: [...], social: [...], menu: [...] })`, which
-does the actual `root.append(...)`.
+does the actual `root.append(...)`. The build palette and build queue move
+from `hud.ts`'s current zone wiring into the `ville` section's provider
+list the same way; the activity feed keeps its own standalone wiring in
+`activity.ts`, unaffected by the shell.
 
 ### CSS
 
@@ -151,11 +157,13 @@ via `z-index`, independent of panel placement.
 - No sim/economy logic changes, so no new `sim/` tests.
 - `ui/` in this project has no unit tests today (network-backed panels are
   verified live instead); this stays consistent — the shell's correctness
-  is verified visually: build queue, palette, activity feed, leaderboard,
-  friends, tools, and prestige each checked in both the docked (desktop)
-  and sheet (mobile-width) presentation, plus a resize between the two to
-  confirm state survives (e.g. an open leaderboard sign-in form isn't wiped
-  by crossing the breakpoint).
+  is verified visually: build queue, palette, leaderboard, friends, tools,
+  and prestige each checked in both the docked (desktop) and sheet
+  (mobile-width) presentation, plus a resize between the two to confirm
+  state survives (e.g. an open leaderboard sign-in form isn't wiped by
+  crossing the breakpoint). The activity feed, staying outside the shell,
+  is checked separately for its own visual correctness rather than as part
+  of that docked/sheet pass.
 - Manual pass at a real phone viewport width for touch target sizing
   (buttons large enough to tap, no hover-only affordances left — the info
   badges added for the leaderboard/friends tooltips need a tap-friendly

@@ -41,6 +41,10 @@
   pointer-events: auto;
 }
 
+.shell-dock--left .shell-dock__column {
+  align-items: flex-start;
+}
+
 .shell-dock__label {
   /* One section this phase, so a visible heading would just repeat
      "Menu" above menu-shaped controls. Kept in the DOM, not the layout,

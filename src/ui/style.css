@@ -256,12 +256,6 @@ body {
 
 /* ----------------------------------------------------------- tool palette */
 
-/* The one thing on the left allowed to shrink, and the one that can scroll. */
-.panel--tools {
-  flex-shrink: 1;
-  min-height: 0;
-}
-
 .tool-list {
   display: flex;
   flex-direction: column;
@@ -513,10 +507,10 @@ body {
 /* ------------------------------------------------------------------ toasts */
 
 .toasts {
-  grid-column: 2;
-  grid-row: 3;
-  justify-self: center;
-  align-self: end;
+  position: fixed;
+  left: 50%;
+  bottom: 18px;
+  transform: translateX(-50%);
   display: flex;
   flex-direction: column;
   align-items: center;
