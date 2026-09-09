@@ -172,6 +172,10 @@ export function createRenderer(canvas: HTMLCanvasElement, cb: RendererCallbacks)
     ground.setRing(ringRange > 0 ? ghostTile : null, ringRange, ringGood)
   }
 
+  function flashTile(tile: number): void {
+    ground.flash(tile)
+  }
+
   /** The tile whose building the demolish tool is currently aimed at. */
   function demolishTile(): number | null {
     if (tool.kind !== 'demolish') return null
@@ -257,7 +261,7 @@ export function createRenderer(canvas: HTMLCanvasElement, cb: RendererCallbacks)
     roads.sync(state, network)
     rail.sync(state)
     traffic.sync(state, derived, network)
-    ground.update({ field: derived.field, night: 0 })
+    ground.update({ field: derived.field, night: 0, dt: 0 })
     rig.frameOwned(ownedExtent(state))
     applyHoverVisuals()
   }
@@ -267,7 +271,7 @@ export function createRenderer(canvas: HTMLCanvasElement, cb: RendererCallbacks)
     if (!synced) sync(state, derived)
 
     const night = lighting.update(state.time)
-    ground.update({ field: derived.field, night })
+    ground.update({ field: derived.field, night, dt })
     buildings.update({
       state,
       time: state.time,
@@ -308,5 +312,5 @@ export function createRenderer(canvas: HTMLCanvasElement, cb: RendererCallbacks)
     renderer.dispose()
   }
 
-  return { sync, frame, setTool, dispose }
+  return { sync, frame, setTool, flashTile, dispose }
 }

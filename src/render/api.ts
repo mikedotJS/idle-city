@@ -22,5 +22,11 @@ export interface Renderer {
   /** Called every animation frame. Animates, updates the camera, renders. */
   frame(dt: number, state: CityState, derived: Derived): void
   setTool(tool: Tool): void
+  /**
+   * Point at a tile for a few seconds. Not a camera move: the rig already
+   * frames the whole owned plot, so a tile worth reporting is already on
+   * screen and what the player is missing is which one, not where.
+   */
+  flashTile(tile: number): void
   dispose(): void
 }

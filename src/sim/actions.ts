@@ -8,6 +8,7 @@ import {
 import { BUILDINGS, BUILDING_TYPES, buildingCost } from './buildings'
 import { nextLandCost } from './economy'
 import { noteInteraction, recordEvent } from './events'
+import { rememberDemolition } from './history'
 import { nextRandom, parcelNeighbours, parcelOfTile } from './grid'
 import { Terrain, isBuildable, isCoast, terrainFor } from './terrain'
 import type { Building, BuildingType, CityState, QueueableType } from './types'
@@ -118,9 +119,10 @@ export function demolish(state: CityState, tile: number): ActionResult {
   if (!Number.isInteger(tile) || tile < 0 || tile >= TILE_COUNT) return fail('Outside the world')
   if (!state.grid[tile]) return fail('Nothing to demolish')
   // Free, instant, no refund — derelict buildings clear the same way.
-  const removed = state.grid[tile]
+  const removed = state.grid[tile]!
   state.grid[tile] = null
-  recordEvent(state, { kind: 'demolished', at: state.time, where: tile, type: removed?.type })
+  rememberDemolition(state, removed)
+  recordEvent(state, { kind: 'demolished', at: state.time, where: tile, type: removed.type })
   noteInteraction(state)
   return OK
 }

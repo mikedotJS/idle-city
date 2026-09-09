@@ -113,6 +113,8 @@ export interface GroundUpdate {
   field: Float32Array
   /** 0 in day, 1 at night. */
   night: number
+  /** Seconds since the last frame, for the flash pulse. Zero on a sync. */
+  dt: number
 }
 
 export interface GroundLayer {
@@ -125,6 +127,12 @@ export interface GroundLayer {
   setHover(tile: number | null, parcel: number | null): void
   /** Show the emission footprint of a pending placement. */
   setRing(tile: number | null, range: number, good: boolean): void
+  /**
+   * Point at a tile for a few seconds. Used when something off in the corner
+   * of the board needs looking at — the camera already frames the whole plot,
+   * so the player does not need moving, they need showing which one.
+   */
+  flash(tile: number | null): void
   dispose(): void
 }
 
@@ -220,6 +228,61 @@ export function createGround(scene: Scene): GroundLayer {
   const ringGood = new Color().setHex(RING_GOOD, SRGBColorSpace)
   const ringBad = new Color().setHex(RING_BAD, SRGBColorSpace)
 
+  // --- "look here" pulse ---------------------------------------------------
+  // Its own mesh rather than a mode on the emission ring: the two can be
+  // wanted at the same moment (a derelict district reported while a park is
+  // held ready over a tile) and one of them would have to lose.
+  const flashGeom = new RingGeometry(0.86, 1, 64)
+  flashGeom.rotateX(-Math.PI / 2)
+  const flashMaterial = new MeshBasicMaterial({
+    transparent: true,
+    opacity: 0,
+    depthWrite: false,
+    depthTest: false,
+    side: DoubleSide,
+  })
+  flashMaterial.color.setHex(RING_BAD, SRGBColorSpace)
+  const flashRing = new Mesh(flashGeom, flashMaterial)
+  flashRing.renderOrder = 6
+  flashRing.visible = false
+  scene.add(flashRing)
+
+  /** Seconds of pulse left. Three beats is enough to catch an eye and stop. */
+  const FLASH_SECONDS = 3.6
+  const FLASH_PERIOD = 1.2
+  let flashLeft = 0
+
+  function flash(tile: number | null): void {
+    if (tile === null) {
+      flashLeft = 0
+      flashRing.visible = false
+      return
+    }
+    const w = tileToWorld(tile)
+    // Above every plate including a peak, and depth-tested off, so a pulse
+    // behind a mountain is still a pulse the player can see.
+    flashRing.position.set(w.x, 0.03, w.z)
+    flashLeft = FLASH_SECONDS
+    flashRing.visible = true
+  }
+
+  function stepFlash(dt: number): void {
+    if (flashLeft <= 0) return
+    flashLeft -= dt
+    if (flashLeft <= 0) {
+      flashRing.visible = false
+      return
+    }
+    // Each beat starts tight and bright and expands as it fades, which reads
+    // as a ping outward rather than a blinking light.
+    const beat = 1 - ((flashLeft % FLASH_PERIOD) / FLASH_PERIOD)
+    const scale = 1.1 + beat * 2.6
+    flashRing.scale.set(scale, 1, scale)
+    // Fade the last beat out as a whole so it does not end mid-ping.
+    const tail = Math.min(1, flashLeft / FLASH_PERIOD)
+    flashMaterial.opacity = (1 - beat) * 0.85 * tail
+  }
+
   // --- sync ----------------------------------------------------------------
   const pos = new Vector3()
   const quat = new Quaternion()
@@ -290,6 +353,8 @@ export function createGround(scene: Scene): GroundLayer {
   const sandMix: RGB = [0, 0, 0]
 
   function update(u: GroundUpdate): void {
+    stepFlash(u.dt)
+
     // Night would otherwise crush the ramp into one dark blue-grey smear. The
     // plates are lifted as the light drops and their chroma is pushed back out
     // against the moonlight's wash, because the tint is the readout and it has
@@ -369,7 +434,7 @@ export function createGround(scene: Scene): GroundLayer {
   }
 
   function dispose(): void {
-    scene.remove(table, plates, tileFrame, parcelFrame, ring, disc)
+    scene.remove(table, plates, tileFrame, parcelFrame, ring, disc, flashRing)
     if (borderMesh) {
       scene.remove(borderMesh)
       borderMesh.geometry.dispose()
@@ -387,7 +452,9 @@ export function createGround(scene: Scene): GroundLayer {
     discGeom.dispose()
     ringMaterial.dispose()
     discMaterial.dispose()
+    flashGeom.dispose()
+    flashMaterial.dispose()
   }
 
-  return { plates, pickables: [plates], sync, update, setHover, setRing, dispose }
+  return { plates, pickables: [plates], sync, update, setHover, setRing, flash, dispose }
 }

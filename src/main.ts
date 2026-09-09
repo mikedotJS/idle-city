@@ -18,6 +18,7 @@ import {
 import { step } from './sim/tick'
 import { derive } from './sim/economy'
 import { clearSave, load, save } from './sim/save'
+import { forgetDemolitions } from './sim/history'
 import { BUILDINGS, buildingCost } from './sim/buildings'
 import { AUTOSAVE_INTERVAL, OFFLINE_CAP_SECONDS, SIM_DT } from './sim/config'
 import type { CityState, Derived } from './sim/types'
@@ -55,6 +56,10 @@ const hud: Hud = createHud(uiRoot, {
     clearQueue(state)
   },
   onRestart: () => {
+    // Nothing about the old city may outlive it, including what was demolished
+    // in it — an undo offered on a city that no longer exists would put a
+    // building on a tile of somebody else's map.
+    forgetDemolitions()
     // Order matters. The page saves on unload, so clearing and then reloading
     // would write this very city straight back over the blank slate — the same
     // trap that silently defeated the biome harness. Suppress saving first.
@@ -216,6 +221,14 @@ let clock = performance.now()
 let accumulator = 0
 let sinceSave = 0
 
+/**
+ * Sim time per real second. The whole city runs off this, not just the build
+ * timer: coins, dereliction, the day/night cycle and the traffic all speed up
+ * together, because a city where the cars crawl while the clock races reads as
+ * broken rather than fast.
+ */
+let speed = 1
+
 function frame(now: number): void {
   requestAnimationFrame(frame)
 
@@ -223,8 +236,10 @@ function frame(now: number): void {
   const dt = Math.min((now - clock) / 1000, 0.25)
   clock = now
 
+  const simDt = dt * speed
+
   if (!document.hidden) {
-    accumulator += dt
+    accumulator += simDt
     while (accumulator >= SIM_DT) {
       const result = step(state, SIM_DT)
       derived = result.derived
@@ -232,6 +247,8 @@ function frame(now: number): void {
       accumulator -= SIM_DT
     }
 
+    // Deliberately real seconds, not sim seconds: autosave is about how much
+    // play is at risk in a crash, and that is measured on the wall clock.
     sinceSave += dt
     if (sinceSave >= AUTOSAVE_INTERVAL && !restarting) {
       sinceSave = 0
@@ -245,7 +262,7 @@ function frame(now: number): void {
     refreshHover()
   }
 
-  renderer.frame(dt, state, derived)
+  renderer.frame(simDt, state, derived)
   hud.update(state, derived)
 }
 

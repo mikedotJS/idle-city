@@ -110,7 +110,15 @@ function validateBuilding(raw: unknown, tile: number): Building | null {
 /**
  * Turn parsed JSON into a CityState, or null if it is not a save of this
  * version or is malformed. Never throws: a bad save is a fresh city, not a crash.
+ *
+ * Exported as cityFromJson so an imported city goes through this and nothing
+ * else. Two validators would mean two definitions of a valid city, and the
+ * looser one would eventually be the one that mattered.
  */
+export function cityFromJson(raw: unknown): CityState | null {
+  return validate(raw)
+}
+
 function validate(raw: unknown): CityState | null {
   if (typeof raw !== 'object' || raw === null) return null
   const s = raw as Record<string, unknown>
