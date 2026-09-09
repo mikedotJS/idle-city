@@ -17,7 +17,7 @@ import {
   TILE_COUNT,
 } from '../config'
 import { parcelOfTile, tileIndex } from '../grid'
-import { put, quietCity } from './helpers'
+import { earning, put, quietCity } from './helpers'
 
 describe('createCity', () => {
   it('starts on the centre parcels with an empty grid and a workable policy', () => {
@@ -109,7 +109,7 @@ describe('demolish', () => {
 
 describe('buyParcel', () => {
   it('requires adjacency, funds, and that it is not already yours', () => {
-    const state = quietCity()
+    const state = earning(quietCity())
     state.coins = 100000
 
     expect(buyParcel(state, STARTING_PARCELS[0])).toEqual({
@@ -131,7 +131,7 @@ describe('buyParcel', () => {
   })
 
   it('escalates land cost from the starting parcel count', () => {
-    const state = quietCity()
+    const state = earning(quietCity())
     state.coins = 1000000
     expect(landCost(state)).toBe(LAND_BASE_COST)
 

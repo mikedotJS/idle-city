@@ -23,6 +23,27 @@ export function quietCity(seed = 1): CityState {
   return state
 }
 
+/**
+ * Give the city something that pays, so it is allowed to buy land.
+ *
+ * buyParcel refuses while incomeRate is zero: houses earn nothing by design,
+ * so a city that spends its last coins on land before a shop is paying has no
+ * way back at all. A factory pays regardless of happiness, which makes it the
+ * shortest route to a city that may expand. The starting parcels are always
+ * plain terrain, so a tile in the middle of them is always free to build on.
+ */
+export function earning(state: CityState): CityState {
+  for (let z = 4; z < 8; z++) {
+    for (let x = 4; x < 8; x++) {
+      if (state.grid[tileIndex(x, z)] === null) {
+        put(state, 'factory', x, z)
+        return state
+      }
+    }
+  }
+  throw new Error('no free tile in the starting plot')
+}
+
 /** Drop a building straight onto the grid, free and without touching the RNG. */
 export function put(
   state: CityState,

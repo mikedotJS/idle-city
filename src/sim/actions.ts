@@ -6,7 +6,7 @@ import {
   TILE_COUNT,
 } from './config'
 import { BUILDINGS, BUILDING_TYPES, buildingCost } from './buildings'
-import { nextLandCost, parcelCost } from './economy'
+import { derive, nextLandCost, parcelCost } from './economy'
 import { noteInteraction, recordEvent } from './events'
 import { rememberDemolition } from './history'
 import { nextRandom, parcelNeighbours, parcelOfTile } from './grid'
@@ -151,6 +151,16 @@ export function buyParcel(state: CityState, parcel: number): ActionResult {
   if (state.ownedParcels[parcel]) return fail('You already own that land')
   if (!parcelNeighbours(parcel).some((n) => state.ownedParcels[n])) {
     return fail('Must border land you own')
+  }
+
+  // A city that earns nothing and has spent its coins is dead, permanently:
+  // houses earn nothing by design, so a shop is the only way back, and there
+  // is no way to afford one. Land is the only purchase that can spend the
+  // seed money before that first shop exists — which was impossible while
+  // every parcel cost 400 against 300 starting coins, and became possible the
+  // moment parcels were priced by terrain and a poor one dropped to 140.
+  if (derive(state).incomeRate <= 0) {
+    return fail('Your city earns nothing yet. Get a shop paying before you buy land.')
   }
 
   const cost = parcelCost(state, parcel)

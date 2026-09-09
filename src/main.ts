@@ -176,6 +176,11 @@ function describe(target: PickTarget): HoverInfo {
         : usable === 0
           ? [`${total} tiles and nothing to build on. Worth owning only to reach what is past it.`]
           : [`${total} tiles, ${usable} of them buildable. The rest is water or rock.`]
+    // The one refusal worth saying before the click rather than after: a city
+    // with no income has no way back if it spends its last coins here.
+    if (derived.incomeRate <= 0) {
+      lines.push('Your city earns nothing yet. Get a shop paying before you buy land.')
+    }
     return {
       title: 'Unclaimed land',
       lines,

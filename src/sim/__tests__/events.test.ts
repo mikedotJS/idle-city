@@ -5,7 +5,7 @@ import { EVENT_LIMIT, recordEvent, summarise, worthReporting } from '../events'
 import { tileIndex } from '../grid'
 import { load, save } from '../save'
 import { step } from '../tick'
-import { MemoryStorage, flatten, put, quietCity } from './helpers'
+import { MemoryStorage, earning, flatten, put, quietCity } from './helpers'
 
 describe('the city records what it did', () => {
   it('logs a building the city put up by itself', () => {
@@ -35,7 +35,9 @@ describe('the city records what it did', () => {
     demolish(state, tileIndex(5, 5))
     expect(state.events.some((e) => e.kind === 'demolished')).toBe(true)
 
-    // Any parcel bordering the starting plot.
+    // Any parcel bordering the starting plot. The city needs something paying
+    // first: buyParcel refuses outright while it earns nothing.
+    earning(state)
     for (let p = 0; p < 16; p++) if (buyParcel(state, p).ok) break
     expect(state.events.some((e) => e.kind === 'land')).toBe(true)
   })
