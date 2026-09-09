@@ -1,0 +1,128 @@
+/*
+ * The activity panel: "what the city did while you weren't looking."
+ *
+ * Placed top-centre, not bottom-centre. Toasts already own the bottom-centre
+ * spot (see .toasts in style.css) and fire on ordinary clicks, so a report
+ * that can appear the instant the player looks back would otherwise land on
+ * top of - or directly under - a toast from whatever they just did. Top-centre
+ * is empty in every other panel's layout and reads as a notification bar
+ * dropping in from off-screen, not a permanent HUD element competing with the
+ * corner panels for attention.
+ *
+ * Same rule as everywhere else in this HUD: the full-width wrapper is
+ * pointer-events: none so it never shadows the board underneath it, and only
+ * the panel itself (and its buttons) opts back in.
+ */
+
+.activity-wrap {
+  position: fixed;
+  top: 18px;
+  left: 0;
+  right: 0;
+  z-index: 6;
+  display: flex;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.activity-panel {
+  pointer-events: auto;
+  width: 420px;
+  max-width: calc(100vw - 36px);
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-panel);
+  box-shadow: var(--shadow-panel);
+  padding: 14px 16px 14px 18px;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  animation: activity-drop 0.32s cubic-bezier(0.2, 0.9, 0.3, 1.2) both;
+}
+
+/* A warm dot instead of an icon font. Colour rides the same happiness
+   tokens the HUD's own badges use, so "rotting" reads as the same rotting
+   everywhere in the app, not a second vocabulary for the same idea. */
+.activity-panel__dot {
+  flex: none;
+  width: 10px;
+  height: 10px;
+  margin-top: 6px;
+  border-radius: 50%;
+  background: var(--content);
+}
+
+.activity-panel--trouble .activity-panel__dot {
+  background: var(--rotting);
+}
+
+.activity-panel__body {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.activity-panel__text {
+  margin: 0;
+  font-size: 13.5px;
+  line-height: 1.5;
+  color: var(--ink);
+}
+
+.activity-panel__actions {
+  display: flex;
+  gap: 8px;
+}
+
+.activity-panel__close {
+  flex: none;
+  pointer-events: auto;
+  appearance: none;
+  border: none;
+  background: transparent;
+  color: var(--ink-faint);
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: var(--radius-card);
+}
+
+.activity-panel__close:hover {
+  color: var(--ink-soft);
+  background: var(--paper-sunk);
+}
+
+.activity-panel__close:focus-visible,
+.activity-panel__actions .btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+@keyframes activity-drop {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .activity-panel {
+    animation-duration: 0.01ms !important;
+  }
+}
+
+@media (max-width: 560px) {
+  .activity-wrap {
+    top: 12px;
+  }
+  .activity-panel {
+    width: calc(100vw - 24px);
+  }
+}

@@ -98,12 +98,31 @@ Unowned parcels render as flat, desaturated ground with a faint border.
 
 ### 4.2 Buildings
 
-| Type | Cost | Placed by | Produces | Emits | Can rot |
+| Type | Cost | Placed by | Produces | Emits (strength / range) | Can rot |
 |---|---|---|---|---|---|
 | House | `20 × 1.15^n` | queue | 4 population | — | yes |
 | Shop | `60 × 1.15^n` | queue | coins ∝ nearby population | — | yes |
-| Factory | `200 × 1.25^n` | you | 5 coins/s flat | −1.0 pollution | no |
-| Park | `80 × 1.20^n` | you | nothing | +0.8 happiness | no |
+| Factory | `200 × 1.25^n` | you | 5 coins/s flat | −1.0 / 3.5 | no |
+| Landfill | `90 × 1.30^n` | you | 1.6 coins/s flat | −2.6 / 1.8 | no |
+| Park | `80 × 1.20^n` | you | nothing | +0.8 / 2.5 | no |
+| School | `260 × 1.22^n` | you | nothing | +0.45 / 4.5 | no |
+| Harbour | `300 × 1.25^n` | you, on a shore tile | nothing | +0.7 / 3.0 | no |
+| Station | `320 × 1.30^n` | you | nothing | +0.5 / 3.0 | no |
+
+Each amenity answers a different shape of problem rather than being a bigger
+park. A park fixes one bad corner hard; a school lifts a whole district a
+little; a harbour is worth more than either but you have to buy land to reach a
+shore, so it is a reward for expanding rather than a purchase.
+
+The landfill exists to give the factory an opponent, and its numbers had to be
+measured to earn that. At the −1.4 it was first given it was strictly gentler
+than a factory at every distance: cheaper, weaker, and never the right answer
+for a reason. At −2.6 over 1.8 tiles it makes 9 tiles unlivable to the
+factory's 21, and no single park can rescue any of the 9, where one park does
+rescue the tile beside a factory. Cheap ruin you can wall off, against
+expensive ruin that seeps. It is also worse value per coin (0.018/coin against
+0.025) and escalates faster, so it is the polluter you can afford in the first
+five minutes and not the one you want in the twentieth.
 
 A new city starts with 300 coins, enough for a first factory outright, and a
 `[house, house, shop]` policy. Houses alone earn nothing whatsoever, so a

@@ -5,6 +5,8 @@ import { createLeaderboardUI } from './ui/leaderboard'
 import { createRenderer } from './render/scene'
 import type { PickTarget, Renderer, Tool } from './render/api'
 import { createHud } from './ui/hud'
+import { createActivityPanel } from './ui/activity'
+import { createToolsPanel } from './ui/tools'
 import type { HoverInfo, Hud } from './ui/api'
 import {
   buyParcel,
@@ -27,8 +29,17 @@ const canvas = document.getElementById('scene') as HTMLCanvasElement
 const uiRoot = document.getElementById('ui') as HTMLElement
 
 const loaded = load()
-const state: CityState = loaded ? loaded.state : createCity()
+/**
+ * Mutable, because importing a city replaces it wholesale rather than editing
+ * it in place. Everything that outlives a frame reads it through currentCity()
+ * for that reason; a stored reference goes stale the moment an import lands.
+ */
+let state: CityState = loaded ? loaded.state : createCity()
 let derived: Derived = derive(state)
+
+function currentCity(): CityState {
+  return state
+}
 
 let tool: Tool = { kind: 'none' }
 let hovered: PickTarget | null = null
@@ -77,7 +88,31 @@ const hud: Hud = createHud(uiRoot, {
 
 music.subscribe((musicState) => hud.setMusicState(musicState))
 
-createLeaderboardUI(uiRoot, leaderboard, () => state)
+createLeaderboardUI(uiRoot, leaderboard, currentCity)
+
+const activity = createActivityPanel(uiRoot, {
+  onGoTo: (tile) => {
+    renderer.flashTile(tile)
+  },
+})
+
+const tools = createToolsPanel(uiRoot, currentCity, {
+  onSetSpeed: setSpeed,
+  onImport: (next) => {
+    // The imported city is a different city, so nothing derived from the old
+    // one may survive: the undo stack would restore a building onto somebody
+    // else's map, and the renderer's instances belong to the old layout.
+    state = next
+    derived = derive(state)
+    forgetDemolitions()
+    structureDirty = true
+    save(state)
+  },
+  onStructureChanged: () => {
+    structureDirty = true
+  },
+  onToast: (message) => hud.toast(message),
+})
 
 // Browsers block audio until the page has been interacted with, so the first
 // real gesture is what actually starts playback. Placing a park counts.
@@ -229,6 +264,10 @@ let sinceSave = 0
  */
 let speed = 1
 
+function setSpeed(multiplier: number): void {
+  speed = multiplier
+}
+
 function frame(now: number): void {
   requestAnimationFrame(frame)
 
@@ -264,6 +303,8 @@ function frame(now: number): void {
 
   renderer.frame(simDt, state, derived)
   hud.update(state, derived)
+  activity.update(state)
+  tools.update(state)
 }
 
 if (loaded && loaded.offlineSeconds > 60) {

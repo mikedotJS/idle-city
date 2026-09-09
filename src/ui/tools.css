@@ -1,0 +1,140 @@
+/*
+ * Tools panel: export/import, speed control, undo.
+ *
+ * Lives at the bottom-right corner of the screen. The HUD's own grid
+ * (`.hud__zone--tr`) spans only the top two rows of the right column, so the
+ * bottom-right corner is otherwise empty — this panel sits there as its own
+ * fixed-position island, independent of that grid, so it cannot collide with
+ * anything `hud.ts` draws. Collapsed by default behind a single toggle: the
+ * board in the middle of the screen is the point of the game, not a wall of
+ * controls around it.
+ *
+ * Uses the custom properties from style.css's :root — no colours of its own.
+ */
+
+/*
+ * Left of the leaderboard launcher, not on top of it. `.panel--board-launch`
+ * is also a fixed island at right:18px bottom:18px and is NOT part of the .hud
+ * grid, so reading that grid alone says this corner is empty when it is not.
+ * 264px clears the launcher's 230px cap plus a gap. This project has shipped
+ * the invisible-overlap bug twice — a correct button under something else,
+ * reported as "I click and nothing happens" — so anything fixed-positioned
+ * gets checked against every other fixed island, not just the grid.
+ */
+.tools-root {
+  position: fixed;
+  /* Clear of the right-hand HUD column AND of the leaderboard launcher, both
+     of which are fixed islands this panel is not part of. Derived from
+     --hud-side rather than copied, so widening that column moves this too. */
+  right: calc(var(--hud-side) + 30px);
+  bottom: 18px;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 12px;
+  /* The wrapper itself must never catch a pointer event — only the toggle
+     and the panel, both marked pointer-events: auto below, should. */
+  pointer-events: none;
+}
+
+.tools-toggle {
+  pointer-events: auto;
+}
+
+.tools-toggle.is-open {
+  background: var(--accent-wash);
+  border-color: var(--accent);
+}
+
+.tools-panel {
+  pointer-events: auto;
+  width: 300px;
+  /* A control must not overflow its own panel: this is wide enough for the
+     three speed buttons and the undo label at once, and still fits above
+     small viewports. */
+  max-width: calc(100vw - 36px);
+  max-height: calc(100vh - 96px);
+  overflow-y: auto;
+}
+
+.tools-section + .tools-section {
+  border-top: 1px solid var(--line);
+  padding-top: 12px;
+}
+
+.tools-section__title {
+  margin: 0 0 8px;
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+
+.tools-speed-row {
+  display: flex;
+  gap: 7px;
+}
+
+.tools-speed-btn {
+  flex: 1 1 0;
+  justify-content: center;
+}
+
+.tools-speed-btn.is-selected {
+  background: var(--accent);
+  border-color: var(--accent-deep);
+  color: #fff;
+}
+
+.tools-undo-btn {
+  width: 100%;
+  justify-content: center;
+  text-align: center;
+  white-space: normal;
+  line-height: 1.35;
+}
+
+.tools-undo-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+  pointer-events: none;
+}
+
+.tools-textarea {
+  width: 100%;
+  box-sizing: border-box;
+  resize: vertical;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 11px;
+  line-height: 1.4;
+  padding: 8px;
+  border-radius: var(--radius-card);
+  border: 1.5px solid var(--line);
+  background: var(--paper-sunk);
+  color: var(--ink);
+}
+
+.tools-row {
+  display: flex;
+  gap: 7px;
+  margin-top: 8px;
+}
+
+.tools-row .btn {
+  flex: 1 1 0;
+  justify-content: center;
+}
+
+.tools-import-btn.is-armed {
+  background: var(--rotting);
+  border-color: var(--accent-deep);
+  color: #fff;
+}
+
+.tools-status {
+  margin: 6px 0 0;
+  font-size: 11.5px;
+  color: var(--ink-soft);
+}

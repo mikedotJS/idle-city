@@ -29,6 +29,11 @@
   --shadow-panel: 0 14px 30px rgba(74, 58, 40, 0.14), 0 2px 6px rgba(74, 58, 40, 0.07);
   --shadow-lift: 0 4px 10px rgba(74, 58, 40, 0.12);
 
+  /* Width of the left and right HUD columns. Exported as a variable because
+     panels outside the .hud grid have to clear them, and a copy of this number
+     in another file goes stale silently. */
+  --hud-side: 268px;
+
   --radius-panel: 20px;
   --radius-card: 14px;
   --radius-pill: 999px;
@@ -92,18 +97,16 @@ body {
   flex-direction: column;
   gap: 12px;
   min-height: 0;
-  width: 268px;
+  width: var(--hud-side);
 }
 
 .hud__zone--tl {
   grid-column: 1;
-  grid-row: 1;
-}
-
-.hud__zone--bl {
-  grid-column: 1;
-  grid-row: 3;
-  align-self: end;
+  /* All three rows, so the column is bounded by the window rather than by its
+     own content. Everything on the left shares one height budget. */
+  grid-row: 1 / -1;
+  max-height: 100%;
+  min-height: 0;
 }
 
 .hud__zone--tr {
@@ -335,10 +338,20 @@ body {
 
 /* ----------------------------------------------------------- tool palette */
 
+/* The one thing on the left allowed to shrink, and the one that can scroll. */
+.panel--tools {
+  flex-shrink: 1;
+  min-height: 0;
+}
+
 .tool-list {
   display: flex;
   flex-direction: column;
   gap: 8px;
+  min-height: 0;
+  overflow-y: auto;
+  /* Room for a scrollbar without the cards jumping when one appears. */
+  scrollbar-gutter: stable;
 }
 
 .tool {
@@ -392,10 +405,23 @@ body {
   color: var(--accent-deep);
 }
 
+/*
+ * Hidden until the card is pointed at or chosen. Eight buildings each carrying
+ * two lines of explanation is 90px a card and taller than the window; the same
+ * text also appears in the hover panel the moment the tool is aimed at a tile,
+ * so nothing is lost by showing it only where it is being asked for.
+ */
 .tool__blurb {
   font-size: 11.5px;
   line-height: 1.4;
   color: var(--ink-soft);
+  display: none;
+}
+
+.tool:hover .tool__blurb,
+.tool:focus-visible .tool__blurb,
+.tool.is-selected .tool__blurb {
+  display: block;
 }
 
 .tool.is-selected {

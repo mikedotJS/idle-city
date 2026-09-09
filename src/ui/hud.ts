@@ -150,11 +150,10 @@ export function createHud(root: HTMLElement, cb: HudCallbacks): Hud {
   hoverCost.hidden = true
   hoverPanel.append(hoverTitle, hoverLines, hoverCost)
 
-  topLeft.append(readouts, hoverPanel)
+  topLeft.append(readouts)
 
   // ------------------------------------------------------------ tool palette
 
-  const bottomLeft = el('div', 'hud__zone hud__zone--bl')
   const toolsPanel = el('section', 'panel panel--tools')
   toolsPanel.append(el('h2', 'panel__title', 'Place by hand'))
   const toolList = el('div', 'tool-list')
@@ -203,7 +202,12 @@ export function createHud(root: HTMLElement, cb: HudCallbacks): Hud {
       'The pale land past your plot is for sale. Click it to buy, and the city will spread into it.',
     ),
   )
-  bottomLeft.append(toolsPanel)
+  // One left-hand column, not two. The palette used to live in its own
+  // bottom-left zone, which meant nothing related its height to the readouts'
+  // — and adding three buildings to the registry pushed it up through them and
+  // then off the top of a 1280x720 window. In one flex column the readouts
+  // keep their size, the palette takes what is left, and its list scrolls.
+  topLeft.append(toolsPanel, hoverPanel)
 
   // ------------------------------------------------------------- build queue
 
@@ -359,7 +363,7 @@ export function createHud(root: HTMLElement, cb: HudCallbacks): Hud {
   )
   offlineOverlay.append(offlineCard)
 
-  hud.append(topLeft, rightSide, bottomLeft, toastLayer, offlineOverlay)
+  hud.append(topLeft, rightSide, toastLayer, offlineOverlay)
   root.append(hud)
 
   // ------------------------------------------------------------------- state
