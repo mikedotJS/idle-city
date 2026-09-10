@@ -48,6 +48,10 @@ export interface HudSection {
 }
 
 export interface HudShell {
+  /** Close whichever tab is open, if any — e.g. once picking a tool from
+   * the Ville tab hands control back to the board. A no-op when nothing is
+   * open. */
+  close(): void
   dispose(): void
 }
 
@@ -173,6 +177,11 @@ export function createShell(
   render()
 
   return {
+    close(): void {
+      if (activeId === null) return
+      activeId = null
+      render()
+    },
     dispose(): void {
       barResizeObserver.disconnect()
       popover.remove()

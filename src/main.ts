@@ -112,7 +112,12 @@ let friendCount = 0
 
 const renderer: Renderer = createRenderer(canvas, { onPick, onHover })
 const hud: Hud = createHud(uiRoot, {
-  onSelectTool: setTool,
+  onSelectTool: (next) => {
+    setTool(next)
+    // Picking a tool from the Ville tab means the next click is on the
+    // board, not the menu — close it so the board is actually visible.
+    shell.close()
+  },
   onQueue: (type) => {
     enqueue(state, type)
   },
@@ -266,7 +271,7 @@ citySync.onChange((user) => {
 // tab (see api.ts's hoverCardElement doc).
 uiRoot.append(hud.hoverCardElement)
 
-createShell(uiRoot, hud.topStripElement, [
+const shell = createShell(uiRoot, hud.topStripElement, [
   {
     id: 'ville',
     label: 'Ville',
