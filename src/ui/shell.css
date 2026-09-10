@@ -52,6 +52,9 @@
   flex: none;
 }
 
+/* Icon-only now — the label survives as the button's accessible name and
+   hover tooltip (see shell.ts), not as visible text, so padding is sized
+   for the icon alone rather than for a text run beside it. */
 .dock-tab {
   appearance: none;
   border: none;
@@ -61,10 +64,21 @@
   font-size: 13px;
   font-weight: 620;
   cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 40px;
   min-height: 40px;
-  padding: 0 14px;
+  padding: 0 8px;
   border-radius: var(--radius-pill);
   white-space: nowrap;
+}
+
+.dock-tab__icon {
+  width: 32px;
+  height: 32px;
+  flex: none;
+  object-fit: contain;
 }
 
 .dock-tab.is-active {
@@ -191,10 +205,6 @@
   .dock-bar__stats .topstrip__info {
     display: none;
   }
-  .dock-tab {
-    padding: 0 11px;
-    font-size: 12.5px;
-  }
 }
 
 /* ---------------------------------------------------------- landscape / mid */
@@ -204,5 +214,16 @@
      readout fits again — only the popover's height budget stays tight. */
   .dock-popover {
     max-height: min(50vh, calc(100vh - var(--dock-bar-h, 68px) - 36px));
+  }
+}
+
+/* -------------------------------------------------------------- desktop */
+
+@media (min-width: 960px) {
+  /* The hovered-tile info now floats free of the dock (style.css's
+     .panel--hover-float) once there's room for it — its copy nested here
+     would just be the same info twice. */
+  .dock-popover__column[data-section='ville'] .panel--hover {
+    display: none;
   }
 }

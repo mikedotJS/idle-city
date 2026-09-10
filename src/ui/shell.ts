@@ -27,6 +27,7 @@
  */
 
 import './shell.css'
+import { NAV_ICONS } from './navIcons'
 
 function el<K extends keyof HTMLElementTagNameMap>(
   tag: K,
@@ -136,8 +137,24 @@ export function createShell(
   })
 
   for (const section of tabSections) {
-    const button = el('button', 'dock-tab', section.label)
+    const button = el('button', 'dock-tab')
     button.type = 'button'
+    const icon = NAV_ICONS[section.id]
+    if (icon) {
+      const img = el('img', 'dock-tab__icon')
+      img.src = icon
+      img.alt = ''
+      button.append(img)
+    } else {
+      // No icon for this section (shouldn't happen today, but a future
+      // section without one still needs to read as something): fall back
+      // to the label as visible text rather than an unlabeled icon slot.
+      button.append(el('span', 'dock-tab__label', section.label))
+    }
+    // The label still names the button for screen readers and shows up as
+    // a tooltip — only its on-screen text is gone.
+    button.title = section.label
+    button.setAttribute('aria-label', section.label)
     button.setAttribute('aria-pressed', 'false')
     button.addEventListener('click', () => {
       activeId = activeId === section.id ? null : section.id

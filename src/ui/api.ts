@@ -1,4 +1,4 @@
-import type { CityState, Derived, QueueableType } from '../sim/types'
+import type { BuildingType, CityState, Derived, QueueableType } from '../sim/types'
 import type { Tool } from '../render/api'
 
 export interface HoverInfo {
@@ -8,6 +8,10 @@ export interface HoverInfo {
   /** Cost of the pending action, if the hovered target implies one. */
   cost?: number
   affordable?: boolean
+  /** The building this info is about — a built one, or the one about to be
+   * placed. Unset for land with no building attached to it (an empty lot,
+   * unclaimed land). */
+  icon?: BuildingType
 }
 
 export interface HudCallbacks {
@@ -27,8 +31,15 @@ export interface Hud {
   topStripElement: HTMLElement
   /** The "Place by hand" build palette. */
   paletteElement: HTMLElement
-  /** The hovered-tile info panel, shown beneath the palette. */
+  /** The hovered-tile info panel, shown beneath the palette in the Ville tab
+   * (phone/tablet widths). */
   hoverPanelElement: HTMLElement
+  /** The same hovered-tile info, as a standalone floating card. Placed by
+   * main.ts outside any shell section, directly on `#ui`; CSS shows it only
+   * at desktop widths (and hides `hoverPanelElement`'s copy inside the Ville
+   * tab there), so the info reads as its own thing instead of hiding inside
+   * a menu once there's room for it to float freely. */
+  hoverCardElement: HTMLElement
   /** The build queue. */
   queueElement: HTMLElement
   /** The "New city" restart button, in its own panel. */

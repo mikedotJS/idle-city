@@ -12,7 +12,9 @@ import { BUILDINGS, BUILDING_TYPES, buildingCost } from '../sim/buildings'
 import { OFFLINE_CAP_SECONDS } from '../sim/config'
 import type { BuildingType, CityState, Derived, QueueableType } from '../sim/types'
 import type { HoverInfo, Hud, HudCallbacks } from './api'
+import { BUILDING_ICONS } from './buildingIcons'
 import { formatCoins, formatDuration, formatPercent, formatRate, happinessBand } from './format'
+import { RESOURCE_ICONS } from './resourceIcons'
 import type { HappinessKey } from './format'
 
 /**
@@ -56,6 +58,20 @@ function setClass(node: HTMLElement, value: string): void {
   if (node.className !== value) node.className = value
 }
 
+function buildingIcon(type: BuildingType, className: string): HTMLImageElement {
+  const img = el('img', className)
+  img.src = BUILDING_ICONS[type]
+  img.alt = ''
+  return img
+}
+
+function resourceIcon(key: keyof typeof RESOURCE_ICONS, className: string): HTMLImageElement {
+  const img = el('img', className)
+  img.src = RESOURCE_ICONS[key]
+  img.alt = ''
+  return img
+}
+
 function sameTool(a: Tool, b: Tool): boolean {
   if (a.kind !== b.kind) return false
   if (a.kind === 'place' && b.kind === 'place') return a.type === b.type
@@ -88,16 +104,23 @@ export function createHud(root: HTMLElement, cb: HudCallbacks): Hud {
 
   const topStrip = el('section', 'topstrip')
   const tsCoins = el('span', 'topstrip__coins', '0')
-  const tsRate = el('span', 'topstrip__rate', '+0.0/s')
-  const tsHappy = el('span', 'topstrip__happy', '😊 50%')
-  const tsPop = el('span', 'topstrip__stat', '👥 0')
+  const tsRateValue = el('span', undefined, '+0.0/s')
+  const tsRate = el('span', 'topstrip__rate')
+  tsRate.append(resourceIcon('income', 'topstrip__rate-icon'), tsRateValue)
+  const tsHappyValue = el('span', undefined, '50%')
+  const tsHappy = el('span', 'topstrip__happy')
+  tsHappy.append(resourceIcon('happiness', 'topstrip__happy-icon'), tsHappyValue)
+  const tsPopValue = el('span', undefined, '0')
+  const tsPop = el('span', 'topstrip__stat')
+  tsPop.append(resourceIcon('population', 'topstrip__pop-icon'), tsPopValue)
   const tsNext = el('span', 'topstrip__next', '')
-  const tsInfo = el('span', 'topstrip__info', 'i')
+  const tsInfo = el('span', 'topstrip__info')
+  tsInfo.append(resourceIcon('info', 'topstrip__info-icon'))
   tsInfo.tabIndex = 0
   tsInfo.title =
     'Income multiplier = 0.50 + happiness, so 0.50x at worst and 1.50x at best — the rate shown here already includes it. A happier city earns more from the same buildings, and builds faster too.'
   topStrip.append(
-    el('span', 'topstrip__coin-icon', '💰'),
+    resourceIcon('coins', 'topstrip__coin-icon'),
     tsCoins,
     tsRate,
     tsHappy,
@@ -108,13 +131,41 @@ export function createHud(root: HTMLElement, cb: HudCallbacks): Hud {
 
   // ------------------------------------------------------------- hover panel
 
-  const hoverPanel = el('section', 'panel panel--hover')
-  hoverPanel.hidden = true
-  const hoverTitle = el('div', 'hover__title')
-  const hoverLines = el('div', 'hover__lines')
-  const hoverCost = el('div', 'hover__cost')
-  hoverCost.hidden = true
-  hoverPanel.append(hoverTitle, hoverLines, hoverCost)
+  /**
+   * Two copies of the same tile-info readout: `hoverPanelElement` nested in
+   * the Ville tab (the only place it fits on a phone/tablet) and
+   * `hoverCardElement` floating free on its own (desktop, where CSS hides
+   * the Ville copy in favour of this one — see api.ts). Both stay in sync
+   * because `setHoverInfo` writes through this shared handle rather than
+   * duplicating the update logic per copy.
+   */
+  interface HoverCopy {
+    panel: HTMLElement
+    icon: HTMLImageElement
+    title: HTMLElement
+    lines: HTMLElement
+    cost: HTMLElement
+  }
+
+  function buildHoverCopy(extraClass?: string): HoverCopy {
+    const panel = el('section', 'panel panel--hover' + (extraClass ? ' ' + extraClass : ''))
+    panel.hidden = true
+    const head = el('div', 'hover__head')
+    const icon = el('img', 'hover__icon')
+    icon.alt = ''
+    icon.hidden = true
+    const title = el('div', 'hover__title')
+    head.append(icon, title)
+    const lines = el('div', 'hover__lines')
+    const cost = el('div', 'hover__cost')
+    cost.hidden = true
+    panel.append(head, lines, cost)
+    return { panel, icon, title, lines, cost }
+  }
+
+  const hoverPanel = buildHoverCopy()
+  const hoverCard = buildHoverCopy('panel--hover-float')
+  const hoverCopies = [hoverPanel, hoverCard]
 
   // ------------------------------------------------------------ tool palette
 
@@ -129,7 +180,7 @@ export function createHud(root: HTMLElement, cb: HudCallbacks): Hud {
     button.type = 'button'
     const head = el('span', 'tool__head')
     const costNode = el('span', 'tool__cost', formatCoins(def.baseCost))
-    head.append(el('span', 'tool__name', def.label), costNode)
+    head.append(buildingIcon(type, 'tool__icon'), el('span', 'tool__name', def.label), costNode)
     button.append(head, el('span', 'tool__blurb', def.blurb))
     const tool: Tool = { kind: 'place', type }
     button.addEventListener('click', () => select(tool))
@@ -184,7 +235,11 @@ export function createHud(root: HTMLElement, cb: HudCallbacks): Hud {
     const button = el('button', 'btn')
     button.type = 'button'
     const costNode = el('span', 'btn__cost', formatCoins(def.baseCost))
-    button.append(el('span', 'btn__label', 'Add ' + def.label), costNode)
+    button.append(
+      buildingIcon(type, 'btn__icon'),
+      el('span', 'btn__label', 'Add ' + def.label),
+      costNode,
+    )
     button.title = def.blurb
     button.addEventListener('click', () => cb.onQueue(type))
     queueActions.append(button)
@@ -341,7 +396,7 @@ export function createHud(root: HTMLElement, cb: HudCallbacks): Hud {
     for (let i = 0; i < shown; i++) {
       const type = state.queue[i]
       const row = el('li', i === 0 ? 'qrow qrow--next' : 'qrow')
-      row.append(el('span', 'qrow__dot qrow__dot--' + type))
+      row.append(buildingIcon(type, 'qrow__icon'))
       row.append(el('span', 'qrow__name', BUILDINGS[type].label))
       if (i === 0) row.append(el('span', 'qrow__badge', 'building next'))
       rows.push(row)
@@ -393,18 +448,18 @@ export function createHud(root: HTMLElement, cb: HudCallbacks): Hud {
 
     if (derived.incomeRate !== lastRate) {
       lastRate = derived.incomeRate
-      setText(tsRate, '+' + formatRate(derived.incomeRate) + '/s')
+      setText(tsRateValue, '+' + formatRate(derived.incomeRate) + '/s')
     }
 
     if (derived.population !== lastPopulation) {
       lastPopulation = derived.population
-      setText(tsPop, '👥 ' + formatCoins(derived.population))
+      setText(tsPopValue, formatCoins(derived.population))
     }
 
     const happiness = derived.cityHappiness
     if (!(Math.abs(happiness - lastHappiness) < 0.0005)) {
       lastHappiness = happiness
-      setText(tsHappy, '😊 ' + formatPercent(happiness))
+      setText(tsHappyValue, formatPercent(happiness))
       const band = happinessBand(happiness)
       if (band.key !== lastBand) {
         lastBand = band.key
@@ -443,7 +498,9 @@ export function createHud(root: HTMLElement, cb: HudCallbacks): Hud {
 
   function setHoverInfo(info: HoverInfo | null): void {
     if (!info) {
-      if (!hoverPanel.hidden) hoverPanel.hidden = true
+      for (const copy of hoverCopies) {
+        if (!copy.panel.hidden) copy.panel.hidden = true
+      }
       lastHoverSignature = null
       return
     }
@@ -456,21 +513,31 @@ export function createHud(root: HTMLElement, cb: HudCallbacks): Hud {
 
     if (signature !== lastHoverSignature) {
       lastHoverSignature = signature
-      setText(hoverTitle, info.title)
-      hoverLines.replaceChildren(...info.lines.map((line) => el('div', 'hover__line', line)))
-      if (info.cost === undefined) {
-        hoverCost.hidden = true
-      } else {
-        const affordable = info.affordable !== false
-        setClass(hoverCost, 'hover__cost ' + (affordable ? 'is-affordable' : 'is-unaffordable'))
-        setText(
-          hoverCost,
-          formatCoins(info.cost) + (affordable ? ' coins' : ' coins - not enough'),
-        )
-        hoverCost.hidden = false
+      for (const copy of hoverCopies) {
+        if (info.icon) {
+          copy.icon.src = BUILDING_ICONS[info.icon]
+          copy.icon.hidden = false
+        } else {
+          copy.icon.hidden = true
+        }
+        setText(copy.title, info.title)
+        copy.lines.replaceChildren(...info.lines.map((line) => el('div', 'hover__line', line)))
+        if (info.cost === undefined) {
+          copy.cost.hidden = true
+        } else {
+          const affordable = info.affordable !== false
+          setClass(copy.cost, 'hover__cost ' + (affordable ? 'is-affordable' : 'is-unaffordable'))
+          setText(
+            copy.cost,
+            formatCoins(info.cost) + (affordable ? ' coins' : ' coins - not enough'),
+          )
+          copy.cost.hidden = false
+        }
       }
     }
-    if (hoverPanel.hidden) hoverPanel.hidden = false
+    for (const copy of hoverCopies) {
+      if (copy.panel.hidden) copy.panel.hidden = false
+    }
   }
 
   function toast(message: string): void {
@@ -528,7 +595,8 @@ export function createHud(root: HTMLElement, cb: HudCallbacks): Hud {
   return {
     topStripElement: topStrip,
     paletteElement: toolsPanel,
-    hoverPanelElement: hoverPanel,
+    hoverPanelElement: hoverPanel.panel,
+    hoverCardElement: hoverCard.panel,
     queueElement: queuePanel,
     restartElement: restartPanel,
     update,

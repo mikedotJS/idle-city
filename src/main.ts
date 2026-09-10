@@ -30,6 +30,7 @@ import { clearSave, load, loadPrestige, save, savePrestige } from './sim/save'
 import { retire } from './sim/prestige'
 import { forgetDemolitions } from './sim/history'
 import { remoteIsNewer } from './sim/citysync'
+import { reloadAfterCloudReset } from './sim/cityreset'
 import { BUILDINGS, buildingCost } from './sim/buildings'
 import { AUTOSAVE_INTERVAL, OFFLINE_CAP_SECONDS, PARCEL_SIZE, SIM_DT } from './sim/config'
 import { buildableTilesInParcel, terrainFor } from './sim/terrain'
@@ -128,7 +129,12 @@ const hud: Hud = createHud(uiRoot, {
     // trap that silently defeated the biome harness. Suppress saving first.
     restarting = true
     clearSave()
-    window.location.reload()
+    // The cloud still has the city being discarded: push a fresh one before
+    // reloading, or reconciliation would pull the old city right back for
+    // anyone signed in — see sim/cityreset.ts.
+    void reloadAfterCloudReset(citySync.push, createCity(undefined, prestige), () =>
+      window.location.reload(),
+    )
   },
   onToastShown: () => {
     sfx.playToast()
@@ -178,7 +184,12 @@ const prestigePanel = createPrestigePanel(() => prestige, {
     restarting = true
     clearSave()
     hud.toast(`Retired for ${gained} charter.`)
-    window.location.reload()
+    // Same reason as restart: push a fresh city to the cloud before
+    // reloading, or reconciliation pulls the retired city right back for
+    // anyone signed in — see sim/cityreset.ts.
+    void reloadAfterCloudReset(citySync.push, createCity(undefined, prestige), () =>
+      window.location.reload(),
+    )
   },
   onPrestigeChanged: () => savePrestige(prestige),
   onToast: (message) => hud.toast(message),
@@ -249,6 +260,11 @@ citySync.onChange((user) => {
     cloudPullTimer = null
   }
 })
+
+// Outside any shell section, like topStripElement: CSS shows it only at
+// desktop widths, where it floats free instead of hiding inside the Ville
+// tab (see api.ts's hoverCardElement doc).
+uiRoot.append(hud.hoverCardElement)
 
 createShell(uiRoot, hud.topStripElement, [
   {
@@ -369,7 +385,7 @@ function describe(target: PickTarget): HoverInfo {
   if (building) {
     const def = BUILDINGS[building.type]
     lines.push(building.derelict ? 'Derelict. Producing nothing.' : def.blurb)
-    return { title: def.label, lines }
+    return { title: def.label, lines, icon: building.type }
   }
 
   if (tool.kind === 'place') {
@@ -381,6 +397,7 @@ function describe(target: PickTarget): HoverInfo {
       lines,
       cost,
       affordable: state.coins >= cost,
+      icon: tool.type,
     }
   }
 
