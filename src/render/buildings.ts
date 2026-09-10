@@ -70,11 +70,11 @@ import {
 } from 'three'
 import type { Intersection, Raycaster } from 'three'
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js'
-import { BUILDINGS, BUILDING_TYPES } from '../sim/buildings'
+import { BUILDINGS, BUILDING_TYPES, COMMERCE_KINDS } from '../sim/buildings'
 import { MAX_LEVEL, TILE_COUNT } from '../sim/config'
 import { tileToWorld } from '../sim/grid'
 import { Biome, terrainFor } from '../sim/terrain'
-import type { BuildingType, CityState } from '../sim/types'
+import type { BuildingType, CityState, CommerceKind } from '../sim/types'
 import {
   DANGER_COLOR,
   DERELICT_TINT,
@@ -355,6 +355,31 @@ const THEMES: Record<BuildingType, Theme[]> = {
   ],
 }
 
+/**
+ * Indexed by CommerceKind then Biome, in place of `THEMES.shop` for the shop
+ * type specifically. `general` IS `THEMES.shop` — the plain, unbranded shop —
+ * so a city with commerce kinds turned off (or a shop saved before they
+ * existed) looks exactly as it always has.
+ */
+const SHOP_THEMES: Record<CommerceKind, Theme[]> = {
+  general: THEMES.shop,
+  restaurant: [
+    theme(0xf6e6d8, 0xb2483b, 0xffffff, 0x6fa473, 1.0, false),
+    theme(0xf7ede1, 0xc97a68, 0xffffff, 0x8fb87c, 0.45, false),
+    theme(0xa97a5e, 0x7a3b30, 0xe8c9a8, 0x4c7a5a, 1.55, true),
+  ],
+  clothing: [
+    theme(0xf3e6ef, 0x8a6f95, 0xffffff, 0x6fa473, 1.0, false),
+    theme(0xf6edf2, 0x9ab0c9, 0xffffff, 0x8fb87c, 0.45, false),
+    theme(0xa78ba0, 0x5c4f63, 0xe0cfe0, 0x4c7a5a, 1.55, true),
+  ],
+  konbini: [
+    theme(0xeaf2f0, 0x1f6f58, 0x3fa9dc, 0x6fa473, 1.0, false),
+    theme(0xecf4f3, 0x4aa0a6, 0x5cc0e0, 0x8fb87c, 0.45, false),
+    theme(0x7d8f8a, 0x203b34, 0x3fa9dc, 0x4c7a5a, 1.55, true),
+  ],
+}
+
 // ---------------------------------------------------------------------------
 // Parts, per type x biome x level
 // ---------------------------------------------------------------------------
@@ -385,6 +410,8 @@ interface Ctx {
   trim: Color
   leaf: Color
   snow: Color
+  /** Which commerce kind a shop is drawn as. Every other type ignores it. */
+  kind: CommerceKind
 }
 
 /** Per-level height jitter: the taller the building, the tidier the skyline. */
@@ -463,8 +490,29 @@ function shopParts(c: Ctx): Parts {
   const awnW = L === 1 ? 0.84 : 0.86
   const awnY = L === 1 ? H * 0.46 : L === 2 ? 0.42 : 0.46
   body.push(tint(box(awnW, 0.05, awnW, 0, awnY, 0), c.roof))
+  if (c.kind === 'restaurant') {
+    // A striped awning reads at a glance, before the roof colour is even
+    // checked. Sits a hair above the awning's own top surface so the two
+    // never share a face.
+    const stripeW = awnW / 6
+    for (const x of [-stripeW * 2, 0, stripeW * 2]) {
+      body.push(tint(box(stripeW * 0.9, 0.024, awnW - 0.02, x, awnY + 0.038, 0), c.snow))
+    }
+  }
   // A glazed shopfront band all the way round: more frontage, same footprint.
   body.push(tint(box(bw + 0.006, 0.02, bw + 0.006, 0, awnY - 0.24, 0), c.trim))
+  if (c.kind === 'clothing') {
+    // A rail behind the glass, low enough to clear the window at every level.
+    body.push(tint(box(0.32, 0.035, 0.03, 0, 0.2, half - 0.02), DARKEN))
+    for (const x of [-0.12, 0, 0.12]) {
+      body.push(tint(box(0.045, 0.14, 0.03, x, 0.12, half - 0.02), c.trim))
+    }
+  } else if (c.kind === 'konbini') {
+    // A lit sign over the door, brighter and taller with every level.
+    const signH = L === 1 ? 0.14 : L === 2 ? 0.17 : 0.2
+    body.push(tint(box(0.5, signH, 0.012, 0, awnY + 0.12, half - 0.002), c.trim))
+    body.push(tint(box(0.44, signH - 0.05, 0.014, 0, awnY + 0.12, half - 0.001), c.snow))
+  }
   if (L === 2) {
     body.push(tint(box(bw + 0.02, 0.04, bw + 0.02, 0, 0.54, 0), c.trim))
     // A fascia sign over the door: shop frontage without any extra width.
@@ -477,6 +525,19 @@ function shopParts(c: Ctx): Parts {
     for (const x of [-0.28, 0.28]) {
       body.push(tint(box(0.05, awnY - 0.05, 0.012, x, (awnY - 0.05) / 2, half - 0.002), c.trim))
       body.push(tint(box(0.012, awnY - 0.05, 0.05, half - 0.002, (awnY - 0.05) / 2, x), c.trim))
+    }
+  }
+  if (L >= 2) {
+    if (c.kind === 'restaurant') {
+      // A small sidewalk-style board, flush with the wall like the fascia sign.
+      body.push(tint(box(0.2, 0.15, 0.012, -half + 0.16, 0.19, half - 0.002), DARKEN))
+      body.push(tint(box(0.16, 0.1, 0.014, -half + 0.16, 0.2, half - 0.001), c.snow))
+    } else if (c.kind === 'clothing') {
+      // A second rail: the boutique grew a floor of stock with the storefront.
+      body.push(tint(box(0.32, 0.035, 0.03, 0, 0.36, half - 0.02), DARKEN))
+      for (const x of [-0.12, 0, 0.12]) {
+        body.push(tint(box(0.045, 0.12, 0.03, x, 0.29, half - 0.02), c.trim))
+      }
     }
   }
 
@@ -984,8 +1045,13 @@ function landfillParts(c: Ctx): Parts {
   }
 }
 
-function buildParts(type: BuildingType, biome: Biome, level: number): Parts {
-  const t = THEMES[type][biome]
+function buildParts(
+  type: BuildingType,
+  biome: Biome,
+  level: number,
+  kind: CommerceKind = 'general',
+): Parts {
+  const t = type === 'shop' ? SHOP_THEMES[kind][biome] : THEMES[type][biome]
   const wall = new Color().setHex(t.wall, SRGBColorSpace)
   const c: Ctx = {
     theme: t,
@@ -995,6 +1061,7 @@ function buildParts(type: BuildingType, biome: Biome, level: number): Parts {
     trim: ratioOf(wall, new Color().setHex(t.trim, SRGBColorSpace)),
     leaf: ratioOf(wall, new Color().setHex(t.foliage, SRGBColorSpace)),
     snow: ratioOf(wall, new Color().setHex(SNOW_COLOR, SRGBColorSpace)),
+    kind,
   }
   switch (type) {
     case 'park':
@@ -1030,6 +1097,24 @@ function lookIndex(biome: number, level: number): number {
     ? Math.min(MAX_LEVEL, Math.max(1, Math.round(level)))
     : 1
   return b * MAX_LEVEL + (l - 1)
+}
+
+/**
+ * Shops carry a fourth axis — commerce kind — on top of biome and level, so
+ * they get their own indexing rather than stretching `lookIndex` for every
+ * type. Order must match the nested biome/level/kind loop that builds a
+ * shop's `parts` array below: kind innermost, then level, then biome.
+ */
+const SHOP_KIND_COUNT = COMMERCE_KINDS.length
+const SHOP_LOOK_COUNT = BIOME_COUNT * MAX_LEVEL * SHOP_KIND_COUNT
+
+function shopLookIndex(biome: number, level: number, kind: CommerceKind | null): number {
+  const b = biome >= 0 && biome < BIOME_COUNT ? Math.floor(biome) : 0
+  const l = Number.isFinite(level) ? Math.min(MAX_LEVEL, Math.max(1, Math.round(level))) : 1
+  // Saves and ghosts with no kind yet read as 'general', the unbranded shop.
+  const ki = COMMERCE_KINDS.indexOf(kind ?? 'general')
+  const k = ki >= 0 ? ki : 0
+  return (b * MAX_LEVEL + (l - 1)) * SHOP_KIND_COUNT + k
 }
 
 interface PartSet {
@@ -1313,14 +1398,29 @@ export function createBuildings(scene: Scene): BuildingsLayer {
 
   for (const type of BUILDING_TYPES) {
     const parts: Parts[] = []
-    for (let biome = 0; biome < BIOME_COUNT; biome++) {
-      for (let level = 1; level <= MAX_LEVEL; level++) {
-        parts.push(buildParts(type, biome, level))
+    if (type === 'shop') {
+      // Order matches shopLookIndex: kind innermost, then level, then biome.
+      for (let biome = 0; biome < BIOME_COUNT; biome++) {
+        for (let level = 1; level <= MAX_LEVEL; level++) {
+          for (const kind of COMMERCE_KINDS) {
+            parts.push(buildParts(type, biome, level, kind))
+          }
+        }
+      }
+    } else {
+      for (let biome = 0; biome < BIOME_COUNT; biome++) {
+        for (let level = 1; level <= MAX_LEVEL; level++) {
+          parts.push(buildParts(type, biome, level))
+        }
       }
     }
 
     for (let biome = 0; biome < BIOME_COUNT; biome++) {
-      const p = parts[lookIndex(biome, 1)]
+      // A shop's kind is drawn at spawn time, so the ghost preview — shown
+      // before that happens — always wears the unbranded 'general' look.
+      const idx =
+        type === 'shop' ? shopLookIndex(biome, 1, 'general') : lookIndex(biome, 1)
+      const p = parts[idx]
       const clones = [p.body.clone(), p.roof.clone()]
       const geom = mergeGeometries(clones, false)
       for (const c of clones) c.dispose()
@@ -1331,7 +1431,8 @@ export function createBuildings(scene: Scene): BuildingsLayer {
     const bodyPart = mergeLooks(parts.map((p) => p.body))
     const roofPart = mergeLooks(parts.map((p) => p.roof))
     const windowGeoms = parts.map((p) => p.windows).filter((g): g is BufferGeometry => !!g)
-    const windowPart = windowGeoms.length === LOOK_COUNT ? mergeLooks(windowGeoms) : null
+    const expectedLookCount = type === 'shop' ? SHOP_LOOK_COUNT : LOOK_COUNT
+    const windowPart = windowGeoms.length === expectedLookCount ? mergeLooks(windowGeoms) : null
     if (!windowPart) for (const g of windowGeoms) g.dispose()
 
     const bodyMesh = makeMesh(bodyPart.geometry, bodyMaterial, true)
@@ -1380,19 +1481,39 @@ export function createBuildings(scene: Scene): BuildingsLayer {
   }
 
   const hsl = { h: 0, s: 0, l: 0 }
-  /** Body colour per type per biome: the divisor every vertex ratio was built against. */
+  const shopColorKey = (kind: CommerceKind, biome: number) => 'shop:' + kind + ':' + biome
+
+  /** Body colour per type per biome (per commerce kind for shops): the divisor
+   * every vertex ratio was built against. */
   const baseColors = new Map<string, Color>()
   for (const type of BUILDING_TYPES) {
-    for (let biome = 0; biome < BIOME_COUNT; biome++) {
-      baseColors.set(
-        type + ':' + biome,
-        new Color().setHex(THEMES[type][biome].wall, SRGBColorSpace),
-      )
+    if (type === 'shop') {
+      for (const kind of COMMERCE_KINDS) {
+        for (let biome = 0; biome < BIOME_COUNT; biome++) {
+          baseColors.set(
+            shopColorKey(kind, biome),
+            new Color().setHex(SHOP_THEMES[kind][biome].wall, SRGBColorSpace),
+          )
+        }
+      }
+    } else {
+      for (let biome = 0; biome < BIOME_COUNT; biome++) {
+        baseColors.set(
+          type + ':' + biome,
+          new Color().setHex(THEMES[type][biome].wall, SRGBColorSpace),
+        )
+      }
     }
   }
 
-  function jitteredColor(type: BuildingType, biome: number, variant: number): Color {
-    const base = baseColors.get(type + ':' + biome)!
+  function jitteredColor(
+    type: BuildingType,
+    biome: number,
+    variant: number,
+    kind: CommerceKind | null,
+  ): Color {
+    const key = type === 'shop' ? shopColorKey(kind ?? 'general', biome) : type + ':' + biome
+    const base = baseColors.get(key)!
     base.getHSL(hsl, SRGBColorSpace)
     const j = variant - 0.5
     return new Color().setHSL(
@@ -1435,7 +1556,8 @@ export function createBuildings(scene: Scene): BuildingsLayer {
       const entry = entries.get(b.type)
       if (!entry) continue
       const biome = terrain.biome[tile] as Biome
-      const look = lookIndex(biome, b.level)
+      const look =
+        b.type === 'shop' ? shopLookIndex(biome, b.level, b.commerceKind) : lookIndex(biome, b.level)
       const prev = carry.get(tile)
       // Same tile AND the same bornAt: bornAt is stamped once at
       // spawnBuilding() and an upgrade never touches it, so this is the one
@@ -1456,7 +1578,7 @@ export function createBuildings(scene: Scene): BuildingsLayer {
         derelictAmt: amt,
         levelPulseAt: leveled ? state.time : sameBuilding ? prev!.pulseAt : -Infinity,
         levelPulseSign: leveled ? Math.sign(look - prev!.look) : sameBuilding ? prev!.pulseSign : 1,
-        color: jitteredColor(b.type, biome, b.variant),
+        color: jitteredColor(b.type, biome, b.variant, b.type === 'shop' ? b.commerceKind : null),
         // Four cardinal orientations plus a couple of degrees of slop, so a row
         // of identical houses does not read as a repeated stamp.
         yaw: Math.floor(b.variant * 4) * (Math.PI / 2) + (b.variant - 0.5) * 0.09,
