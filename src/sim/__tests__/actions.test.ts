@@ -7,8 +7,9 @@ import {
   enqueue,
   landCost,
   placeManual,
+  spawnBuilding,
 } from '../actions'
-import { buildingCost } from '../buildings'
+import { COMMERCE_KINDS, buildingCost } from '../buildings'
 import {
   LAND_BASE_COST,
   LAND_COST_GROWTH,
@@ -75,6 +76,20 @@ describe('placeManual', () => {
       ok: false,
       reason: 'Not enough coins',
     })
+  })
+
+  it('draws a commerce kind for a shop, and none for anything else', () => {
+    const state = quietCity()
+    state.coins = 100000
+    placeManual(state, 'factory', tileIndex(5, 5))
+    expect(state.grid[tileIndex(5, 5)]!.commerceKind).toBeNull()
+
+    const before = state.rngSeed
+    const shop = spawnBuilding(state, 'shop', tileIndex(6, 6))
+    expect(shop.commerceKind).not.toBeNull()
+    expect(COMMERCE_KINDS).toContain(shop.commerceKind)
+    // It consumed the RNG rather than reading state that never changed.
+    expect(state.rngSeed).not.toBe(before)
   })
 
   it('escalates cost with every build of that type', () => {

@@ -58,6 +58,7 @@ export function put(
     level: 1,
     tile,
     variant: 0.5,
+    commerceKind: type === 'shop' ? 'general' : null,
     bornAt: state.time,
     derelict,
     lowSince: null,

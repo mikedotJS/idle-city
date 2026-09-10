@@ -7,7 +7,7 @@ import {
   SAVE_VERSION,
   TILE_COUNT,
 } from './config'
-import { BUILDINGS, BUILDING_TYPES } from './buildings'
+import { BUILDINGS, BUILDING_TYPES, COMMERCE_KINDS } from './buildings'
 import { derive } from './economy'
 import {
   MIN_UPGRADE_DISCOUNT,
@@ -17,7 +17,7 @@ import {
   type PrestigeState,
 } from './prestige'
 import { EVENT_LIMIT, type CityEvent } from './events'
-import type { Building, BuildingType, CityState, QueueableType } from './types'
+import type { Building, BuildingType, CityState, CommerceKind, QueueableType } from './types'
 
 /** localStorage is the only DOM API the sim touches, and only here. */
 function storage(): Storage | null {
@@ -162,6 +162,12 @@ function validateBuilding(raw: unknown, tile: number): Building | null {
   if (!isFinite_(b.bornAt) || !isFinite_(b.variant)) return null
   if (b.lowSince !== null && !isFinite_(b.lowSince)) return null
   if (b.highSince !== null && !isFinite_(b.highSince)) return null
+  // Saves written before commerce kinds existed have none — they read back as
+  // a shop with no flavour rather than failing to load at all.
+  const commerceKind =
+    typeof b.commerceKind === 'string' && (COMMERCE_KINDS as string[]).includes(b.commerceKind)
+      ? (b.commerceKind as CommerceKind)
+      : null
   return {
     type: b.type as BuildingType,
     // Saves written before levels existed have none; everything standing then
@@ -169,6 +175,7 @@ function validateBuilding(raw: unknown, tile: number): Building | null {
     level: isFinite_(b.level) ? Math.min(Math.max(Math.round(b.level as number), 1), MAX_LEVEL) : 1,
     tile,
     variant: b.variant,
+    commerceKind,
     bornAt: b.bornAt,
     derelict: b.derelict === true,
     lowSince: b.lowSince === null ? null : (b.lowSince as number),

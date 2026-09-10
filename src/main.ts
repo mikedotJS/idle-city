@@ -31,7 +31,7 @@ import { retire } from './sim/prestige'
 import { forgetDemolitions } from './sim/history'
 import { remoteIsNewer } from './sim/citysync'
 import { reloadAfterCloudReset } from './sim/cityreset'
-import { BUILDINGS, buildingCost } from './sim/buildings'
+import { BUILDINGS, COMMERCE_KIND_LABELS, buildingCost } from './sim/buildings'
 import { AUTOSAVE_INTERVAL, OFFLINE_CAP_SECONDS, PARCEL_SIZE, SIM_DT } from './sim/config'
 import { buildableTilesInParcel, terrainFor } from './sim/terrain'
 import type { CityState, Derived } from './sim/types'
@@ -390,7 +390,10 @@ function describe(target: PickTarget): HoverInfo {
   if (building) {
     const def = BUILDINGS[building.type]
     lines.push(building.derelict ? 'Derelict. Producing nothing.' : def.blurb)
-    return { title: def.label, lines, icon: building.type }
+    // A shop shows what it actually sells once it exists; the generic "Shop"
+    // label stays only for the palette and for shops built before this existed.
+    const title = building.commerceKind ? COMMERCE_KIND_LABELS[building.commerceKind] : def.label
+    return { title, lines, icon: building.type }
   }
 
   if (tool.kind === 'place') {

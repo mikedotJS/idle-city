@@ -5,7 +5,7 @@ import {
   STARTING_PARCELS,
   TILE_COUNT,
 } from './config'
-import { BUILDINGS, BUILDING_TYPES, buildingCost } from './buildings'
+import { BUILDINGS, BUILDING_TYPES, COMMERCE_KINDS, buildingCost } from './buildings'
 import { derive, nextLandCost, parcelCost } from './economy'
 import { noteInteraction, recordEvent } from './events'
 import { rememberDemolition } from './history'
@@ -88,6 +88,9 @@ export function spawnBuilding(state: CityState, type: BuildingType, tile: number
     level: 1,
     tile,
     variant: draw(state),
+    // Drawn from the same seeded RNG as variant, so it stays reproducible
+    // and sync-safe. Every other type has nothing to sell, so it gets none.
+    commerceKind: type === 'shop' ? COMMERCE_KINDS[Math.floor(draw(state) * COMMERCE_KINDS.length)] : null,
     bornAt: state.time,
     derelict: false,
     lowSince: null,

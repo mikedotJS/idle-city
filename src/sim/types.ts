@@ -13,6 +13,12 @@ export type BuildingType =
 /** Types the build queue may contain. Factory and park are placed by hand. */
 export type QueueableType = 'house' | 'shop'
 
+/**
+ * Flavour drawn for a shop at spawn time — what it actually sells. Purely
+ * cosmetic: every shop earns and costs exactly the same regardless of kind.
+ */
+export type CommerceKind = 'restaurant' | 'clothing' | 'konbini' | 'general'
+
 export interface Building {
   type: BuildingType
   /** 1..MAX_LEVEL. Scales output, population and emission together. */
@@ -21,6 +27,11 @@ export interface Building {
   tile: number
   /** Stable 0..1 jitter seed, used by the renderer for height and hue variation. */
   variant: number
+  /**
+   * What kind of shop this is, drawn once at spawn time. Null for every
+   * building that is not a shop, and for shops saved before this existed.
+   */
+  commerceKind: CommerceKind | null
   /** Sim time at which it was placed, for the spawn animation. */
   bornAt: number
   derelict: boolean

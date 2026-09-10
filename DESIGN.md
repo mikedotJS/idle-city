@@ -151,6 +151,13 @@ no way back.
   anything and the city filled its plot in two minutes.
 - Factories pay regardless of happiness. That's the temptation.
 
+Every shop is also drawn a **commerce kind** the moment it is built —
+restaurant, clothing boutique, konbini, or general store — purely as flavour:
+it decides the name shown once the shop stands (a "Konbini" instead of a
+generic "Shop"), nothing about its cost or income. The draw is random but
+deterministic, taken from the same seeded RNG as everything else about a
+city, so a reload never reshuffles what a shop already sells.
+
 ### 4.3 The happiness field
 
 Per tile, from every emitter within its range:

@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { clearSave, load, save } from '../save'
-import { createCity, placeManual } from '../actions'
+import { createCity, placeManual, spawnBuilding } from '../actions'
 import { derive } from '../economy'
 import { step } from '../tick'
 import { OFFLINE_CAP_SECONDS, SAVE_KEY, SAVE_VERSION, SIM_DT } from '../config'
@@ -53,6 +53,28 @@ describe('save/load', () => {
     expect(result.state.rngSeed).toBe(state.rngSeed)
     expect(result.state.nextBuildAt).toBe(state.nextBuildAt)
     expect(result.offlineSeconds).toBeLessThan(1)
+  })
+
+  it('round-trips a shop\'s commerce kind', () => {
+    const state = earningCity()
+    const shop = spawnBuilding(state, 'shop', tileIndex(9, 9))
+    save(state)
+
+    const result = load()!
+    expect(result.state.grid[shop.tile]?.commerceKind).toBe(shop.commerceKind)
+  })
+
+  it('loads a save from before commerce kinds existed as a plain shop', () => {
+    const state = earningCity()
+    const shop = spawnBuilding(state, 'shop', tileIndex(9, 9))
+    save(state)
+
+    const raw = JSON.parse(store.getItem(SAVE_KEY)!)
+    delete raw.grid[shop.tile].commerceKind
+    store.setItem(SAVE_KEY, JSON.stringify(raw))
+
+    const result = load()!
+    expect(result.state.grid[shop.tile]?.commerceKind).toBeNull()
   })
 
   it('banks offline coins at the saved rate and freezes the sim', () => {

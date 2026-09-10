@@ -1,5 +1,5 @@
 import { FACTORY_COINS, LANDFILL_COINS } from './config'
-import type { BuildingType } from './types'
+import type { BuildingType, CommerceKind } from './types'
 
 export interface Emission {
   /** Positive raises happiness, negative lowers it. */
@@ -163,6 +163,16 @@ export const BUILDINGS: Record<BuildingType, BuildingDef> = {
 }
 
 export const BUILDING_TYPES = Object.keys(BUILDINGS) as BuildingType[]
+
+/** What a shop is drawn as, purely for flavour — see `CommerceKind`. */
+export const COMMERCE_KIND_LABELS: Record<CommerceKind, string> = {
+  restaurant: 'Restaurant',
+  clothing: 'Clothing boutique',
+  konbini: 'Konbini',
+  general: 'General store',
+}
+
+export const COMMERCE_KINDS = Object.keys(COMMERCE_KIND_LABELS) as CommerceKind[]
 
 /** Cost of the next building of this type, given how many have ever been built. */
 export function buildingCost(type: BuildingType, builtCount: number): number {
