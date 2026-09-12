@@ -46,6 +46,7 @@ import { WORLD_SIZE } from '../sim/config'
 import { inBounds, parcelOfTile, tileIndex } from '../sim/grid'
 import { CORNER_COUNT, cornerX, cornerZ } from '../sim/roads'
 import type { RoadNetwork } from '../sim/roads'
+import { computeCrosswalks } from '../sim/sidewalks'
 import type { CityState } from '../sim/types'
 import type { Roads } from './ambient-api'
 import { clamp01, hexToRgb, setSrgb, smoothstep } from './palette'
@@ -96,6 +97,19 @@ const WALK_Y = ROAD_Y + 0.002
  */
 const CENTRE_LINE = false
 const LINE_W = 0.024
+
+/** Crosswalk zebra: three bars starting just past the junction apron and
+ *  running into the street. Each bar is elongated ALONG the road — parallel
+ *  to travel, like the real markings — and the three are laid side by side
+ *  across the road width, which is the pedestrian's crossing direction. */
+const CROSSWALK_LEN = 0.16
+const CROSSWALK_STRIPES = 3
+/** Stripe and gap share one width, so three stripes and two gaps between them
+ *  tile the road width exactly (3 stripes + 2 gaps = 5 units of ROAD_W). */
+const CROSSWALK_UNIT = ROAD_W / (2 * CROSSWALK_STRIPES - 1)
+/** Paint sits just above the tarmac — thinner than the sidewalk's kerb step,
+ *  since a crosswalk never needs to clear anything but the road surface. */
+const CROSSWALK_Y = ROAD_Y + 0.001
 const DASH = 0.2
 
 // Lamps ---------------------------------------------------------------------
@@ -128,6 +142,9 @@ const TARMAC_PAD = hexToRgb(0xa39d93)
  *  reads as a tinted tile. */
 const SIDEWALK = hexToRgb(0xb5afa3)
 const CENTRE_LINE_RGB = hexToRgb(0xcac2b1)
+/** Crosswalk stripes. Brighter than the sidewalk they sit beside — worn paint,
+ *  not stone — so a zebra reads as a marking rather than another kerb. */
+const CROSSWALK_RGB = hexToRgb(0xe4ddc9)
 /** Lamp post and its unlit head in daylight. */
 const LAMP_POST = hexToRgb(0x6d675f)
 const LAMP_HEAD_DARK = hexToRgb(0x746d64)
@@ -266,6 +283,7 @@ export function createRoads(): Roads {
   const tarmacPad = setSrgb(new Color(), TARMAC_PAD)
   const sidewalk = setSrgb(new Color(), SIDEWALK)
   const lineColor = setSrgb(new Color(), CENTRE_LINE_RGB)
+  const crosswalkColor = setSrgb(new Color(), CROSSWALK_RGB)
 
   /** The state handed to the last sync(). Only read while rebuilding. */
   let stateRef: CityState | null = null
@@ -285,6 +303,27 @@ export function createRoads(): Roads {
     positions.push(x0, y, z1, x1, y, z1, x1, y, z0)
     positions.push(x0, y, z1, x1, y, z0, x0, y, z0)
     for (let i = 0; i < 6; i++) colors.push(c.r, c.g, c.b)
+  }
+
+  /** One zebra: stripes elongated along the road, laid side by side across
+   *  the road width, starting just past the junction apron and running into
+   *  the street. */
+  function addCrosswalk(cx: number, cz: number, dir: number): void {
+    const x0 = cx - half
+    const z0 = cz - half
+    const alongX = dir === PX || dir === NX
+    const sign = dir === PX || dir === PZ ? 1 : -1
+    const near = HALF_PAD
+    const far = HALF_PAD + CROSSWALK_LEN
+    for (let i = 0; i < CROSSWALK_STRIPES; i++) {
+      const a = -HALF_W + i * 2 * CROSSWALK_UNIT
+      const b = a + CROSSWALK_UNIT
+      if (alongX) {
+        addQuad(x0 + sign * near, z0 + a, x0 + sign * far, z0 + b, CROSSWALK_Y, crosswalkColor)
+      } else {
+        addQuad(x0 + a, z0 + sign * near, x0 + b, z0 + sign * far, CROSSWALK_Y, crosswalkColor)
+      }
+    }
   }
 
   function buildSurface(network: RoadNetwork): void {
@@ -393,13 +432,38 @@ export function createRoads(): Roads {
           if (!alongX && !alongZ) continue
           if (!ownedTile(sx > 0 ? cx : cx - 1, sz > 0 ? cz : cz - 1)) continue
           addQuad(x, z, x + sx * HALF_PAD, z + sz * HALF_PAD, ROAD_Y, tarmacPad)
-          // No sidewalk raccord here: the bands run to HALF_PAD from each
-          // corner, so two perpendicular bands already cross in the outer
-          // corner square [HALF_PAD, WALK_OUT]² — entirely past the tarmac
-          // edge and outside the pad. Adding a piece on top would either
-          // double-draw that square or stick out over the pad and the
-          // crossing ribbon, which reads as a stub in the middle of the road.
+          // The outer corner square [HALF_PAD, WALK_OUT]² is only closed by
+          // two perpendicular ribbons crossing when BOTH directions run into
+          // this quadrant (a true L-bend). At a T-junction or a dead end,
+          // the quadrant on the side with no crossing street has nothing to
+          // fill it, leaving a bare notch in both the sidewalk and, visually,
+          // the road. Stamping the sidewalk patch here too closes that notch;
+          // where a crossing ribbon already covers it, this just redraws the
+          // same colour on top, which is harmless.
+          addQuad(
+            x + sx * HALF_PAD,
+            z + sz * HALF_PAD,
+            x + sx * WALK_OUT,
+            z + sz * WALK_OUT,
+            WALK_Y,
+            sidewalk,
+          )
         }
+      }
+    }
+
+    // --- crosswalks ----------------------------------------------------------
+    if (stateRef) {
+      const crosswalks = computeCrosswalks(stateRef, network)
+      for (let c = 0; c < crosswalks.length; c++) {
+        const mask = crosswalks[c]
+        if (mask === 0) continue
+        const cx = cornerX(c)
+        const cz = cornerZ(c)
+        if (mask & PX) addCrosswalk(cx, cz, PX)
+        if (mask & NX) addCrosswalk(cx, cz, NX)
+        if (mask & PZ) addCrosswalk(cx, cz, PZ)
+        if (mask & NZ) addCrosswalk(cx, cz, NZ)
       }
     }
 
