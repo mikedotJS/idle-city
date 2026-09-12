@@ -3,13 +3,14 @@ import { createCity, enqueue, placeManual } from '../actions'
 import { step } from '../tick'
 import { SIM_DT } from '../config'
 import { tileIndex } from '../grid'
+import { SAFE_ZONE } from '../terrain'
 import type { CityState } from '../types'
 
 function grow(seed: number, ticks = 200): CityState {
   const state = createCity(seed)
   state.coins = 5000
-  placeManual(state, 'factory', tileIndex(4, 4))
-  placeManual(state, 'park', tileIndex(7, 7))
+  placeManual(state, 'factory', tileIndex(SAFE_ZONE.minX + 1, SAFE_ZONE.minZ + 1))
+  placeManual(state, 'park', tileIndex(SAFE_ZONE.minX + 4, SAFE_ZONE.minZ + 4))
   enqueue(state, 'shop')
   for (let i = 0; i < ticks; i++) step(state, SIM_DT)
   return state

@@ -28,10 +28,19 @@ export interface LightingRig {
 
 export const SHADOW_MAP_TYPE = PCFSoftShadowMap
 
+/**
+ * Density tuned at WORLD_SIZE=12 (max view distance ~28.8) for ~74% visibility
+ * at the farthest edge, a light haze rather than a wall. FogExp2's opacity
+ * formula is exp(-(density * distance)²), so density must scale as 1/WORLD_SIZE
+ * to keep that same edge visibility as the board — and therefore the maximum
+ * useful view distance — grows.
+ */
+const FOG_DENSITY = 0.019 * (12 / WORLD_SIZE)
+
 export function createLighting(scene: Scene): LightingRig {
   const sky = new Color()
   scene.background = sky
-  const fog = new FogExp2(0x000000, 0.019)
+  const fog = new FogExp2(0x000000, FOG_DENSITY)
   scene.fog = fog
 
   const sun = new DirectionalLight(0xffffff, 2.5)
@@ -40,9 +49,11 @@ export function createLighting(scene: Scene): LightingRig {
   sun.shadow.radius = 3
   sun.shadow.bias = -0.0004
   sun.shadow.normalBias = 0.03
-  // Generous margin: at dawn and dusk the shadows are long, and a tight ortho
-  // frustum chops them off mid-lawn. 2048 texels over 24 units is still fine.
-  const half = WORLD_SIZE / 2 + 6
+  // Corners of the board sit at (WORLD_SIZE/2)*sqrt(2) from the centre — the
+  // frustum must reach at least that far, plus the existing +6 margin for how
+  // long a shadow gets at dawn and dusk (that margin doesn't need to scale with
+  // the board, it is about sun angle, not board size).
+  const half = (WORLD_SIZE / 2) * Math.SQRT2 + 6
   sun.shadow.camera.left = -half
   sun.shadow.camera.right = half
   sun.shadow.camera.top = half
@@ -72,7 +83,7 @@ export function createLighting(scene: Scene): LightingRig {
     fog.color.copy(sky)
     // Thin the fog out after dark; a dark fog colour otherwise eats the ground
     // tint at the far edge of the plot, which is the one thing that must stay.
-    fog.density = 0.019 * (1 - 0.4 * s.night)
+    fog.density = FOG_DENSITY * (1 - 0.4 * s.night)
 
     // Sunrise at dayT 0.25, noon at 0.5, sunset at 0.75. Below the horizon the
     // same light becomes the moon: mirrored, flatter, and much dimmer.

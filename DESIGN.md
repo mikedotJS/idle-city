@@ -84,7 +84,7 @@ placements instead.
 
 ### 4.1 Land
 
-The world is a **12×12 tile grid** split into **3×3-tile parcels** (16 parcels).
+The world is a **36×36 tile grid** split into **3×3-tile parcels** (144 parcels).
 You start owning the centre four (a 6×6 plot, 36 tiles).
 
 Buying a parcel requires it to be orthogonally adjacent to land you own.
@@ -288,7 +288,7 @@ renderer reads sim state and diffs it against what it drew last frame.
 - One `InstancedMesh` per building type, capacity 144, rebuilt only when the
   grid changes.
 - Ground is one `InstancedMesh` of tile plates with per-instance color.
-- 144 tiles is nothing. Do not optimize this.
+- 1296 tiles is nothing. Do not optimize this.
 - Save is JSON in localStorage with a `version` field from commit one, so
   rebalancing later doesn't mean throwing away everyone's city.
 
@@ -384,14 +384,36 @@ does — by emitting into the happiness field. Still one constraint.
 
 ### Terrain, biomes and levels
 
-Water and mountain are generated from a stable seed rather than stored: one
-number reproduces 144 tiles exactly. The starting plot is always plain, derived
-from `STARTING_PARCELS` rather than a hardcoded radius, so a new city can never
-open onto a lake with nowhere to build. Coverage was measured, not eyeballed —
-a linear falloff from the board edge swung between 23% and 50% by seed; cubing
-it holds 31% with a 24-33% range over 300 seeds. Seed 0 is the flat world, which
-makes "terrain is optional" a property of the code and keeps economy tests from
-also being tests about where the lake landed.
+Water and mountain are generated from a stable seed rather than stored: the same
+seed always reproduces identical terrain. The board is 36×36 tiles (1,296 total).
+
+The terrain is drawn from two libraries of landforms. **Water** can take one of
+four shapes: **bay** (an edge ramp); **lake** (a decentered blob); **archipelago**
+(4–7 scattered islands); or **river** (a bent two-segment course). **Rock** can
+take one of four: **range** (an edge ramp); **ridge** (a diagonal line); **massif**
+(a decentered blob); or **buttes** (3–6 isolated peaks). The shapes are picked by
+seed; water and rock sit on opposite edges of the board so a city that reaches
+both has to sprawl across the plot to do it — reaching the coast and the peaks are
+rewards for expanding, not starting conditions.
+
+Roughly one map in three carries a second, smaller relief on an adjacent edge —
+say, a bay on the north edge and scattered islands on the east. The second shape
+is weighted lighter so the primary relief keeps the composition.
+
+Coverage was measured systematically over 400 seeds: the non-buildable terrain spans
+21–30% of the board (median 25.3%), with water and rock each individually ranging
+from roughly 5.5% to 22% of the board depending on the seed. Neither water nor rock
+can be built on, so both remove land from the economy. The starting plot is always
+plain, derived from `STARTING_PARCELS` rather than a hardcoded radius, so a new
+city can never open onto a lake with nowhere to build.
+
+Water depth varies from the edge (shallow, height −0.11) toward the centre of water
+bodies (deeper, −0.20 in world units), so piers are safely buried and the coastline
+reads clearly even at shallow angles.
+
+Seed 0 is the flat world — no water, no peaks, every tile buildable. This makes
+"terrain is optional" a property of the code and keeps economy tests from also
+being tests about where the water landed.
 
 Buildings run to level 3, and the auto-builder upgrades only once there is
 nowhere left to spread. That ordering is the point: density is the answer to a
@@ -553,7 +575,7 @@ everything that follows.
 ### Telling the player what happened, and letting them undo it
 
 The loop is a city that grows itself into trouble, but trouble has to be
-*found*, and after ten minutes on a second monitor a 12x12 board of sixty
+*found*, and after ten minutes on a second monitor a 36x36 board of around forty
 buildings does not volunteer which four just rotted. A panel says it in one
 sentence and points at the tile the dereliction clusters around — a count says
 the city rotted, a place says where to go.

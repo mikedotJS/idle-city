@@ -5,6 +5,7 @@ import { tileIndex } from '../grid'
 import { scoreOf } from '../score'
 import { step } from '../tick'
 import { SIM_DT } from '../config'
+import { SAFE_ZONE } from '../terrain'
 import type { CityState } from '../types'
 
 function grown(seconds: number, setup?: (s: CityState) => void): CityState {
@@ -37,8 +38,8 @@ describe('scoreOf', () => {
   it('punishes a polluted city against a clean one of the same age', () => {
     const clean = grown(600)
     const poisoned = grown(600, (s) => {
-      placeManual(s, 'factory', tileIndex(4, 4))
-      placeManual(s, 'factory', tileIndex(6, 6))
+      placeManual(s, 'factory', tileIndex(SAFE_ZONE.minX + 1, SAFE_ZONE.minZ + 1))
+      placeManual(s, 'factory', tileIndex(SAFE_ZONE.minX + 3, SAFE_ZONE.minZ + 3))
     })
     expect(scoreOf(poisoned).value).toBeLessThan(scoreOf(clean).value)
   })

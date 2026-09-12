@@ -5,7 +5,13 @@ import { computeField } from '../field'
 import { buildingCost } from '../buildings'
 import { BUILD_INTERVAL, INCOME_FLOOR, WORLD_SIZE } from '../config'
 import { parcelOfTile, tileDistance, tileIndex, tileX, tileZ } from '../grid'
+import { SAFE_ZONE } from '../terrain'
 import { put, quietCity } from './helpers'
+
+// Tiles inside the always-owned, always-plain starting plot, expressed
+// relative to its corner so these tests do not care where the plot sits.
+const SX = SAFE_ZONE.minX
+const SZ = SAFE_ZONE.minZ
 
 describe('pickBuildTile', () => {
   it('picks the owned tile nearest the world centre when the city is empty', () => {
@@ -18,17 +24,17 @@ describe('pickBuildTile', () => {
 
   it('fills the nearest gap and ignores a much nicer far-away tile', () => {
     const state = quietCity()
-    put(state, 'factory', 5, 5)
+    put(state, 'factory', SX + 2, SZ + 2)
     const field = computeField(state)
 
-    const nice = tileIndex(8, 8)
+    const nice = tileIndex(SX + 5, SZ + 5)
     expect(state.ownedParcels[parcelOfTile(nice)]).toBe(true)
-    expect(field[nice]).toBeGreaterThan(field[tileIndex(4, 5)])
+    expect(field[nice]).toBeGreaterThan(field[tileIndex(SX + 1, SZ + 2)])
 
     for (let i = 0; i < 20; i++) {
       const tile = pickBuildTile(state)!
       // Always a neighbour of the factory, never the pleasant tile across the plot.
-      expect(tileDistance(tile, tileIndex(5, 5))).toBeCloseTo(1, 6)
+      expect(tileDistance(tile, tileIndex(SX + 2, SZ + 2))).toBeCloseTo(1, 6)
       expect(tile).not.toBe(nice)
     }
   })
@@ -36,9 +42,9 @@ describe('pickBuildTile', () => {
   it('measures distance to the nearest of several buildings', () => {
     const state = quietCity()
     // Two clusters plus a lone outlier: the gap next to any of them may win.
-    put(state, 'house', 3, 3)
-    put(state, 'house', 4, 3)
-    put(state, 'house', 8, 8)
+    put(state, 'house', SX, SZ)
+    put(state, 'house', SX + 1, SZ)
+    put(state, 'house', SX + 5, SZ + 5)
 
     const nearestBuilding = (tile: number) => {
       let best = Infinity
@@ -64,21 +70,22 @@ describe('pickBuildTile', () => {
     const state = quietCity()
     // A building just outside the owned block: the only owned tile touching it
     // does so diagonally, at sqrt(2), and must still be chosen over 2.236.
-    put(state, 'house', 2, 2)
-    expect(pickBuildTile(state)).toBe(tileIndex(3, 3))
+    put(state, 'house', SX - 1, SZ - 1)
+    expect(pickBuildTile(state)).toBe(tileIndex(SX, SZ))
   })
 
   it('returns null when every owned tile is taken', () => {
     const state = quietCity()
-    for (let z = 3; z <= 8; z++) for (let x = 3; x <= 8; x++) put(state, 'house', x, z)
+    for (let z = SZ; z <= SZ + 5; z++)
+      for (let x = SX; x <= SX + 5; x++) put(state, 'house', x, z)
     expect(pickBuildTile(state)).toBeNull()
   })
 
   it('breaks ties the same way for the same seed', () => {
     const a = quietCity(12345)
     const b = quietCity(12345)
-    put(a, 'factory', 5, 5)
-    put(b, 'factory', 5, 5)
+    put(a, 'factory', SX + 2, SZ + 2)
+    put(b, 'factory', SX + 2, SZ + 2)
     for (let i = 0; i < 10; i++) expect(pickBuildTile(a)).toBe(pickBuildTile(b))
   })
 })

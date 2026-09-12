@@ -93,9 +93,9 @@ import { clamp01, smoothstep } from './palette'
 // Tuning
 // ---------------------------------------------------------------------------
 
-const CAR_CAPACITY = 24
-const BUS_CAPACITY = 8
-const PERSON_CAPACITY = 48
+const CAR_CAPACITY = 216 // 24 * 9 for WORLD_SIZE scaled from 12 to 36 (9x surface)
+const BUS_CAPACITY = 72 // 8 * 9 for WORLD_SIZE scaled from 12 to 36 (9x surface)
+const PERSON_CAPACITY = 432 // 48 * 9 for WORLD_SIZE scaled from 12 to 36 (9x surface)
 
 /** Tiles per second. A segment is one tile, so this is also segments/second. */
 const CAR_SPEED = 1.6

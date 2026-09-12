@@ -6,6 +6,7 @@ import {
   SAVE_KEY,
   SAVE_VERSION,
   TILE_COUNT,
+  WORLD_SIZE,
 } from './config'
 import { BUILDINGS, BUILDING_TYPES, COMMERCE_KINDS } from './buildings'
 import { derive } from './economy'
@@ -17,6 +18,7 @@ import {
   type PrestigeState,
 } from './prestige'
 import { EVENT_LIMIT, type CityEvent } from './events'
+import { recentreGrid } from './migrate'
 import type { Building, BuildingType, CityState, CommerceKind, QueueableType } from './types'
 
 /** localStorage is the only DOM API the sim touches, and only here. */
@@ -218,18 +220,42 @@ function validate(raw: unknown): CityState | null {
   if (!isFinite_(s.time) || !isFinite_(s.coins)) return null
   if (!isFinite_(s.rngSeed) || !isFinite_(s.nextBuildAt) || !isFinite_(s.lastSavedAt)) return null
 
-  if (!Array.isArray(s.grid) || s.grid.length !== TILE_COUNT) return null
+  // A save written under a different WORLD_SIZE is recentred onto the
+  // current one before anything else about it is checked, so every rule
+  // below keeps judging a grid/parcel/event set shaped for TILE_COUNT and
+  // PARCEL_COUNT as they are today. A save whose worldSize already matches
+  // takes a no-op path here and is otherwise untouched.
+  const savedWorldSize = isFinite_(s.worldSize) ? (s.worldSize as number) : WORLD_SIZE
+  let rawGrid: unknown = s.grid
+  let rawOwnedParcels: unknown = s.ownedParcels
+  let rawEvents: unknown = s.events
+  if (savedWorldSize !== WORLD_SIZE) {
+    const migrated = recentreGrid(savedWorldSize, WORLD_SIZE, {
+      grid: rawGrid,
+      ownedParcels: rawOwnedParcels,
+      events: rawEvents,
+    })
+    // A refusal (mismatched shape, a shrink, an offset that cannot preserve
+    // parcel alignment) makes the whole save invalid — same as any other
+    // malformed field here — never a partial or best-effort load.
+    if (!migrated) return null
+    rawGrid = migrated.grid
+    rawOwnedParcels = migrated.ownedParcels
+    rawEvents = migrated.events
+  }
+
+  if (!Array.isArray(rawGrid) || rawGrid.length !== TILE_COUNT) return null
   const grid: (Building | null)[] = new Array(TILE_COUNT).fill(null)
   for (let i = 0; i < TILE_COUNT; i++) {
-    const cell = s.grid[i]
+    const cell = rawGrid[i]
     if (cell === null || cell === undefined) continue
     const b = validateBuilding(cell, i)
     if (!b) return null
     grid[i] = b
   }
 
-  if (!Array.isArray(s.ownedParcels) || s.ownedParcels.length !== PARCEL_COUNT) return null
-  const ownedParcels = s.ownedParcels.map((o) => o === true)
+  if (!Array.isArray(rawOwnedParcels) || rawOwnedParcels.length !== PARCEL_COUNT) return null
+  const ownedParcels = rawOwnedParcels.map((o) => o === true)
 
   if (!Array.isArray(s.queue)) return null
   const queue: QueueableType[] = []
@@ -277,10 +303,15 @@ function validate(raw: unknown): CityState | null {
       : 1,
     nextBuildAt: s.nextBuildAt,
     lastSavedAt: s.lastSavedAt,
-    events: validateEvents(s.events),
+    events: validateEvents(rawEvents),
     // Saves from before the activity log have nothing to report, so the window
     // starts closed rather than announcing the whole history of the city.
     lastSeenAt: isFinite_(s.lastSeenAt) ? (s.lastSeenAt as number) : (s.time as number),
+    // Whatever worldSize the save came in with, everything above this point now
+    // describes a grid shaped for the current WORLD_SIZE — migrated moments ago
+    // if it did not already match. So the state we hand back always records
+    // today's size, never the one it was loaded under.
+    worldSize: WORLD_SIZE,
   }
 }
 

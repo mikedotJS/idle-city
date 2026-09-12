@@ -19,6 +19,9 @@ import { chromium } from 'playwright'
 const URL = process.env.SHOT_URL ?? 'http://localhost:5173/'
 const OUT = process.env.SHOT_OUT ?? '/tmp/idle-city-shots'
 
+const WORLD_SIZE = 36
+const ANCHOR_TILE = 629 // Tile at (17, 17) on a 36-wide board; the block spills to +x/+z.
+
 /** Playwright's own browser, wherever this environment happens to keep it. */
 function findChromium() {
   const root = process.env.PLAYWRIGHT_BROWSERS_PATH
@@ -26,40 +29,38 @@ function findChromium() {
   const dir = readdirSync(root).find((d) => d.startsWith('chromium-'))
   return dir ? join(root, dir, 'chrome-linux', 'chrome') : undefined
 }
-
-// Anchor tile 65 is (5, 5) on a 12-wide board; the block spills to +x/+z.
 const SCENARIOS = [
   {
     name: 'maxi-food-court',
     spawns: [
-      ['shop', 5, 5, 3, 'restaurant'],
-      ['shop', 6, 5, 3, 'konbini'],
-      ['shop', 5, 6, 3, 'clothing'],
-      ['shop', 6, 6, 3, 'general'],
-      ['school', 5, 4, 3],
-      ['school', 6, 7, 3],
+      ['shop', 17, 17, 3, 'restaurant'],
+      ['shop', 18, 17, 3, 'konbini'],
+      ['shop', 17, 18, 3, 'clothing'],
+      ['shop', 18, 18, 3, 'general'],
+      ['school', 17, 16, 3],
+      ['school', 18, 19, 3],
     ],
   },
   {
     name: 'maxi-apartment',
     spawns: [
-      ['house', 5, 5, 3],
-      ['house', 6, 5, 3],
-      ['house', 5, 6, 3],
-      ['house', 6, 6, 3],
-      ['school', 5, 4, 3],
-      ['school', 6, 7, 3],
+      ['house', 17, 17, 3],
+      ['house', 18, 17, 3],
+      ['house', 17, 18, 3],
+      ['house', 18, 18, 3],
+      ['school', 17, 16, 3],
+      ['school', 18, 19, 3],
     ],
   },
   {
     name: 'maxi-industrial',
     spawns: [
-      ['factory', 5, 5, 3],
-      ['factory', 6, 5, 3],
-      ['factory', 5, 6, 3],
-      ['factory', 6, 6, 3],
-      ['school', 5, 4, 3],
-      ['school', 6, 7, 3],
+      ['factory', 17, 17, 3],
+      ['factory', 18, 17, 3],
+      ['factory', 17, 18, 3],
+      ['factory', 18, 18, 3],
+      ['school', 17, 16, 3],
+      ['school', 18, 19, 3],
     ],
     // See the header: factories can never merge on their own.
     force: true,
@@ -68,36 +69,36 @@ const SCENARIOS = [
   {
     name: 'maxi-department-store',
     spawns: [
-      ['shop', 5, 5, 3, 'clothing'],
-      ['shop', 6, 5, 3, 'clothing'],
-      ['shop', 5, 6, 3, 'clothing'],
-      ['shop', 6, 6, 3, 'clothing'],
-      ['school', 5, 4, 3],
-      ['school', 6, 7, 3],
+      ['shop', 17, 17, 3, 'clothing'],
+      ['shop', 18, 17, 3, 'clothing'],
+      ['shop', 17, 18, 3, 'clothing'],
+      ['shop', 18, 18, 3, 'clothing'],
+      ['school', 17, 16, 3],
+      ['school', 18, 19, 3],
     ],
   },
   // Four general stores grow into the galleria: the arcade.
   {
     name: 'maxi-arcade',
     spawns: [
-      ['shop', 5, 5, 3, 'general'],
-      ['shop', 6, 5, 3, 'general'],
-      ['shop', 5, 6, 3, 'general'],
-      ['shop', 6, 6, 3, 'general'],
-      ['school', 5, 4, 3],
-      ['school', 6, 7, 3],
+      ['shop', 17, 17, 3, 'general'],
+      ['shop', 18, 17, 3, 'general'],
+      ['shop', 17, 18, 3, 'general'],
+      ['shop', 18, 18, 3, 'general'],
+      ['school', 17, 16, 3],
+      ['school', 18, 19, 3],
     ],
   },
   // No restaurant, no clothing, at least one konbini -> supermarket.
   {
     name: 'maxi-supermarket',
     spawns: [
-      ['shop', 5, 5, 3, 'konbini'],
-      ['shop', 6, 5, 3, 'konbini'],
-      ['shop', 5, 6, 3, 'konbini'],
-      ['shop', 6, 6, 3, 'general'],
-      ['school', 5, 4, 3],
-      ['school', 6, 7, 3],
+      ['shop', 17, 17, 3, 'konbini'],
+      ['shop', 18, 17, 3, 'konbini'],
+      ['shop', 17, 18, 3, 'konbini'],
+      ['shop', 18, 18, 3, 'general'],
+      ['school', 17, 16, 3],
+      ['school', 18, 19, 3],
     ],
   },
   // Parks feed the happiness field instead of draining it, so four level 3
@@ -106,12 +107,12 @@ const SCENARIOS = [
   {
     name: 'maxi-botanical',
     spawns: [
-      ['park', 5, 5, 3],
-      ['park', 6, 5, 3],
-      ['park', 5, 6, 3],
-      ['park', 6, 6, 3],
-      ['school', 5, 4, 3],
-      ['school', 6, 7, 3],
+      ['park', 17, 17, 3],
+      ['park', 18, 17, 3],
+      ['park', 17, 18, 3],
+      ['park', 18, 18, 3],
+      ['school', 17, 16, 3],
+      ['school', 18, 19, 3],
     ],
   },
   // Schools feed the happiness field like parks do, so four of them beside
@@ -120,34 +121,34 @@ const SCENARIOS = [
   {
     name: 'maxi-campus',
     spawns: [
-      ['school', 5, 5, 3],
-      ['school', 6, 5, 3],
-      ['school', 5, 6, 3],
-      ['school', 6, 6, 3],
-      ['house', 5, 4, 3],
-      ['house', 6, 7, 3],
+      ['school', 17, 17, 3],
+      ['school', 18, 17, 3],
+      ['school', 17, 18, 3],
+      ['school', 18, 18, 3],
+      ['house', 17, 16, 3],
+      ['house', 18, 19, 3],
     ],
   },
   {
     name: 'maxi-port',
     spawns: [
-      ['harbour', 5, 5, 3],
-      ['harbour', 6, 5, 3],
-      ['harbour', 5, 6, 3],
-      ['harbour', 6, 6, 3],
-      ['school', 5, 4, 3],
-      ['school', 6, 7, 3],
+      ['harbour', 17, 17, 3],
+      ['harbour', 18, 17, 3],
+      ['harbour', 17, 18, 3],
+      ['harbour', 18, 18, 3],
+      ['school', 17, 16, 3],
+      ['school', 18, 19, 3],
     ],
   },
   {
     name: 'maxi-terminal',
     spawns: [
-      ['station', 5, 5, 3],
-      ['station', 6, 5, 3],
-      ['station', 5, 6, 3],
-      ['station', 6, 6, 3],
-      ['school', 5, 4, 3],
-      ['school', 6, 7, 3],
+      ['station', 17, 17, 3],
+      ['station', 18, 17, 3],
+      ['station', 17, 18, 3],
+      ['station', 18, 18, 3],
+      ['school', 17, 16, 3],
+      ['school', 18, 19, 3],
     ],
   },
   // The landfill has NO dedicated maxi piece on purpose: a merged block must
@@ -156,12 +157,12 @@ const SCENARIOS = [
   {
     name: 'maxi-landfill-fallback',
     spawns: [
-      ['landfill', 5, 5, 3],
-      ['landfill', 6, 5, 3],
-      ['landfill', 5, 6, 3],
-      ['landfill', 6, 6, 3],
-      ['school', 5, 4, 3],
-      ['school', 6, 7, 3],
+      ['landfill', 17, 17, 3],
+      ['landfill', 18, 17, 3],
+      ['landfill', 17, 18, 3],
+      ['landfill', 18, 18, 3],
+      ['school', 17, 16, 3],
+      ['school', 18, 19, 3],
     ],
     force: true,
     shot: false,
@@ -189,29 +190,29 @@ for (const scenario of SCENARIOS) {
   }, scenario.spawns)
 
   await page.waitForTimeout(2500)
-  if (scenario.force || (await page.evaluate(() => window.__idleCity.state.grid[65]?.mergeAnchor !== 65))) {
+  if (scenario.force || (await page.evaluate((anchorTile) => window.__idleCity.state.grid[anchorTile]?.mergeAnchor !== anchorTile, ANCHOR_TILE))) {
     // Natural fusion did not happen: poke mergeAnchor directly, the documented
     // console-poke path revalidateBlocks exists for, purely to prove the maxi
     // geometry draws.
-    await page.evaluate(() => {
+    await page.evaluate(({ worldSize, anchorTile }) => {
       const { state, redraw } = window.__idleCity
       for (const [x, z] of [
-        [5, 5],
-        [6, 5],
-        [5, 6],
-        [6, 6],
+        [17, 17],
+        [18, 17],
+        [17, 18],
+        [18, 18],
       ]) {
-        const b = state.grid[z * 12 + x]
-        if (b) b.mergeAnchor = 65
+        const b = state.grid[z * worldSize + x]
+        if (b) b.mergeAnchor = anchorTile
       }
       redraw()
-    })
+    }, { worldSize: WORLD_SIZE, anchorTile: ANCHOR_TILE })
     await page.waitForTimeout(1800)
   }
 
-  const merged = await page.evaluate(() => window.__idleCity.state.grid[65]?.mergeAnchor === 65)
-  console.log(`${scenario.name}: mergeAnchor === 65 -> ${merged}`)
-  if (!merged) errors.push(`${scenario.name}: block did not merge (mergeAnchor !== 65)`)
+  const merged = await page.evaluate((anchorTile) => window.__idleCity.state.grid[anchorTile]?.mergeAnchor === anchorTile, ANCHOR_TILE)
+  console.log(`${scenario.name}: mergeAnchor === ${ANCHOR_TILE} -> ${merged}`)
+  if (!merged) errors.push(`${scenario.name}: block did not merge (mergeAnchor !== ${ANCHOR_TILE})`)
 
   if (scenario.shot !== false) await page.screenshot({ path: `${OUT}/${scenario.name}.png` })
   await page.close()

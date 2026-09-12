@@ -2,10 +2,16 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import { buyParcel, createCity, demolish, placeManual } from '../actions'
 import { SIM_DT, TILE_COUNT } from '../config'
 import { EVENT_LIMIT, recordEvent, summarise, worthReporting } from '../events'
-import { tileIndex } from '../grid'
+import { parcelNeighbours, tileIndex } from '../grid'
+import { STARTING_PARCELS } from '../config'
 import { load, save } from '../save'
+import { SAFE_ZONE } from '../terrain'
 import { step } from '../tick'
 import { MemoryStorage, earning, flatten, put, quietCity } from './helpers'
+
+// Tiles inside the always-owned, always-plain starting plot.
+const SX = SAFE_ZONE.minX
+const SZ = SAFE_ZONE.minZ
 
 describe('the city records what it did', () => {
   it('logs a building the city put up by itself', () => {
@@ -18,12 +24,12 @@ describe('the city records what it did', () => {
   it('logs rot and recovery', () => {
     const state = quietCity()
     state.coins = 1e6
-    put(state, 'house', 5, 5)
-    placeManual(state, 'factory', tileIndex(5, 6))
+    put(state, 'house', SX + 2, SZ + 2)
+    placeManual(state, 'factory', tileIndex(SX + 2, SZ + 3))
     for (let t = 0; t < 90; t += SIM_DT) step(state, SIM_DT)
     expect(state.events.some((e) => e.kind === 'derelict')).toBe(true)
 
-    demolish(state, tileIndex(5, 6))
+    demolish(state, tileIndex(SX + 2, SZ + 3))
     for (let t = 0; t < 60; t += SIM_DT) step(state, SIM_DT)
     expect(state.events.some((e) => e.kind === 'recovered')).toBe(true)
   })
@@ -31,14 +37,14 @@ describe('the city records what it did', () => {
   it('logs land and demolition', () => {
     const state = flatten(createCity(5))
     state.coins = 1e6
-    put(state, 'house', 5, 5)
-    demolish(state, tileIndex(5, 5))
+    put(state, 'house', SX + 2, SZ + 2)
+    demolish(state, tileIndex(SX + 2, SZ + 2))
     expect(state.events.some((e) => e.kind === 'demolished')).toBe(true)
 
     // Any parcel bordering the starting plot. The city needs something paying
     // first: buyParcel refuses outright while it earns nothing.
     earning(state)
-    for (let p = 0; p < 16; p++) if (buyParcel(state, p).ok) break
+    for (const p of parcelNeighbours(STARTING_PARCELS[0])) if (buyParcel(state, p).ok) break
     expect(state.events.some((e) => e.kind === 'land')).toBe(true)
   })
 
@@ -59,7 +65,7 @@ describe('what counts as news', () => {
     const state = quietCity()
     state.coins = 1e6
     state.time = 100
-    placeManual(state, 'factory', tileIndex(5, 5))
+    placeManual(state, 'factory', tileIndex(SX + 2, SZ + 2))
     expect(summarise(state).built).toBe(0)
     expect(summarise(state).span).toBe(0)
   })

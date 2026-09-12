@@ -4,6 +4,7 @@ import {
   STARTING_COINS,
   STARTING_PARCELS,
   TILE_COUNT,
+  WORLD_SIZE,
 } from './config'
 import { BUILDINGS, BUILDING_TYPES, SPAWN_COMMERCE_KINDS, buildingCost } from './buildings'
 import { derive, nextLandCost, parcelCost } from './economy'
@@ -76,6 +77,7 @@ export function createCity(seed?: number, prestige?: PrestigeState): CityState {
     lastSavedAt: Date.now(),
     events: [],
     lastSeenAt: 0,
+    worldSize: WORLD_SIZE,
   }
 }
 

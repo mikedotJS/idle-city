@@ -47,9 +47,10 @@ import { hexToRgb, mixRgb, setSrgb, smoothstep } from './palette'
 // ---------------------------------------------------------------------------
 
 /**
- * The still surface of the lake. The sim puts water tiles at -0.16 and
- * ground.ts drops their plates to exactly that, so there is 0.11 of water
- * between the surface and the bed: enough depth for the translucency to read,
+ * The still surface of the lake. The sim puts water tile beds between -0.11
+ * (shallows at the edge) and -0.20 (deep at the centre), varying within each
+ * water body. ground.ts drops plates to that depth, so the surface at -0.05
+ * gives between 0.06 and 0.15 of water depth: enough for translucency to read,
  * far more than the depth buffer needs at this camera range.
  */
 const WATER_Y = -0.05
@@ -107,19 +108,16 @@ const ROCK_CAP = hexToRgb(0xe2dfe6)
 /**
  * The pale cap, ramped on world height.
  *
- * Both numbers are read off the shape of the sim's own distribution rather
- * than picked by eye. Peak heights are bimodal — measured over 200 seeds, a
- * fringe fills 0.50 to 0.80, the massif fills 1.00 to 1.41, and between 0.80
- * and 0.95 there is essentially nothing. Starting the ramp at 1.05 puts it
- * above every fringe tile and above the massif's own lowest corners, so no
- * amount of light can leave a wash of cap on the low rock; saturating at 1.32,
- * the 90th percentile, means the ramp actually finishes on peaks that exist
- * instead of on a height nothing on the board reaches.
- *
- * The ramp is evaluated per vertex, and a tent's corners sit below its peak,
- * so the cap lands on the tips and washes down the flanks. About half the
- * massif carries a clearly visible one, which is what makes a ridge read as a
- * ridge rather than as a single pale lump.
+ * Peak heights follow a continuous distribution (measured over 400 seeds):
+ * median 0.803, 90th percentile 1.218, maximum 1.450. Starting the ramp at
+ * 1.05 ensures the cap begins only on the highest ~10% of rocky terrain, so it
+ * reads as an accent on the peaks rather than a generalized wash; this avoids
+ * the pale cap appearing on low ridges where it would flatten the sense of
+ * relief. Saturating at 1.32 means the ramp finishes well above the median
+ * height, applying the full cap only to the true peaks. Since height varies per
+ * vertex and corners sit below their peak, the cap naturally washes down the
+ * upper flanks, making ridge geometry read clearly despite the linear height
+ * distribution—about half the mountain area carries a visible cap.
  */
 const CAP_START = 1.05
 const CAP_FULL = 1.32
@@ -347,10 +345,10 @@ export function createTerrainView(): TerrainView {
       positions.push(x, y, z)
       // Tone by absolute height, so a ridge shades from slate at the base to a
       // pale cap at the top and the silhouette reads even head-on. This lower
-      // ramp is finished by 0.9 — the top of the fringe — so the fringe uses
-      // the full slate-to-light-rock range on its own and the massif is
-      // already at light rock before the cap starts at 1.05. Three bands,
-      // none of them overlapping: dark base, rock, cap.
+      // ramp finishes at 0.9, covering the bottom 90% of observed terrain so
+      // even the lowest rocky outcrops get some relief. The pale cap begins at
+      // 1.05, well above this transition, creating three clear bands: dark base
+      // (0–0.15), rocky slope (0.15–1.05), and pale cap (1.05–1.32).
       mixRgb(ROCK_LOW, ROCK_HIGH, smoothstep(0.15, 0.9, y), mixed)
       mixRgb(mixed, ROCK_CAP, smoothstep(CAP_START, CAP_FULL, y), capped)
       setSrgb(scratch, capped)

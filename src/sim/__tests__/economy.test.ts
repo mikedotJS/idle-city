@@ -125,7 +125,8 @@ describe('derive', () => {
   })
 
   it('produces MERGE_OUTPUT_BONUS per cell of a merged block — four as six', () => {
-    // The block (5,5)..(6,6) anchored at 65, as tryMerges would leave it.
+    // The block (5,5)..(6,6), as tryMerges would leave it.
+    const anchor = tileIndex(5, 5)
     const merged = quietCity()
     for (const [x, z] of [
       [5, 5],
@@ -133,7 +134,7 @@ describe('derive', () => {
       [5, 6],
       [6, 6],
     ]) {
-      put(merged, 'house', x, z).mergeAnchor = 65
+      put(merged, 'house', x, z).mergeAnchor = anchor
     }
     expect(derive(merged).population).toBe(6 * POP_PER_HOUSE)
 
@@ -147,7 +148,7 @@ describe('derive', () => {
       [5, 6],
       [6, 6],
     ]) {
-      put(factories, 'factory', x, z).mergeAnchor = 65
+      put(factories, 'factory', x, z).mergeAnchor = anchor
     }
     const withBonus = derive(factories).incomeRate
     for (let i = 0; i < factories.grid.length; i++) {

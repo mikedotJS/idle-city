@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { COMMERCE_KINDS, SPAWN_COMMERCE_KINDS } from '../buildings'
-import { MAX_LEVEL, SIM_DT } from '../config'
+import { MAX_LEVEL, SIM_DT, WORLD_SIZE } from '../config'
 import { computeField } from '../field'
 import { tileIndex } from '../grid'
 import { blockCells, isMergedBlock, maxiCommerceKind } from '../merge'
@@ -10,12 +10,19 @@ import { put, quietCity } from './helpers'
 
 describe('blockCells', () => {
   it('returns the four tiles of the 2x2 block from its top-left corner', () => {
-    expect(blockCells(65)).toEqual([65, 66, 77, 78])
-    expect(blockCells(0)).toEqual([0, 1, 12, 13])
+    expect(blockCells(tileIndex(5, 5))).toEqual([
+      tileIndex(5, 5),
+      tileIndex(6, 5),
+      tileIndex(5, 6),
+      tileIndex(6, 6),
+    ])
+    expect(blockCells(0)).toEqual([0, 1, WORLD_SIZE, WORLD_SIZE + 1])
   })
 })
 
 describe('isMergedBlock', () => {
+  const anchor = tileIndex(5, 5)
+
   it('is true when the four cells hold one type, all pointing at the anchor', () => {
     const state = quietCity()
     for (const [x, z] of [
@@ -24,15 +31,15 @@ describe('isMergedBlock', () => {
       [5, 6],
       [6, 6],
     ]) {
-      put(state, 'house', x, z).mergeAnchor = 65
+      put(state, 'house', x, z).mergeAnchor = anchor
     }
-    expect(isMergedBlock(state, 65)).toBe(true)
+    expect(isMergedBlock(state, anchor)).toBe(true)
   })
 
   it('is false when a cell is empty, of another type, or anchored elsewhere', () => {
     const empty = quietCity()
-    put(empty, 'house', 5, 5).mergeAnchor = 65
-    expect(isMergedBlock(empty, 65)).toBe(false)
+    put(empty, 'house', 5, 5).mergeAnchor = anchor
+    expect(isMergedBlock(empty, anchor)).toBe(false)
 
     const mixed = quietCity()
     for (const [x, z] of [
@@ -41,10 +48,10 @@ describe('isMergedBlock', () => {
       [5, 6],
       [6, 6],
     ]) {
-      put(mixed, 'house', x, z).mergeAnchor = 65
+      put(mixed, 'house', x, z).mergeAnchor = anchor
     }
-    put(mixed, 'shop', 6, 6).mergeAnchor = 65
-    expect(isMergedBlock(mixed, 65)).toBe(false)
+    put(mixed, 'shop', 6, 6).mergeAnchor = anchor
+    expect(isMergedBlock(mixed, anchor)).toBe(false)
 
     const stray = quietCity()
     for (const [x, z] of [
@@ -53,10 +60,10 @@ describe('isMergedBlock', () => {
       [5, 6],
       [6, 6],
     ]) {
-      put(stray, 'house', x, z).mergeAnchor = 65
+      put(stray, 'house', x, z).mergeAnchor = anchor
     }
-    stray.grid[78]!.mergeAnchor = null
-    expect(isMergedBlock(stray, 65)).toBe(false)
+    stray.grid[tileIndex(6, 6)]!.mergeAnchor = null
+    expect(isMergedBlock(stray, anchor)).toBe(false)
   })
 })
 
@@ -247,13 +254,22 @@ describe('tryMerges', () => {
     put(state, 'school', 4, 5)
     put(state, 'school', 8, 5)
     put(state, 'school', 6, 4)
-    for (const tile of [65, 66, 67, 77, 78, 79]) expect(computeField(state)[tile]).toBe(1)
+    for (const [x, z] of [
+      [5, 5],
+      [6, 5],
+      [7, 5],
+      [5, 6],
+      [6, 6],
+      [7, 6],
+    ]) {
+      expect(computeField(state)[tileIndex(x, z)]).toBe(1)
+    }
 
     step(state, SIM_DT)
 
-    expect(isMergedBlock(state, 65)).toBe(true)
-    expect(state.grid[67]!.mergeAnchor).toBeNull() // (7,5): its square lost two cells mid-scan
-    expect(state.grid[79]!.mergeAnchor).toBeNull() // (7,6)
+    expect(isMergedBlock(state, tileIndex(5, 5))).toBe(true)
+    expect(state.grid[tileIndex(7, 5)]!.mergeAnchor).toBeNull() // (7,5): its square lost two cells mid-scan
+    expect(state.grid[tileIndex(7, 6)]!.mergeAnchor).toBeNull() // (7,6)
     expect(mergedEvents(state)).toHaveLength(1)
   })
 

@@ -10,6 +10,7 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "pacing": "vite-node scripts/pacing.ts",
+    "terrain-stats": "vite-node scripts/terrain-stats.ts",
     "shot": "node scripts/shot.mjs",
     "walk-shot": "node scripts/walk-shot.mjs",
     "maxi-shot": "node scripts/maxi-shot.mjs",
@@ -24,6 +25,7 @@
     "three": "^0.180.0"
   },
   "devDependencies": {
+    "@types/node": "^26.4.1",
     "@types/three": "^0.180.0",
     "playwright": "^1.63.0",
     "typescript": "^5.9.2",

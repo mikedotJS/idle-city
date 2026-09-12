@@ -94,6 +94,8 @@ export interface CityState {
   events: CityEvent[]
   /** Sim time of the player's last action. Everything before it has been seen. */
   lastSeenAt: number
+  /** Map size with which this city was created/saved, used to detect and migrate from smaller older maps. */
+  worldSize: number
 }
 
 /** Recomputed from CityState. Never saved, never mutated by the renderer. */

@@ -1,13 +1,21 @@
 /** Tuning constants. Every number here is expected to change once the game is played. */
 
-export const WORLD_SIZE = 12 // tiles per side of the whole world
+export const WORLD_SIZE = 36 // tiles per side of the whole world
 export const PARCEL_SIZE = 3 // tiles per side of a purchasable parcel
-export const PARCELS_PER_SIDE = WORLD_SIZE / PARCEL_SIZE // 4
-export const TILE_COUNT = WORLD_SIZE * WORLD_SIZE // 144
-export const PARCEL_COUNT = PARCELS_PER_SIDE * PARCELS_PER_SIDE // 16
+export const PARCELS_PER_SIDE = WORLD_SIZE / PARCEL_SIZE // 12
+export const TILE_COUNT = WORLD_SIZE * WORLD_SIZE // 1296
+export const PARCEL_COUNT = PARCELS_PER_SIDE * PARCELS_PER_SIDE // 144
 
 /** Parcels owned at the start: the centre 2x2 block, i.e. a 6x6 tile plot. */
-export const STARTING_PARCELS = [5, 6, 9, 10]
+export const STARTING_PARCELS = (() => {
+  const c = PARCELS_PER_SIDE / 2
+  return [
+    (c - 1) * PARCELS_PER_SIDE + (c - 1),
+    (c - 1) * PARCELS_PER_SIDE + c,
+    c * PARCELS_PER_SIDE + (c - 1),
+    c * PARCELS_PER_SIDE + c,
+  ]
+})()
 
 /** Buildings upgrade 1 -> 2 -> 3 once there is nowhere left to build. */
 export const MAX_LEVEL = 3
@@ -25,7 +33,21 @@ export const LEVEL_COST = [0, 0, 3, 9]
 export const STARTING_COINS = 300
 
 export const LAND_BASE_COST = 400
-export const LAND_COST_GROWTH = 1.7
+/**
+ * Escalates parcelCost() as more of the 144 parcels get bought (see
+ * economy.ts). At 1.7 — the value that fit the old 16-parcel map — parcel
+ * #144 priced out at ~2.6e34 coins, an unreachable wall once the map grew to
+ * 144 parcels. Measured with `usable = 1` for the fully-buildable early/mid
+ * parcels and the actual terrain-derived `usable` for #100/#144 (both landed
+ * on real tiles at usable 0.78 and 0.00 respectively) against a played-out
+ * `npm run pacing` curve, where income already tops 70-100 coins/s within
+ * 1-3h off just the 4 starting parcels and keeps scaling with owned land:
+ * parcel #10 ≈ 709 coins (a minute of play), #50 ≈ 32,072 (a few hours),
+ * #100 ≈ 3,221,113 (roughly a working day of income once ~2/3 of the map is
+ * built up), #144 ≈ 87,318,036 — a real end-of-run goal, tens of hours away,
+ * not a wall.
+ */
+export const LAND_COST_GROWTH = 1.1
 
 export const SIM_HZ = 10
 export const SIM_DT = 1 / SIM_HZ

@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { createCity, demolish, placeManual, spawnBuilding } from '../actions'
 import { buildingCost } from '../buildings'
-import { tileIndex } from '../grid'
+import { tileIndex, tileX, tileZ } from '../grid'
 import { forgetDemolitions, peekDemolition, undoDemolition, undoDepth } from '../history'
 import { blockCells, isMergedBlock } from '../merge'
 import { save, load } from '../save'
@@ -120,7 +120,7 @@ const CELLS = blockCells(ANCHOR)
 function mergedShops(state: ReturnType<typeof quietCity>): void {
   const kinds = ['restaurant', 'konbini', 'clothing', 'general'] as const
   CELLS.forEach((cell, i) => {
-    const b = put(state, 'shop', cell % 12, Math.floor(cell / 12))
+    const b = put(state, 'shop', tileX(cell), tileZ(cell))
     b.level = 3
     b.mergeAnchor = ANCHOR
     b.commerceKind = 'food_court'

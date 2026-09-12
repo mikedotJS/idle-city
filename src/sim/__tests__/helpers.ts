@@ -1,5 +1,6 @@
 import { createCity } from '../actions'
 import { tileIndex } from '../grid'
+import { SAFE_ZONE } from '../terrain'
 import type { Building, BuildingType, CityState } from '../types'
 
 /**
@@ -33,8 +34,13 @@ export function quietCity(seed = 1): CityState {
  * plain terrain, so a tile in the middle of them is always free to build on.
  */
 export function earning(state: CityState): CityState {
-  for (let z = 4; z < 8; z++) {
-    for (let x = 4; x < 8; x++) {
+  // Use an inner region of SAFE_ZONE to ensure we stay well within protected terrain
+  const minX = SAFE_ZONE.minX + 1
+  const maxX = SAFE_ZONE.maxX
+  const minZ = SAFE_ZONE.minZ + 1
+  const maxZ = SAFE_ZONE.maxZ
+  for (let z = minZ; z < maxZ; z++) {
+    for (let x = minX; x < maxX; x++) {
       if (state.grid[tileIndex(x, z)] === null) {
         put(state, 'factory', x, z)
         return state

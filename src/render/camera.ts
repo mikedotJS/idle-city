@@ -53,7 +53,12 @@ export function createCameraRig(canvas: HTMLCanvasElement): CameraRig {
   controls.maxDistance = WORLD_SIZE * 2.4
   controls.update()
 
-  const LEASH = 2.5
+  // The leash constrains how far the camera target can pan from the origin.
+  // The board extends from -WORLD_SIZE/2 to +WORLD_SIZE/2 on both X and Z axes.
+  // The farthest points (the four corners) are at distance (WORLD_SIZE/2)*sqrt(2)
+  // from the origin. We add a 5% margin so the player can pan slightly beyond
+  // the corners, giving comfortable breathing room at the board edges.
+  const LEASH = (WORLD_SIZE / 2) * Math.SQRT2 * 1.05
   const flat = new Vector3()
   const toCamera = new Vector3()
   /** Cleared the moment the player touches the controls; their framing wins. */

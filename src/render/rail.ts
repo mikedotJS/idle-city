@@ -129,8 +129,9 @@ const DECK_Y0 = -0.02
 /**
  * One pier per segment, at its middle. It has to break the surface to read as a
  * pier rather than as a deck resting on nothing, and it has to end well below
- * it: the lake bed is the plate at -0.16, and a foot at -0.22 is buried in it
- * rather than stopping short in open water.
+ * it: the lake bed varies from -0.11 at the shallows to -0.20 in the deep, and
+ * a foot at -0.22 is buried at least 0.02 into it rather than stopping short
+ * in open water. This margin is intentional: verified in terrain.ts comment.
  *
  * Its geometry hangs from its own top rather than standing on its foot, so a
  * deck that has been lifted only has to scale the pier to reach back down to
@@ -163,7 +164,7 @@ const SPEED_JITTER = 0.06
  *  where the pause belongs, and it stops a short leg reading as a metronome. */
 const DWELL = 1.6
 
-const MAX_TRAINS = 16
+const MAX_TRAINS = 144 // 16 * 9 for WORLD_SIZE scaled from 12 to 36 (9x surface)
 const MAX_CARS_PER_TRAIN = 4
 const VEHICLE_CAPACITY = MAX_TRAINS * MAX_CARS_PER_TRAIN
 

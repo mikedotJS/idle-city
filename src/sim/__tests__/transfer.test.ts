@@ -3,7 +3,11 @@ import { createCity, placeManual } from '../actions'
 import { OFFLINE_CAP_SECONDS, SAVE_VERSION } from '../config'
 import { tileIndex } from '../grid'
 import { exportCity, importCity } from '../transfer'
+import { SAFE_ZONE } from '../terrain'
 import { flatten, put, quietCity } from './helpers'
+
+const SX = SAFE_ZONE.minX
+const SZ = SAFE_ZONE.minZ
 
 function cityWorthMoving() {
   const state = flatten(createCity(9))
@@ -11,10 +15,10 @@ function cityWorthMoving() {
   state.time = 987
   state.queue.length = 0
   state.nextBuildAt = Number.MAX_SAFE_INTEGER
-  put(state, 'house', 4, 4)
-  put(state, 'shop', 5, 4)
+  put(state, 'house', SX + 1, SZ + 1)
+  put(state, 'shop', SX + 2, SZ + 1)
   state.coins = 1e6
-  placeManual(state, 'factory', tileIndex(7, 7))
+  placeManual(state, 'factory', tileIndex(SX + 4, SZ + 4))
   return state
 }
 
@@ -32,7 +36,7 @@ describe('carrying a city to another browser', () => {
     expect(after.terrainSeed).toBe(before.terrainSeed)
     expect(after.builtCount).toEqual(before.builtCount)
     expect(after.ownedParcels).toEqual(before.ownedParcels)
-    expect(after.grid[tileIndex(7, 7)]!.type).toBe('factory')
+    expect(after.grid[tileIndex(SX + 4, SZ + 4)]!.type).toBe('factory')
   })
 
   it('does not pay out for the time the text spent on a clipboard', () => {

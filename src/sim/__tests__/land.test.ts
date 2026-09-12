@@ -3,7 +3,7 @@ import { buyParcel, createCity, landCost, placeManual } from '../actions'
 import { LAND_BARREN_FLOOR, PARCEL_COUNT, PARCEL_SIZE, STARTING_COINS } from '../config'
 import { nextLandCost, parcelCost } from '../economy'
 import { parcelNeighbours, tileIndex } from '../grid'
-import { buildableTilesInParcel, terrainFor } from '../terrain'
+import { SAFE_ZONE, buildableTilesInParcel, terrainFor } from '../terrain'
 import { earning, flatten } from './helpers'
 
 const TILES_PER_PARCEL = PARCEL_SIZE * PARCEL_SIZE
@@ -123,7 +123,9 @@ describe('land cannot strand a city', () => {
     state.coins = 1e6
     // A factory pays regardless of happiness, so this is the shortest way to
     // a city with income for the purposes of the test.
-    expect(placeManual(state, 'factory', tileIndex(5, 5)).ok).toBe(true)
+    expect(
+      placeManual(state, 'factory', tileIndex(SAFE_ZONE.minX + 2, SAFE_ZONE.minZ + 2)).ok,
+    ).toBe(true)
     expect(buyParcel(state, firstBuyable(state)).ok).toBe(true)
   })
 

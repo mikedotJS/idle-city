@@ -3,8 +3,9 @@ import { clearSave, load, save } from '../save'
 import { createCity, placeManual, spawnBuilding } from '../actions'
 import { derive } from '../economy'
 import { step } from '../tick'
-import { OFFLINE_CAP_SECONDS, SAVE_KEY, SAVE_VERSION, SIM_DT } from '../config'
+import { OFFLINE_CAP_SECONDS, SAVE_KEY, SAVE_VERSION, SIM_DT, TILE_COUNT } from '../config'
 import { tileIndex } from '../grid'
+import { SAFE_ZONE } from '../terrain'
 import { MemoryStorage } from './helpers'
 import type { CityState } from '../types'
 
@@ -19,8 +20,8 @@ beforeEach(() => {
 function earningCity(): CityState {
   const state = createCity(9)
   state.coins = 5000
-  placeManual(state, 'factory', tileIndex(4, 4))
-  placeManual(state, 'factory', tileIndex(7, 7))
+  placeManual(state, 'factory', tileIndex(SAFE_ZONE.minX + 1, SAFE_ZONE.minZ + 1))
+  placeManual(state, 'factory', tileIndex(SAFE_ZONE.minX + 4, SAFE_ZONE.minZ + 4))
   for (let i = 0; i < 50; i++) step(state, SIM_DT)
   return state
 }
@@ -118,7 +119,7 @@ describe('save/load', () => {
     save(state)
 
     const raw = JSON.parse(store.getItem(SAVE_KEY)!)
-    raw.grid[house.tile].mergeAnchor = 999
+    raw.grid[house.tile].mergeAnchor = TILE_COUNT // genuinely off-grid, whatever the grid size
     store.setItem(SAVE_KEY, JSON.stringify(raw))
 
     const result = load()!

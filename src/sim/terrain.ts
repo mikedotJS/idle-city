@@ -2,10 +2,15 @@
  * Terrain: water, mountain, and the biome a building takes from its
  * surroundings.
  *
- * Derived from a stable seed rather than stored tile by tile. A 144-entry map
- * in every save would grow the format for something that never changes, and
- * the seed reproduces it exactly — the same trick the auto-builder already
- * relies on to rebuild an identical city from a reloaded save.
+ * Derived from a stable seed rather than stored tile by tile. A 36×36 map
+ * (1,296 tiles) in every save would grow the format for something that never
+ * changes, and the seed reproduces it exactly — the same trick the auto-builder
+ * already relies on to rebuild an identical city from a reloaded save.
+ *
+ * Water and rock shapes are drawn from libraries of landforms (bay/lake/archipelago/
+ * river for water, range/ridge/massif/buttes for rock) picked by seed. Coverage
+ * is controlled by a budget (21–30% of the board) rather than a fixed threshold,
+ * so terrain variety is decoupled from the shape of the ramp.
  *
  * Water and mountain are NOT buildable, so terrain removes land from the
  * economy. That is why the centre of the board is guaranteed plain: a new city
@@ -16,6 +21,7 @@
 
 import { PARCEL_SIZE, STARTING_PARCELS, WORLD_SIZE } from './config'
 import { tileIndex, tileX, tileZ } from './grid'
+import { ROCK_KINDS, WATER_KINDS, maxOf, rockField as rockShapeField, waterField as waterShapeField, type Side } from './landforms'
 
 export const enum Terrain {
   Plain = 0,
@@ -46,7 +52,7 @@ export interface TerrainMap {
  * from STARTING_PARCELS rather than a hardcoded radius: move the starting
  * parcels and the protected area follows instead of silently drifting off them.
  */
-const SAFE = (() => {
+export const SAFE_ZONE = (() => {
   const perSide = WORLD_SIZE / PARCEL_SIZE
   let minX = WORLD_SIZE
   let maxX = -1
@@ -63,14 +69,38 @@ const SAFE = (() => {
   return { minX, maxX, minZ, maxZ }
 })()
 
-/** How ragged the coastline and the ridge are. */
-const COAST_WOBBLE = 0.18
+/**
+ * How ragged the coastline and the ridge are. Raised from 0.18 to 0.30 to
+ * accommodate the steeper gradients of blob/segment fields (blobField,
+ * segField) relative to the older edgeField ramp: where the old rampe
+ * collapsed gently over many tiles, these new fields cut sharply, so wobble
+ * needs more bite to visibly displace the contour rather than leaving
+ * coastlines as perfect straight lines over 1–2 tiles. Two octaves of bruit
+ * (broad + fine) replace a single octave to add natural variation at multiple
+ * scales — otherwise a single octave at this strength left regular cranks at
+ * constant interval.
+ */
+const COAST_WOBBLE = 0.30
 
-/** Above this, a tile is water or rock. Tuned by measurement, not by eye. */
-const TERRAIN_THRESHOLD = 0.8
+/** Tiles de dégradé au-delà du plateau de départ. */
+const START_RING = 3
 
-/** How fast a peak rises inland. See the note where it is used. */
-const MOUNTAIN_GAIN = 2.4
+/**
+ * Une carte sur trois environ porte un second relief, plus petit, sur un côté
+ * voisin du premier : un fleuve ET un étang, une crête ET des pitons. Pondéré
+ * à 0.85 pour que le relief primaire reste celui qui tient la composition, et
+ * jamais un second relief IDENTIQUE en position qui ferait doublon.
+ */
+const SECOND_LANDFORM_CHANCE = 0.35
+const SECOND_LANDFORM_WEIGHT = 0.85
+
+/**
+ * Grain du littoral, en tuiles. Dérivé de WORLD_SIZE et non figé : à 12 tuiles
+ * de côté cela vaut 3, ce que les deux appels codaient en dur (3.1 et 2.7), et
+ * à 36 cela vaut 9, donc une baie garde la même taille RELATIVE au plateau au
+ * lieu de se fragmenter en frange d'îlots.
+ */
+const NOISE_SCALE = WORLD_SIZE / 4
 
 /** Deterministic 32-bit hash. Same seed, same island, every reload. */
 function hash(x: number, z: number, seed: number): number {
@@ -79,6 +109,13 @@ function hash(x: number, z: number, seed: number): number {
   h = Math.imul(h, 1274126177) | 0
   return ((h ^ (h >>> 16)) >>> 0) / 4294967296
 }
+
+/** Suite de tirages 0..1 déterministes pour une graine. */
+function stream(seed: number): () => number {
+  let i = 0
+  return () => hash(i++, 9911, seed)
+}
+const lerp = (a: number, b: number, t: number) => a + (b - a) * t
 
 /** Smooth value noise over the tile lattice, enough for a coastline. */
 function noise(x: number, z: number, seed: number, scale: number): number {
@@ -102,8 +139,49 @@ function noise(x: number, z: number, seed: number, scale: number): number {
   return top + (bottom - top) * ez
 }
 
-function inSafeZone(x: number, z: number): boolean {
-  return x >= SAFE.minX && x <= SAFE.maxX && z >= SAFE.minZ && z <= SAFE.maxZ
+/**
+ * 0 on the starting plot, 1 starting from START_RING + 1 tiles beyond.
+ * Multiplied into water and mountain fields, this replaces sharp cutoff with a
+ * smooth fade: the lake shore cannot follow the starting parcel boundary, and
+ * no massif can wall in the newborn city.
+ */
+function startMask(x: number, z: number): number {
+  const dx = Math.max(SAFE_ZONE.minX - x, x - SAFE_ZONE.maxX, 0)
+  const dz = Math.max(SAFE_ZONE.minZ - z, z - SAFE_ZONE.maxZ, 0)
+  const d = Math.max(dx, dz)
+  const t = Math.min(1, d / (START_RING + 1))
+  return t * t * (3 - 2 * t)
+}
+
+/**
+ * Part du plateau rendue inconstructible, et comment elle se partage entre eau
+ * et roche. Un budget remplace le seuil fixe d'avant pour une raison précise :
+ * le seuil devait être recalibré à chaque nouvelle forme de relief, alors qu'un
+ * budget rend la couverture indépendante de la forme. Mesuré via terrain-stats
+ * avant ce changement : couverture médiane ~23.6%, min 21.1%, max 27.3% (sur
+ * l'ancien mécanisme à seuil fixe) — ces bornes servent de référence pour viser
+ * une fourchette au moins aussi large, si ce n'est légèrement plus. Mesuré
+ * après ce changement sur 400 seeds : couverture min 21.0%, med 25.3%, max
+ * 29.9%, avec eau et roche variant chacune de ~5.5% à ~22% du plateau selon la
+ * seed (contre une fourchette étroite d'environ 9-14% chacune avant) — la
+ * quantité, pas seulement le contour, varie maintenant avec la seed.
+ */
+const TOTAL_BUDGET: [number, number] = [0.21, 0.30]
+const WATER_SHARE: [number, number] = [0.25, 0.75]
+
+/**
+ * Les `want` tuiles de plus fort champ parmi celles encore libres. Le tri porte
+ * sur au plus WORLD_SIZE² indices et ne tourne qu'une fois par ville. Le tri de
+ * V8 est stable, donc deux tuiles de champ identique se départagent par index
+ * et la carte reste reproductible.
+ */
+function topTiles(values: Float32Array, taken: Uint8Array, want: number): number[] {
+  const pool: number[] = []
+  for (let i = 0; i < values.length; i++) {
+    if (taken[i] === 0 && values[i] > 0) pool.push(i)
+  }
+  pool.sort((a, b) => values[b] - values[a])
+  return pool.slice(0, Math.min(pool.length, want))
 }
 
 /**
@@ -128,41 +206,124 @@ export function generateTerrain(seed: number): TerrainMap {
   const waterEdge = Math.floor(hash(7, 13, seed) * 4) % 4
   const mountainEdge = (waterEdge + 2) % 4
 
-  /**
-   * 0 at the far side of the board, 1 hard against the chosen edge — cubed, so
-   * it collapses quickly inland. A linear ramp made the outer third of the
-   * board eligible and the coverage swung between 23% and 50% depending on the
-   * seed; cubed it sits at 31% with a range of 24-33%, measured over 300 seeds.
-   */
-  function edgeCloseness(x: number, z: number, edge: number): number {
-    const last = WORLD_SIZE - 1
-    const distance = edge === 0 ? z : edge === 1 ? last - x : edge === 2 ? last - z : x
-    const closeness = 1 - distance / last
-    return closeness * closeness * closeness
+  const draw = stream(seed)
+  const totalBudget = lerp(TOTAL_BUDGET[0], TOTAL_BUDGET[1], draw())
+  const waterShare = lerp(WATER_SHARE[0], WATER_SHARE[1], draw())
+
+  // The silhouette itself — bay, lake, archipelago, river for water; range,
+  // ridge, massif, buttes for rock — is drawn from landforms.ts and picked by
+  // the seed, same as the edge and the budget above. `side` still orients
+  // every shape (see waterField/rockField in landforms.ts for how each kind
+  // uses it) even when the shape is not literally glued to that edge, so the
+  // "water and rock sit on opposite sides of the board" intent survives the
+  // move away from a single ramp shape.
+  const waterKind = WATER_KINDS[Math.floor(draw() * WATER_KINDS.length)]
+  const rockKind = ROCK_KINDS[Math.floor(draw() * ROCK_KINDS.length)]
+
+  let waterShape = waterShapeField(waterKind, waterEdge as Side, draw, WORLD_SIZE)
+  // About one map in three carries a smaller second water feature on a neighbouring side
+  if (draw() < SECOND_LANDFORM_CHANCE) {
+    const secondWaterSide = (waterEdge + (draw() < 0.5 ? 1 : 3)) % 4
+    const secondWaterKind = WATER_KINDS[Math.floor(draw() * WATER_KINDS.length)]
+    const secondWaterShape = waterShapeField(secondWaterKind, secondWaterSide as Side, draw, WORLD_SIZE)
+    waterShape = maxOf(
+      waterShape,
+      (x, z) => secondWaterShape(x, z) * SECOND_LANDFORM_WEIGHT
+    )
   }
 
+  let rockShape = rockShapeField(rockKind, mountainEdge as Side, draw, WORLD_SIZE)
+  // About one map in three carries a smaller second rock feature on a neighbouring side
+  if (draw() < SECOND_LANDFORM_CHANCE) {
+    const secondRockSide = (mountainEdge + (draw() < 0.5 ? 1 : 3)) % 4
+    const secondRockKind = ROCK_KINDS[Math.floor(draw() * ROCK_KINDS.length)]
+    const secondRockShape = rockShapeField(secondRockKind, secondRockSide as Side, draw, WORLD_SIZE)
+    rockShape = maxOf(
+      rockShape,
+      (x, z) => secondRockShape(x, z) * SECOND_LANDFORM_WEIGHT
+    )
+  }
+
+  // Water and rock are chosen by budget, not by a fixed threshold: instead of
+  // slicing each tile the moment it is visited, both fields are built in full
+  // first, then the strongest `count * share` tiles of each are taken. That
+  // decouples "how much of the board is unbuildable" from the shape of the
+  // ramp, so a future change to the ramp's shape does not also have to
+  // re-tune a threshold to keep the coverage where it was.
+  const waterField = new Float32Array(count)
+  const rockField = new Float32Array(count)
   for (let z = 0; z < WORLD_SIZE; z++) {
     for (let x = 0; x < WORLD_SIZE; x++) {
       const i = tileIndex(x, z)
-      if (inSafeZone(x, z)) continue
+      const mask = startMask(x, z)
+      if (mask === 0) continue
 
-      const wobble = noise(x, z, seed, 3.1) * COAST_WOBBLE
-      if (edgeCloseness(x, z, waterEdge) + wobble > TERRAIN_THRESHOLD) {
-        terrain[i] = Terrain.Water
-        height[i] = -0.16
-        continue
-      }
-      const peak = edgeCloseness(x, z, mountainEdge) + noise(x, z, seed ^ 0x9e37, 2.7) * COAST_WOBBLE
-      if (peak > TERRAIN_THRESHOLD) {
-        terrain[i] = Terrain.Mountain
-        // Taller the further in, so a ridge reads as a ridge — but only just.
-        // At a gain of 6 the median peak was 1.84 and the tallest 2.77 against
-        // a 0.55 house and a 1.0 tile: not a mountain, a wall along one edge of
-        // the board. 2.4 puts the median near 1.0 and the tallest near 1.4,
-        // about twice a house, which reads as landscape rather than architecture.
-        height[i] = 0.5 + (peak - TERRAIN_THRESHOLD) * MOUNTAIN_GAIN
-      }
+      const waterShape_ = waterShape(x, z)
+      // Broad octave always, fine octave only when field > 0 to avoid isolated puddles
+      const broad = noise(x, z, seed, NOISE_SCALE) - 0.5
+      const fine = waterShape_ > 0 ? noise(x, z, seed ^ 0x1d37, NOISE_SCALE / 2.5) - 0.5 : 0
+      const wobbleWater = (broad * 0.65 + fine * 0.35) * 2 * COAST_WOBBLE
+      waterField[i] = (waterShape_ + wobbleWater) * mask
+
+      const rockShape_ = rockShape(x, z)
+      // Broad octave always, fine octave only when field > 0 to avoid isolated peaks
+      const broadRock = noise(x, z, seed ^ 0x9e37, NOISE_SCALE) - 0.5
+      const fineRock = rockShape_ > 0 ? noise(x, z, (seed ^ 0x9e37) ^ 0x1d37, NOISE_SCALE / 2.5) - 0.5 : 0
+      const wobbleRock = (broadRock * 0.65 + fineRock * 0.35) * 2 * COAST_WOBBLE
+      const peak = rockShape_ + wobbleRock
+      rockField[i] = peak * mask
     }
+  }
+
+  const waterWant = Math.round(count * totalBudget * waterShare)
+  const waterTiles = topTiles(waterField, terrain, waterWant)
+
+  // Water depth varies from the edge (shallower) to the centre (deeper).
+  // Normalised the same way as mountain height: depth is 0 at the weakest
+  // kept water tile and 1 at the strongest. This puts the shallow end at
+  // -0.11 and the deep end at -0.20, which keeps piers at PIER_Y0 = -0.22
+  // buried in the lakebed (margin 0.02 from -0.20 to -0.22) rather than
+  // floating. The surface stays at WATER_Y = -0.05 in render/terrain.ts.
+  let lowestKeptWater = Infinity
+  let highestKeptWater = -Infinity
+  for (const i of waterTiles) {
+    lowestKeptWater = Math.min(lowestKeptWater, waterField[i])
+    highestKeptWater = Math.max(highestKeptWater, waterField[i])
+  }
+  for (const i of waterTiles) {
+    terrain[i] = Terrain.Water
+    const span = highestKeptWater - lowestKeptWater
+    const depth = span > 0 ? Math.min(1, Math.max(0, (waterField[i] - lowestKeptWater) / span)) : 1
+    height[i] = -0.11 + (-0.20 - (-0.11)) * depth
+  }
+
+  // Water first, rock second, and rock is free to take whatever water's own
+  // field could not fill: if the water field is too thin to reach its share
+  // (a coastline seed with little room to grow), the total coverage should
+  // not collapse — rock picks up the slack instead.
+  const rockWant = Math.round(count * totalBudget) - waterTiles.length
+  const rockTiles = topTiles(rockField, terrain, rockWant)
+
+  let lowestKeptRock = Infinity
+  let highestRock = 0
+  for (const i of rockTiles) {
+    lowestKeptRock = Math.min(lowestKeptRock, rockField[i])
+    highestRock = Math.max(highestRock, rockField[i])
+  }
+  for (let i = 0; i < count; i++) highestRock = Math.max(highestRock, rockField[i])
+
+  for (const i of rockTiles) {
+    terrain[i] = Terrain.Mountain
+    // Taller the further into the retained rock field, so a ridge reads as a
+    // ridge — but only just. depth is 0 at the weakest kept rock tile and 1 at
+    // the strongest field value on the board, so the ridge always spans the
+    // same visual range regardless of how much rock the budget kept. Exponent
+    // 0.8 and factor 0.95 were picked so the median peak height stays close to
+    // the old fixed-threshold mechanism (was ~0.88, now ~0.9-1.0) and the max
+    // stays near 1.4 rather than drifting with the budget.
+    const span = highestRock - lowestKeptRock
+    const depth = span > 0 ? Math.min(1, Math.max(0, (rockField[i] - lowestKeptRock) / span)) : 1
+    height[i] = 0.5 + depth ** 0.8 * 0.95
   }
 
   // Second pass: biome and beaches both come from what a tile is next to, so

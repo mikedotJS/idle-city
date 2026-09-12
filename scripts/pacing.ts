@@ -9,7 +9,7 @@ import { buyParcel, createCity, landCost, placeManual } from '../src/sim/actions
 import { buildingCost } from '../src/sim/buildings'
 import { step } from '../src/sim/tick'
 import { derive } from '../src/sim/economy'
-import { PARCEL_COUNT, SIM_DT, TILE_COUNT } from '../src/sim/config'
+import { PARCEL_COUNT, SIM_DT, TILE_COUNT, WORLD_SIZE } from '../src/sim/config'
 import { parcelNeighbours, parcelOfTile, tileIndex } from '../src/sim/grid'
 import { isBuildable, terrainFor } from '../src/sim/terrain'
 import type { CityState } from '../src/sim/types'
@@ -58,9 +58,10 @@ function keepBuying(type: 'factory' | 'landfill') {
       if (state.grid[tile]) continue
       if (!state.ownedParcels[parcelOfTile(tile)]) continue
       if (!isBuildable(map, tile)) continue
-      const x = tile % 12
-      const z = Math.floor(tile / 12)
-      const score = Math.abs(x - 5.5) + Math.abs(z - 5.5)
+      const x = tile % WORLD_SIZE
+      const z = Math.floor(tile / WORLD_SIZE)
+      const center = WORLD_SIZE / 2 - 0.5
+      const score = Math.abs(x - center) + Math.abs(z - center)
       if (score > bestScore) {
         bestScore = score
         best = tile
