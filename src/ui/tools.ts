@@ -129,7 +129,8 @@ export function createToolsPanel(
   undoButton.addEventListener('click', () => {
     const demo = peekDemolition()
     if (!demo) return
-    const label = BUILDINGS[demo.building.type].label
+    const first = demo.buildings[0]
+    const label = BUILDINGS[first.type].label
     const state = getState()
     const restored = undoDemolition(state)
     if (restored) {
@@ -156,9 +157,11 @@ export function createToolsPanel(
       if (!undoButton.disabled) undoButton.disabled = true
       return
     }
-    const label = BUILDINGS[demo.building.type].label
+    const first = demo.buildings[0]
+    const label = BUILDINGS[first.type].label
     const ago = formatDuration(Math.max(0, state.time - demo.at))
-    setText(undoButton, `Undo: bring back the ${label} (Lv ${demo.building.level}), demolished ${ago} ago`)
+    const times = demo.buildings.length > 1 ? ` ×${demo.buildings.length}` : ''
+    setText(undoButton, `Undo: bring back the ${label} (Lv ${first.level})${times}, demolished ${ago} ago`)
     if (undoButton.disabled) undoButton.disabled = false
   }
 

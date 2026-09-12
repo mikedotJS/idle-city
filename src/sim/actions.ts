@@ -5,10 +5,11 @@ import {
   STARTING_PARCELS,
   TILE_COUNT,
 } from './config'
-import { BUILDINGS, BUILDING_TYPES, COMMERCE_KINDS, buildingCost } from './buildings'
+import { BUILDINGS, BUILDING_TYPES, SPAWN_COMMERCE_KINDS, buildingCost } from './buildings'
 import { derive, nextLandCost, parcelCost } from './economy'
 import { noteInteraction, recordEvent } from './events'
 import { rememberDemolition } from './history'
+import { blockCells, isMergedBlock } from './merge'
 import { nextRandom, parcelNeighbours, parcelOfTile } from './grid'
 import { startingCoins, upgradeDiscount, type PrestigeState } from './prestige'
 import { Terrain, isBuildable, isCoast, terrainFor } from './terrain'
@@ -89,12 +90,18 @@ export function spawnBuilding(state: CityState, type: BuildingType, tile: number
     tile,
     variant: draw(state),
     // Drawn from the same seeded RNG as variant, so it stays reproducible
-    // and sync-safe. Every other type has nothing to sell, so it gets none.
-    commerceKind: type === 'shop' ? COMMERCE_KINDS[Math.floor(draw(state) * COMMERCE_KINDS.length)] : null,
+    // and sync-safe. Only the plain kinds are on the table — a maxi kind
+    // belongs to a merged block, never to a freshly drawn shop. Every other
+    // type has nothing to sell, so it gets none.
+    commerceKind:
+      type === 'shop'
+        ? SPAWN_COMMERCE_KINDS[Math.floor(draw(state) * SPAWN_COMMERCE_KINDS.length)]
+        : null,
     bornAt: state.time,
     derelict: false,
     lowSince: null,
     highSince: null,
+    mergeAnchor: null,
   }
   state.grid[tile] = b
   state.builtCount[type]++
@@ -141,12 +148,27 @@ export function placeManual(state: CityState, type: BuildingType, tile: number):
 
 export function demolish(state: CityState, tile: number): ActionResult {
   if (!Number.isInteger(tile) || tile < 0 || tile >= TILE_COUNT) return fail('Outside the world')
-  if (!state.grid[tile]) return fail('Nothing to demolish')
+  const clicked = state.grid[tile]
+  if (!clicked) return fail('Nothing to demolish')
   // Free, instant, no refund — derelict buildings clear the same way.
-  const removed = state.grid[tile]!
+  //
+  // A cell of a valid merged block demolishes the whole block: the anchor is
+  // the identity of the block (as grouped dereliction established), so the
+  // four cells go in one action, one event, one undo entry. A cell pointing at
+  // a broken anchor falls back to the plain single-building path.
+  const anchor = clicked.mergeAnchor
+  if (anchor !== null && isMergedBlock(state, anchor)) {
+    const cells = blockCells(anchor)
+    const removed = cells.map((cell) => state.grid[cell]!)
+    for (const cell of cells) state.grid[cell] = null
+    rememberDemolition(state, removed)
+    recordEvent(state, { kind: 'demolished', at: state.time, where: anchor, type: removed[0].type })
+    noteInteraction(state)
+    return OK
+  }
   state.grid[tile] = null
-  rememberDemolition(state, removed)
-  recordEvent(state, { kind: 'demolished', at: state.time, where: tile, type: removed.type })
+  rememberDemolition(state, [clicked])
+  recordEvent(state, { kind: 'demolished', at: state.time, where: tile, type: clicked.type })
   noteInteraction(state)
   return OK
 }

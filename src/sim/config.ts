@@ -53,6 +53,13 @@ export const SHOP_COINS_PER_POP = 0.06
 export const SHOP_POP_CAP = 25
 
 export const POP_PER_HOUSE = 4
+
+/**
+ * Output multiplier for each cell of a valid merged 2x2 block: the block
+ * produces as much as six of its parts, so merging is worth real output, not
+ * just a bigger sprite.
+ */
+export const MERGE_OUTPUT_BONUS = 1.5
 export const FACTORY_COINS = 5
 /**
  * Deliberately worse value than a factory per coin spent (0.018/coin against

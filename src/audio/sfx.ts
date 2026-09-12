@@ -70,6 +70,7 @@ type OneShotKey =
   | 'ui_click'
   | 'build_pop'
   | 'level_up'
+  | 'merged'
   | 'place_industrial'
   | 'place_amenity'
   | 'place_harbour'
@@ -167,6 +168,12 @@ const SOUNDS: Record<SoundKey, SoundDef> = {
   // electronic identity as the click, above. Its own peak measured -2.3
   // dBFS; the -6 dBFS target (a "distinct event") is unchanged from before.
   level_up: { src: 'sfx/level_up.mp3', gain: 0.65, spatial: true, maxDurationSec: 1.4 },
+  // Wooden blocks knocking into a warm rising marimba chime, generated for
+  // the merge of four buildings into one. Its own peak measured -1.05 dBFS
+  // against level_up's -2.41; both sit at the -6 dBFS "distinct event"
+  // target (level_up's gain of 0.65 solves to -6.15 dBFS), so
+  // gain = 10^((-6.15 - (-1.05)) / 20) = 0.56.
+  merged: { src: 'sfx/merged.mp3', gain: 0.56, spatial: true, maxDurationSec: 1.4, rateJitter: 0.06 },
   place_industrial: { src: 'sfx/place_industrial.mp3', gain: 0.5, spatial: true, maxDurationSec: 1.3 },
   place_amenity: { src: 'sfx/place_amenity.mp3', gain: 1.06, spatial: true, maxDurationSec: 1.1 },
   place_harbour: { src: 'sfx/place_harbour.mp3', gain: 0.5, spatial: true, maxDurationSec: 1.6 },
@@ -525,6 +532,8 @@ export function createSfx(): Sfx {
         return { key: 'build_pop', at: tileWorld(event.where) }
       case 'upgraded':
         return { key: 'level_up', at: tileWorld(event.where) }
+      case 'merged':
+        return { key: 'merged', at: tileWorld(event.where) }
       case 'derelict':
         return { key: 'dereliction_onset', at: tileWorld(event.where) }
       case 'recovered':

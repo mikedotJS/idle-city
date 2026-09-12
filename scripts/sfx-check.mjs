@@ -88,6 +88,14 @@ await page.mouse.click(board.x + board.width * 0.5, board.y + board.height * 0.5
 await settle()
 await clearLog()
 
+// The palette lives in the shell's Ville tab popover since the dock/tabbar
+// rework — open it before reaching for any tool button, and again after each
+// pick, because selecting a tool closes the popover (main.ts's onSelectTool).
+const openVilleTab = async () => {
+  await page.getByRole('button', { name: 'Ville' }).click()
+  await settle()
+}
+
 // Select the park tool (a manual placement — the one thing sound design
 // cannot pick up from the event log, so main.ts calls playPlacement() itself
 // right after a successful placement). The auto-builder plants its very
@@ -97,6 +105,7 @@ await clearLog()
 // toasts, so wait for *some* sound before deciding a candidate missed,
 // rather than racing a fixed timeout against whichever sound wins.
 const parkButton = page.getByRole('button', { name: /Park/ })
+await openVilleTab()
 await parkButton.click()
 await settle()
 await clearLog()
@@ -129,6 +138,7 @@ check("the park's ambient loop starts", ambientStarted !== null, JSON.stringify(
 
 // Demolish the very tile that just succeeded.
 const demolishButton = page.getByRole('button', { name: /Demolish/ })
+await openVilleTab()
 await demolishButton.click()
 await settle()
 await clearLog()
@@ -157,9 +167,14 @@ if (placedTile) {
 // keeps placing things, on ground never touched by the steps above. There is
 // nothing to poll *for* here — this waits out a fixed window on purpose,
 // long enough to have caught any of the plays above if muting had failed.
+// The sound toggle lives in the shell's Menu tab; the tool palette back in
+// Ville, which selecting a tool has closed again.
+await page.getByRole('button', { name: 'Menu' }).click()
+await settle()
 await page.locator('.sound__toggle').click()
 await settle()
 await clearLog()
+await openVilleTab()
 await parkButton.click()
 await page.mouse.click(board.x + board.width * 0.22, board.y + board.height * 0.5)
 await page.waitForTimeout(1200)

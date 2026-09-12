@@ -14,10 +14,20 @@ export type BuildingType =
 export type QueueableType = 'house' | 'shop'
 
 /**
- * Flavour drawn for a shop at spawn time — what it actually sells. Purely
- * cosmetic: every shop earns and costs exactly the same regardless of kind.
+ * What a shop actually sells. Purely cosmetic: every shop earns and costs
+ * exactly the same regardless of kind. The first four are drawn at spawn time;
+ * the last four exist only on a merged 2x2 block, decided from the kinds that
+ * went into it (see sim/merge.ts's maxiCommerceKind) and never drawn at spawn.
  */
-export type CommerceKind = 'restaurant' | 'clothing' | 'konbini' | 'general'
+export type CommerceKind =
+  | 'restaurant'
+  | 'clothing'
+  | 'konbini'
+  | 'general'
+  | 'food_court'
+  | 'department_store'
+  | 'supermarket'
+  | 'arcade'
 
 export interface Building {
   type: BuildingType
@@ -28,8 +38,10 @@ export interface Building {
   /** Stable 0..1 jitter seed, used by the renderer for height and hue variation. */
   variant: number
   /**
-   * What kind of shop this is, drawn once at spawn time. Null for every
-   * building that is not a shop, and for shops saved before this existed.
+   * What kind of shop this is. Null for every building that is not a shop, and
+   * for shops saved before this existed. Drawn once at spawn time from
+   * SPAWN_COMMERCE_KINDS; a merged block carries one of the maxi kinds instead,
+   * decided by the merge logic.
    */
   commerceKind: CommerceKind | null
   /** Sim time at which it was placed, for the spawn animation. */
@@ -39,6 +51,11 @@ export interface Building {
   lowSince: number | null
   /** Sim time since tile happiness rose above RECOVER_HAPPINESS, else null. */
   highSince: number | null
+  /**
+   * Tile index of the top-left anchor of the merged 2x2 block this building
+   * belongs to, or null when it stands alone. Set by the merge logic.
+   */
+  mergeAnchor: number | null
 }
 
 /** Everything that is saved. Derived values are recomputed, never stored. */

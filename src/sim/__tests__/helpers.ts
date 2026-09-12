@@ -63,6 +63,7 @@ export function put(
     derelict,
     lowSince: null,
     highSince: null,
+    mergeAnchor: null,
   }
   state.grid[tile] = b
   state.builtCount[type]++

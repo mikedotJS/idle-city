@@ -9,15 +9,18 @@ import {
   PARCEL_COUNT,
   PARCEL_SIZE,
   LEVEL_OUTPUT,
+  MERGE_OUTPUT_BONUS,
   POP_PER_HOUSE,
   SHOP_COINS_PER_POP,
   SHOP_POP_CAP,
   SHOP_RADIUS,
   STARTING_PARCELS,
+  WORLD_SIZE,
 } from './config'
 import { BUILDINGS } from './buildings'
 import { computeField } from './field'
-import { parcelNeighbours, tileDistance } from './grid'
+import { parcelNeighbours, tileDistance, tileX, tileZ } from './grid'
+import { isMergedBlock } from './merge'
 import { buildableTilesInParcel, terrainFor } from './terrain'
 import type { CityState, Derived } from './types'
 
@@ -34,19 +37,45 @@ export function populationNear(
   field: Float32Array,
   tile: number,
   radius: number,
+  mergeCache: Map<number, boolean> = new Map(),
 ): number {
   let pop = 0
   for (let i = 0; i < state.grid.length; i++) {
     if (!isHoused(state, field, i)) continue
-    if (tileDistance(i, tile) <= radius) pop += housedCount(state, i)
+    if (tileDistance(i, tile) <= radius) {
+      pop += housedCount(state, i, mergeOutputBonus(state, i, mergeCache))
+    }
   }
   return pop
 }
 
+/**
+ * Output multiplier for one cell of a merged block, or 1 for anything else.
+ * Only a block isMergedBlock still vouches for earns the bonus — a stray
+ * mergeAnchor left by a console poke is worth nothing. Anchor validity is
+ * cached in `cache` for the duration of a derive pass: the four cells of a
+ * block share one anchor, and isMergedBlock re-reads the whole 2x2 each call.
+ */
+function mergeOutputBonus(state: CityState, tile: number, cache: Map<number, boolean>): number {
+  const anchor = state.grid[tile]?.mergeAnchor
+  if (anchor === null || anchor === undefined) return 1
+  let valid = cache.get(anchor)
+  if (valid === undefined) {
+    // The corner guard revalidateBlocks applies too: a hand-edited anchor on
+    // the last row or column would make isMergedBlock read past the map edge.
+    valid =
+      tileX(anchor) < WORLD_SIZE - 1 &&
+      tileZ(anchor) < WORLD_SIZE - 1 &&
+      isMergedBlock(state, anchor)
+    cache.set(anchor, valid)
+  }
+  return valid ? MERGE_OUTPUT_BONUS : 1
+}
+
 /** People a house holds at its level. A level 3 house is a small tower block. */
-function housedCount(state: CityState, tile: number): number {
+function housedCount(state: CityState, tile: number, bonus = 1): number {
   const b = state.grid[tile]
-  return b ? POP_PER_HOUSE * LEVEL_OUTPUT[b.level] : 0
+  return b ? POP_PER_HOUSE * LEVEL_OUTPUT[b.level] * bonus : 0
 }
 
 /**
@@ -93,6 +122,7 @@ export function nextLandCost(state: CityState): number | null {
  */
 export function derive(state: CityState, friendCount = 0): Derived {
   const field = computeField(state)
+  const mergeCache = new Map<number, boolean>()
 
   let population = 0
   let occupied = 0
@@ -103,7 +133,9 @@ export function derive(state: CityState, friendCount = 0): Derived {
     if (!b) continue
     occupied++
     happinessSum += field[i]
-    if (isHoused(state, field, i)) population += housedCount(state, i)
+    if (isHoused(state, field, i)) {
+      population += housedCount(state, i, mergeOutputBonus(state, i, mergeCache))
+    }
   }
 
   const cityHappiness = occupied === 0 ? BASE_HAPPINESS : happinessSum / occupied
@@ -112,16 +144,17 @@ export function derive(state: CityState, friendCount = 0): Derived {
   for (let i = 0; i < state.grid.length; i++) {
     const b = state.grid[i]
     if (!b || b.derelict) continue
+    const bonus = mergeOutputBonus(state, i, mergeCache)
     if (b.type === 'shop') {
-      const cap = SHOP_POP_CAP * LEVEL_OUTPUT[b.level]
-      const near = Math.min(populationNear(state, field, i, SHOP_RADIUS), cap)
-      base += near * SHOP_COINS_PER_POP
+      const cap = SHOP_POP_CAP * LEVEL_OUTPUT[b.level] * bonus
+      const near = Math.min(populationNear(state, field, i, SHOP_RADIUS, mergeCache), cap)
+      base += near * SHOP_COINS_PER_POP * bonus
     } else {
       // Driven off the registry rather than a list of type names here. A
       // second earning building type used to mean editing this branch too,
       // and forgetting to was silent: the building simply earned nothing.
       const flat = BUILDINGS[b.type].coins
-      if (flat !== undefined) base += flat * LEVEL_OUTPUT[b.level]
+      if (flat !== undefined) base += flat * LEVEL_OUTPUT[b.level] * bonus
     }
   }
 

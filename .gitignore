@@ -2,6 +2,7 @@ node_modules
 dist
 .vite
 *.log
+.env
 .env.local
 
 # Scratch harnesses written next to the project during a session.

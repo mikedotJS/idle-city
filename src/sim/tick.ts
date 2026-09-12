@@ -8,6 +8,7 @@ import { BUILDINGS } from './buildings'
 import { recordEvent } from './events'
 import { derive } from './economy'
 import { tryAutoBuild } from './builder'
+import { tryMerges, isMergedBlock, blockCells } from './merge'
 import type { CityState, Derived } from './types'
 
 /** Guards the >= comparisons against accumulated float error in state.time. */
@@ -32,7 +33,60 @@ function updateDereliction(state: CityState, field: Float32Array): boolean {
   for (let i = 0; i < state.grid.length; i++) {
     const b = state.grid[i]
     if (!b || !BUILDINGS[b.type].derelictable) continue
-    const h = field[i]
+    let h = field[i]
+
+    if (b.mergeAnchor !== null && isMergedBlock(state, b.mergeAnchor)) {
+      // A valid merged block falls and recovers as a single unit. Non-anchor
+      // cells carry no state of their own; the anchor runs the hysteresis on
+      // the lowest happiness of the four tiles, so the block falls when its
+      // worst tile sours and only recovers once every tile is back. At the
+      // flip the four cells are stamped together, with their timers synced,
+      // and a single event is recorded at the anchor.
+      if (i !== b.mergeAnchor) continue
+      const cells = blockCells(i)
+      h = Math.min(field[cells[0]], field[cells[1]], field[cells[2]], field[cells[3]])
+
+      if (b.derelict) {
+        b.lowSince = null
+        if (h > RECOVER_HAPPINESS) {
+          if (b.highSince === null) {
+            b.highSince = state.time
+          } else if (state.time - b.highSince >= RECOVER_DELAY - EPS) {
+            for (const cell of cells) {
+              const c = state.grid[cell]
+              if (!c) continue
+              c.derelict = false
+              c.lowSince = null
+              c.highSince = null
+            }
+            recordEvent(state, { kind: 'recovered', at: state.time, where: i, type: b.type })
+            changed = true
+          }
+        } else {
+          b.highSince = null
+        }
+      } else {
+        b.highSince = null
+        if (h < DERELICT_HAPPINESS) {
+          if (b.lowSince === null) {
+            b.lowSince = state.time
+          } else if (state.time - b.lowSince >= DERELICT_DELAY - EPS) {
+            for (const cell of cells) {
+              const c = state.grid[cell]
+              if (!c) continue
+              c.derelict = true
+              c.lowSince = null
+              c.highSince = null
+            }
+            recordEvent(state, { kind: 'derelict', at: state.time, where: i, type: b.type })
+            changed = true
+          }
+        } else {
+          b.lowSince = null
+        }
+      }
+      continue
+    }
 
     if (b.derelict) {
       b.lowSince = null
@@ -88,6 +142,14 @@ export function step(state: CityState, dt: number, friendCount = 0): TickResult 
       structureChanged = true
       derived = derive(state, friendCount)
     }
+  }
+
+  // Merges judge the layout as everything else this step left it: a building
+  // that just recovered or was just upgraded counts, one about to fall does
+  // not linger.
+  if (tryMerges(state, derived.field)) {
+    structureChanged = true
+    derived = derive(state, friendCount)
   }
 
   return { derived, structureChanged }

@@ -67,6 +67,11 @@ const HALF_W = ROAD_W / 2
 const PAD = 0.22
 const HALF_PAD = PAD / 2
 
+/** Sidewalk band: from the tarmac edge (HALF_W = 0.1 of the seam) out to 0.19.
+ *  Pedestrians walk at a lateral offset of 0.125–0.145 (render/traffic.ts), so
+ *  the band has to cover that whole range to keep them on the pavement. */
+const WALK_OUT = 0.19
+
 /**
  * Plate tops are at y = 0. Six millimetres of a one-metre tile is far above
  * the depth-buffer resolution at this camera range (near 0.5, far 200 gives
@@ -78,6 +83,9 @@ const HALF_PAD = PAD / 2
 const ROAD_Y = 0.012
 /** The optional centre line rides just above the tarmac for the same reason. */
 const LINE_Y = ROAD_Y + 0.004
+/** Sidewalks sit 2 mm above the tarmac: a kerb reads as a step, and the gap is
+ *  enough that a band overlapping a pad's outer rim never z-fights it. */
+const WALK_Y = ROAD_Y + 0.002
 
 /**
  * Off. A centre line at this road width has to be about 0.024 units wide, which
@@ -115,6 +123,10 @@ const POOL_R = 0.34
 const TARMAC = hexToRgb(0x9d978d)
 /** Junction aprons, a shade lighter, so crossings have some structure. */
 const TARMAC_PAD = hexToRgb(0xa39d93)
+/** Pale stone for the sidewalks. One step lighter than the tarmac and, like
+ *  it, less chromatic than every stop on the happiness ramp, so a band never
+ *  reads as a tinted tile. */
+const SIDEWALK = hexToRgb(0xb5afa3)
 const CENTRE_LINE_RGB = hexToRgb(0xcac2b1)
 /** Lamp post and its unlit head in daylight. */
 const LAMP_POST = hexToRgb(0x6d675f)
@@ -252,6 +264,7 @@ export function createRoads(): Roads {
   const scratch = new Color()
   const tarmac = setSrgb(new Color(), TARMAC)
   const tarmacPad = setSrgb(new Color(), TARMAC_PAD)
+  const sidewalk = setSrgb(new Color(), SIDEWALK)
   const lineColor = setSrgb(new Color(), CENTRE_LINE_RGB)
 
   /** The state handed to the last sync(). Only read while rebuilding. */
@@ -320,8 +333,14 @@ export function createRoads(): Roads {
         const end = x0 + 1 - HALF_PAD
         const plus = ownedTile(cx, cz)
         const minus = ownedTile(cx, cz - 1)
-        if (plus) addQuad(start, z0, end, z0 + HALF_W, ROAD_Y, scratch)
-        if (minus) addQuad(start, z0 - HALF_W, end, z0, ROAD_Y, scratch)
+        if (plus) {
+          addQuad(start, z0, end, z0 + HALF_W, ROAD_Y, scratch)
+          addQuad(start, z0 + HALF_W, end, z0 + WALK_OUT, WALK_Y, sidewalk)
+        }
+        if (minus) {
+          addQuad(start, z0 - HALF_W, end, z0, ROAD_Y, scratch)
+          addQuad(start, z0 - WALK_OUT, end, z0 - HALF_W, WALK_Y, sidewalk)
+        }
         bothSides = plus && minus
         if (CENTRE_LINE && bothSides) {
           const mid = x0 + 0.5
@@ -336,8 +355,14 @@ export function createRoads(): Roads {
         const end = z0 + 1 - HALF_PAD
         const plus = ownedTile(cx, cz)
         const minus = ownedTile(cx - 1, cz)
-        if (plus) addQuad(x0, start, x0 + HALF_W, end, ROAD_Y, scratch)
-        if (minus) addQuad(x0 - HALF_W, start, x0, end, ROAD_Y, scratch)
+        if (plus) {
+          addQuad(x0, start, x0 + HALF_W, end, ROAD_Y, scratch)
+          addQuad(x0 + HALF_W, start, x0 + WALK_OUT, end, WALK_Y, sidewalk)
+        }
+        if (minus) {
+          addQuad(x0 - HALF_W, start, x0, end, ROAD_Y, scratch)
+          addQuad(x0 - WALK_OUT, start, x0 - HALF_W, end, WALK_Y, sidewalk)
+        }
         bothSides = plus && minus
         if (CENTRE_LINE && bothSides) {
           const mid = z0 + 0.5
@@ -368,6 +393,12 @@ export function createRoads(): Roads {
           if (!alongX && !alongZ) continue
           if (!ownedTile(sx > 0 ? cx : cx - 1, sz > 0 ? cz : cz - 1)) continue
           addQuad(x, z, x + sx * HALF_PAD, z + sz * HALF_PAD, ROAD_Y, tarmacPad)
+          // No sidewalk raccord here: the bands run to HALF_PAD from each
+          // corner, so two perpendicular bands already cross in the outer
+          // corner square [HALF_PAD, WALK_OUT]² — entirely past the tarmac
+          // edge and outside the pad. Adding a piece on top would either
+          // double-draw that square or stick out over the pad and the
+          // crossing ribbon, which reads as a stub in the middle of the road.
         }
       }
     }

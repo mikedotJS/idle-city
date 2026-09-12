@@ -64,6 +64,16 @@ describe('save/load', () => {
     expect(result.state.grid[shop.tile]?.commerceKind).toBe(shop.commerceKind)
   })
 
+  it('round-trips a merged shop\'s maxi kind', () => {
+    const state = earningCity()
+    const shop = spawnBuilding(state, 'shop', tileIndex(9, 9))
+    shop.commerceKind = 'food_court'
+    save(state)
+
+    const result = load()!
+    expect(result.state.grid[shop.tile]?.commerceKind).toBe('food_court')
+  })
+
   it('loads a save from before commerce kinds existed as a plain shop', () => {
     const state = earningCity()
     const shop = spawnBuilding(state, 'shop', tileIndex(9, 9))
@@ -75,6 +85,44 @@ describe('save/load', () => {
 
     const result = load()!
     expect(result.state.grid[shop.tile]?.commerceKind).toBeNull()
+  })
+
+  it('round-trips a building\'s merge anchor', () => {
+    const state = earningCity()
+    const house = spawnBuilding(state, 'house', tileIndex(5, 5))
+    house.mergeAnchor = 65
+    save(state)
+
+    const result = load()!
+    expect(result.state.grid[house.tile]?.mergeAnchor).toBe(65)
+  })
+
+  it('loads a save from before merge anchors existed as standing alone', () => {
+    const state = earningCity()
+    const house = spawnBuilding(state, 'house', tileIndex(5, 5))
+    house.mergeAnchor = 65
+    save(state)
+
+    const raw = JSON.parse(store.getItem(SAVE_KEY)!)
+    delete raw.grid[house.tile].mergeAnchor
+    store.setItem(SAVE_KEY, JSON.stringify(raw))
+
+    const result = load()!
+    expect(result.state.grid[house.tile]?.mergeAnchor).toBeNull()
+  })
+
+  it('drops an off-grid merge anchor rather than failing to load', () => {
+    const state = earningCity()
+    const house = spawnBuilding(state, 'house', tileIndex(5, 5))
+    house.mergeAnchor = 65
+    save(state)
+
+    const raw = JSON.parse(store.getItem(SAVE_KEY)!)
+    raw.grid[house.tile].mergeAnchor = 999
+    store.setItem(SAVE_KEY, JSON.stringify(raw))
+
+    const result = load()!
+    expect(result.state.grid[house.tile]?.mergeAnchor).toBeNull()
   })
 
   it('banks offline coins at the saved rate and freezes the sim', () => {

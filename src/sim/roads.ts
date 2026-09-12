@@ -65,6 +65,20 @@ function isPaveable(state: CityState, x: number, z: number): boolean {
 }
 
 /**
+ * A seam inside a merged 2x2 block — both neighbours share one non-null
+ * mergeAnchor — must stay bare: the maxi-building spans the seam, and a street
+ * would cut through its footprint. Border seams (one cell in, one out) still
+ * pave, so the network routes around the block instead of across it.
+ */
+function sameMergedBlock(state: CityState, ax: number, az: number, bx: number, bz: number): boolean {
+  if (ax < 0 || az < 0 || ax >= WORLD_SIZE || az >= WORLD_SIZE) return false
+  if (bx < 0 || bz < 0 || bx >= WORLD_SIZE || bz >= WORLD_SIZE) return false
+  const a = state.grid[tileIndex(ax, az)]
+  const b = state.grid[tileIndex(bx, bz)]
+  return a !== null && b !== null && a.mergeAnchor !== null && a.mergeAnchor === b.mergeAnchor
+}
+
+/**
  * A seam becomes a street when a building stands on either side of it, so the
  * network traces the built-up edge of the city and nothing else. An empty plot
  * has no roads at all, which is the correct look: bare ground, no infrastructure.
@@ -84,7 +98,7 @@ export function computeRoads(state: CityState): RoadNetwork {
     for (let cx = 0; cx < WORLD_SIZE; cx++) {
       const northOk = isBuilt(state, cx, cz - 1) && isPaveable(state, cx, cz - 1)
       const southOk = isBuilt(state, cx, cz) && isPaveable(state, cx, cz)
-      if (northOk || southOk) {
+      if ((northOk || southOk) && !sameMergedBlock(state, cx, cz - 1, cx, cz)) {
         add(cornerIndex(cx, cz), cornerIndex(cx + 1, cz))
       }
     }
@@ -95,7 +109,7 @@ export function computeRoads(state: CityState): RoadNetwork {
     for (let cx = 0; cx < CORNERS_PER_SIDE; cx++) {
       const westOk = isBuilt(state, cx - 1, cz) && isPaveable(state, cx - 1, cz)
       const eastOk = isBuilt(state, cx, cz) && isPaveable(state, cx, cz)
-      if (westOk || eastOk) {
+      if ((westOk || eastOk) && !sameMergedBlock(state, cx - 1, cz, cx, cz)) {
         add(cornerIndex(cx, cz), cornerIndex(cx, cz + 1))
       }
     }

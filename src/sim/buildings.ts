@@ -170,9 +170,50 @@ export const COMMERCE_KIND_LABELS: Record<CommerceKind, string> = {
   clothing: 'Clothing boutique',
   konbini: 'Konbini',
   general: 'General store',
+  food_court: 'Food court',
+  department_store: 'Department store',
+  supermarket: 'Supermarket',
+  arcade: 'Shopping arcade',
 }
 
 export const COMMERCE_KINDS = Object.keys(COMMERCE_KIND_LABELS) as CommerceKind[]
+
+/**
+ * What a merged 2x2 block is called, for everything that is not a shop —
+ * shops already carry their maxi name through `commerceKind` (see
+ * `maxiCommerceKind` in sim/merge.ts). Absent here by construction: 'shop'.
+ */
+export const MAXI_LABELS: Partial<Record<BuildingType, string>> = {
+  house: 'Apartment block',
+  factory: 'Industrial complex',
+  park: 'Botanical garden',
+  school: 'Campus',
+  harbour: 'Port',
+  station: 'Grand terminal',
+  landfill: 'Scrap mountain',
+}
+
+/**
+ * The kinds an ordinary shop may draw at spawn time. Written out rather than
+ * sliced from COMMERCE_KINDS so that reordering the labels above can never
+ * change what a spawn draws — and so that a maxi kind, which only a merged
+ * block may carry, can never be drawn here by construction.
+ */
+export const SPAWN_COMMERCE_KINDS: CommerceKind[] = ['restaurant', 'clothing', 'konbini', 'general']
+
+/**
+ * The kinds only a merged 2x2 shop block may carry — exactly the ones
+ * `maxiCommerceKind` in sim/merge.ts can return. Written out rather than
+ * sliced from COMMERCE_KINDS for the same reason as SPAWN_COMMERCE_KINDS:
+ * reordering the labels must never change what the renderer's maxi look
+ * tables index.
+ */
+export const MAXI_COMMERCE_KINDS: CommerceKind[] = [
+  'food_court',
+  'department_store',
+  'supermarket',
+  'arcade',
+]
 
 /** Cost of the next building of this type, given how many have ever been built. */
 export function buildingCost(type: BuildingType, builtCount: number): number {

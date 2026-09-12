@@ -163,10 +163,21 @@ function validateBuilding(raw: unknown, tile: number): Building | null {
   if (b.lowSince !== null && !isFinite_(b.lowSince)) return null
   if (b.highSince !== null && !isFinite_(b.highSince)) return null
   // Saves written before commerce kinds existed have none — they read back as
-  // a shop with no flavour rather than failing to load at all.
+  // a shop with no flavour rather than failing to load at all. COMMERCE_KINDS
+  // covers the maxi kinds too, so a merged block's kind survives the round-trip.
   const commerceKind =
     typeof b.commerceKind === 'string' && (COMMERCE_KINDS as string[]).includes(b.commerceKind)
       ? (b.commerceKind as CommerceKind)
+      : null
+  // Saves written before merge blocks existed have none, and a hand-edited or
+  // stale anchor off the grid is no anchor at all — the building stands alone
+  // rather than failing to load.
+  const mergeAnchor =
+    isFinite_(b.mergeAnchor) &&
+    Number.isInteger(b.mergeAnchor) &&
+    b.mergeAnchor >= 0 &&
+    b.mergeAnchor < TILE_COUNT
+      ? b.mergeAnchor
       : null
   return {
     type: b.type as BuildingType,
@@ -180,6 +191,7 @@ function validateBuilding(raw: unknown, tile: number): Building | null {
     derelict: b.derelict === true,
     lowSince: b.lowSince === null ? null : (b.lowSince as number),
     highSince: b.highSince === null ? null : (b.highSince as number),
+    mergeAnchor,
   }
 }
 
@@ -272,7 +284,7 @@ function validate(raw: unknown): CityState | null {
   }
 }
 
-const EVENT_KINDS = new Set(['built', 'upgraded', 'derelict', 'recovered', 'demolished', 'land'])
+const EVENT_KINDS = new Set(['built', 'upgraded', 'derelict', 'recovered', 'demolished', 'land', 'merged'])
 
 /** A malformed entry is dropped, never fatal: the log is news, not the city. */
 function validateEvents(raw: unknown): CityEvent[] {

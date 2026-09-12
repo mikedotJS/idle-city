@@ -611,6 +611,32 @@ the builder densifies only when it is boxed in, anything that gives it more
 room delays the level-three buildings that hold most of the population.** It is
 why buying land trades population for income rather than simply adding both.
 
+### Merging: the maxi building
+
+Four identical buildings that have all reached level three, on a perfect 2x2
+square, with happiness at its ceiling, collapse into one **maxi building**.
+The conditions are the reward: a capped happiness field is the only thing the
+game has ever asked the player to earn, and level-three buildings are already
+what a boxed-in builder produces, so a merge is something a well-kept city
+*discovers* rather than something the player files a request for. Shops keep
+their kinds free — any four shops merge — and the maxi's kind is picked by
+priority: restaurant, then clothing, then konbini, then general. The city
+remembers the square through `mergeAnchor` on the anchor tile rather than by
+marking four tiles, so the other three simply read as part of their anchor.
+
+A maxi renders as a single instance scaled x2 (x1.5 for the tallest kinds, so
+the skyline keeps a ceiling) with a dedicated geometry for every kind except
+the landfill, which keeps its pile of rubbish as-is — a deliberate choice:
+a bigger dump should look like a bigger dump, not a monument. It earns the
+income of its four parents plus a x1.5 bonus, so merging is density the city
+could not otherwise buy. Streets, dereliction and demolition treat the square
+as one building — a maxi rots and falls as a unit, and demolishing it is one
+action, which means undo also restores it as a unit through the same stack as
+any other demolition. The merge has its own ElevenLabs sound rather than a
+reuse of the upgrade chime, because it is the one event in the game the player
+should hear from across the room, and it is written up in the activity panel
+like dereliction: the city should say what just happened, and where.
+
 ## 10. Still deliberately out of scope
 
 Research trees, mobile support, tutorial.

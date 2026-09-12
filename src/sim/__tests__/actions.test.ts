@@ -9,7 +9,7 @@ import {
   placeManual,
   spawnBuilding,
 } from '../actions'
-import { COMMERCE_KINDS, buildingCost } from '../buildings'
+import { COMMERCE_KINDS, SPAWN_COMMERCE_KINDS, buildingCost } from '../buildings'
 import {
   LAND_BASE_COST,
   LAND_COST_GROWTH,
@@ -90,6 +90,21 @@ describe('placeManual', () => {
     expect(COMMERCE_KINDS).toContain(shop.commerceKind)
     // It consumed the RNG rather than reading state that never changed.
     expect(state.rngSeed).not.toBe(before)
+  })
+
+  it('never draws a maxi kind for an ordinary shop', () => {
+    // The merge-only kinds must come from merging alone: if a plain spawn
+    // could draw one, a lone level-1 shop could wear a food court's colours.
+    for (let seed = 1; seed <= 50; seed++) {
+      const state = quietCity(seed)
+      for (let i = 0; i < 4; i++) {
+        const shop = spawnBuilding(state, 'shop', tileIndex(i, 9))
+        expect(SPAWN_COMMERCE_KINDS).toContain(shop.commerceKind)
+      }
+    }
+    // The plain spawn kinds stay a subset of every known kind, which is what
+    // the draw test above and the save validator both rely on.
+    for (const kind of SPAWN_COMMERCE_KINDS) expect(COMMERCE_KINDS).toContain(kind)
   })
 
   it('escalates cost with every build of that type', () => {

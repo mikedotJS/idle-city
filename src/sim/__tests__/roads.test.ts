@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { createCity, placeManual } from '../actions'
-import { flatten } from './helpers'
+import { flatten, put } from './helpers'
 import { WORLD_SIZE } from '../config'
 import { tileIndex } from '../grid'
 import { CORNERS_PER_SIDE, computeRoads, cornerIndex, cornerToWorld, neighboursOf } from '../roads'
@@ -73,6 +73,46 @@ describe('computeRoads', () => {
     expect(cornerToWorld(cornerIndex(0, 0))).toEqual({ x: -WORLD_SIZE / 2, z: -WORLD_SIZE / 2 })
     const far = cornerIndex(CORNERS_PER_SIDE - 1, CORNERS_PER_SIDE - 1)
     expect(cornerToWorld(far)).toEqual({ x: WORLD_SIZE / 2, z: WORLD_SIZE / 2 })
+  })
+
+  it('paves no seam inside a merged block, but still rings it', () => {
+    const state = openCity()
+    const anchor = tileIndex(5, 5)
+    for (const [x, z] of [
+      [5, 5],
+      [6, 5],
+      [5, 6],
+      [6, 6],
+    ]) {
+      const b = put(state, 'house', x, z)
+      b.level = 3
+      b.mergeAnchor = anchor
+    }
+    const roads = computeRoads(state)
+
+    const hasSegment = (a: number, b: number): boolean => {
+      for (let i = 0; i < roads.segmentCount; i++) {
+        const s = roads.segments[i * 2]
+        const t = roads.segments[i * 2 + 1]
+        if ((s === a && t === b) || (s === b && t === a)) return true
+      }
+      return false
+    }
+
+    // The four internal seams of the 2x2 block stay bare.
+    expect(hasSegment(cornerIndex(6, 5), cornerIndex(6, 6))).toBe(false)
+    expect(hasSegment(cornerIndex(6, 6), cornerIndex(6, 7))).toBe(false)
+    expect(hasSegment(cornerIndex(5, 6), cornerIndex(6, 6))).toBe(false)
+    expect(hasSegment(cornerIndex(6, 6), cornerIndex(7, 6))).toBe(false)
+
+    // Border seams still pave, so the network routes around the block.
+    expect(hasSegment(cornerIndex(5, 5), cornerIndex(6, 5))).toBe(true)
+    expect(hasSegment(cornerIndex(5, 5), cornerIndex(5, 6))).toBe(true)
+    expect(hasSegment(cornerIndex(7, 6), cornerIndex(7, 7))).toBe(true)
+    expect(hasSegment(cornerIndex(6, 7), cornerIndex(7, 7))).toBe(true)
+
+    // A lone 2x2 block keeps its full ring: 4 sides x 2 segments.
+    expect(roads.segmentCount).toBe(8)
   })
 
   it('stays inside the lattice at the board edge', () => {

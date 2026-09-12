@@ -23,6 +23,7 @@ import {
   enqueue,
   landCost,
   placeManual,
+  spawnBuilding,
 } from './sim/actions'
 import { step } from './sim/tick'
 import { derive } from './sim/economy'
@@ -31,10 +32,12 @@ import { retire } from './sim/prestige'
 import { forgetDemolitions } from './sim/history'
 import { remoteIsNewer } from './sim/citysync'
 import { reloadAfterCloudReset } from './sim/cityreset'
-import { BUILDINGS, COMMERCE_KIND_LABELS, buildingCost } from './sim/buildings'
+import { BUILDINGS, COMMERCE_KIND_LABELS, MAXI_LABELS, buildingCost } from './sim/buildings'
+import { isMergedBlock } from './sim/merge'
 import { AUTOSAVE_INTERVAL, OFFLINE_CAP_SECONDS, PARCEL_SIZE, SIM_DT } from './sim/config'
+import { tileIndex } from './sim/grid'
 import { buildableTilesInParcel, terrainFor } from './sim/terrain'
-import type { CityState, Derived } from './sim/types'
+import type { Building, BuildingType, CityState, CommerceKind, Derived } from './sim/types'
 
 const canvas = document.getElementById('scene') as HTMLCanvasElement
 const uiRoot = document.getElementById('ui') as HTMLElement
@@ -85,6 +88,47 @@ function persist(): void {
 let tool: Tool = { kind: 'none' }
 let hovered: PickTarget | null = null
 let structureDirty = true
+
+/**
+ * Dev-only console hook for poking the live city from DevTools, stripped from
+ * production builds with the rest of `import.meta.env.DEV` — same pattern as
+ * `window.__sfxPlayed` in audio/sfx.ts. `state` is behind a getter because an
+ * import or a cloud pull replaces the city wholesale (see the comment on
+ * `state` above); a reference captured at startup would go stale.
+ */
+interface IdleCityDebug {
+  readonly state: CityState
+  /**
+   * Drop a building on tile (x, z) with no queue, no cost and no placement
+   * rules — a debug spawn, not a game action. `kind` pins what a shop sells;
+   * every other type has nothing to sell and ignores it.
+   */
+  spawn(type: BuildingType, x: number, z: number, level?: number, kind?: CommerceKind): Building
+  /**
+   * Force the renderer to re-read the city on the next frame, for when a
+   * console poke mutated `state` directly (kind flips, anchors) rather than
+   * going through `spawn`, which already marks the structure dirty itself.
+   */
+  redraw(): void
+}
+
+if (import.meta.env.DEV) {
+  ;(window as unknown as { __idleCity: IdleCityDebug }).__idleCity = {
+    get state() {
+      return state
+    },
+    spawn(type, x, z, level = 1, kind) {
+      const building = spawnBuilding(state, type, tileIndex(x, z))
+      building.level = level
+      if (kind !== undefined && building.type === 'shop') building.commerceKind = kind
+      structureDirty = true
+      return building
+    },
+    redraw() {
+      structureDirty = true
+    },
+  }
+}
 
 const music = createMusic()
 const sfx = createSfx()
@@ -392,7 +436,14 @@ function describe(target: PickTarget): HoverInfo {
     lines.push(building.derelict ? 'Derelict. Producing nothing.' : def.blurb)
     // A shop shows what it actually sells once it exists; the generic "Shop"
     // label stays only for the palette and for shops built before this existed.
-    const title = building.commerceKind ? COMMERCE_KIND_LABELS[building.commerceKind] : def.label
+    const merged =
+      building.mergeAnchor !== null && isMergedBlock(state, building.mergeAnchor)
+    if (merged) lines.push('Four merged into one — worth six.')
+    const title = building.commerceKind
+      ? COMMERCE_KIND_LABELS[building.commerceKind]
+      : merged
+        ? (MAXI_LABELS[building.type] ?? def.label)
+        : def.label
     return { title, lines, icon: building.type }
   }
 

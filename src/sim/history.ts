@@ -18,18 +18,23 @@ import type { Building, CityState } from './types'
 const DEPTH = 12
 
 interface Demolition {
-  building: Building
+  /**
+   * One per cell the demolition cleared — a single building, or the four of a
+   * merged block, anchor first so labels read from it. The stored objects are
+   * the very ones that were on the grid; nothing else holds a reference once
+   * demolish() nulls the cells, so they cannot be mutated behind our back.
+   * mergeAnchor and commerceKind ride along on them, so a restored block is a
+   * valid merged block again.
+   */
+  buildings: Building[]
   /** Sim time it happened, so the UI can say how long ago. */
   at: number
 }
 
 let stack: Demolition[] = []
 
-export function rememberDemolition(state: CityState, building: Building): void {
-  // The stored object is the very one that was on the grid; nothing else holds
-  // a reference to it once demolish() nulls the cell, so it cannot be mutated
-  // behind our back.
-  stack.push({ building, at: state.time })
+export function rememberDemolition(state: CityState, buildings: Building[]): void {
+  stack.push({ buildings, at: state.time })
   if (stack.length > DEPTH) stack.splice(0, stack.length - DEPTH)
 }
 
@@ -43,15 +48,20 @@ export function undoDepth(): number {
 }
 
 /**
- * Put the last demolished building back, exactly as it stood. Fails if
- * something has since been built on its tile — silently rebuilding over that
- * would destroy a second building to restore the first.
+ * Put the last demolished lot back, exactly as it stood. Fails if anything
+ * has since been built on ANY of its tiles — silently rebuilding over that
+ * would destroy a second building to restore the first, and restoring half a
+ * merged block would leave a broken anchor on the board.
  */
 export function undoDemolition(state: CityState): boolean {
   const last = stack.pop()
   if (!last) return false
-  if (state.grid[last.building.tile]) return false
-  state.grid[last.building.tile] = last.building
+  for (const b of last.buildings) {
+    if (state.grid[b.tile]) return false
+  }
+  for (const b of last.buildings) {
+    state.grid[b.tile] = b
+  }
   // builtCount is a lifetime tally and demolishing never decremented it, so
   // restoring must not increment it either — otherwise demolish-and-undo would
   // quietly inflate the cost of the next one of that type.

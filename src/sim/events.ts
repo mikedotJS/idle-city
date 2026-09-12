@@ -27,6 +27,7 @@ export type CityEventKind =
   | 'recovered'
   | 'demolished'
   | 'land'
+  | 'merged'
 
 export interface CityEvent {
   kind: CityEventKind
@@ -64,6 +65,9 @@ export interface ActivitySummary {
   upgraded: number
   derelict: number
   recovered: number
+  merged: number
+  /** Anchor tile of the most recent merge, for "Show me". */
+  mergedAt: number | null
   /** Sim seconds covered by this summary. */
   span: number
   /**
@@ -86,6 +90,8 @@ export function summarise(state: CityState): ActivitySummary {
     upgraded: 0,
     derelict: 0,
     recovered: 0,
+    merged: 0,
+    mergedAt: null,
     span: Math.max(0, state.time - state.lastSeenAt),
     trouble: null,
     troubleCount: 0,
@@ -96,7 +102,10 @@ export function summarise(state: CityState): ActivitySummary {
     if (event.kind === 'built') summary.built++
     else if (event.kind === 'upgraded') summary.upgraded++
     else if (event.kind === 'recovered') summary.recovered++
-    else if (event.kind === 'derelict') {
+    else if (event.kind === 'merged') {
+      summary.merged++
+      summary.mergedAt = event.where
+    } else if (event.kind === 'derelict') {
       summary.derelict++
       rotted.push(event.where)
     }
@@ -127,5 +136,5 @@ export function summarise(state: CityState): ActivitySummary {
 
 /** True when there is enough news to be worth interrupting anyone over. */
 export function worthReporting(summary: ActivitySummary): boolean {
-  return summary.derelict > 0 || summary.built >= 3 || summary.upgraded > 0
+  return summary.derelict > 0 || summary.built >= 3 || summary.upgraded > 0 || summary.merged > 0
 }

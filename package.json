@@ -11,6 +11,8 @@
     "test": "vitest run",
     "pacing": "vite-node scripts/pacing.ts",
     "shot": "node scripts/shot.mjs",
+    "walk-shot": "node scripts/walk-shot.mjs",
+    "maxi-shot": "node scripts/maxi-shot.mjs",
     "audio-check": "node scripts/audio-check.mjs",
     "sfx-check": "node scripts/sfx-check.mjs",
     "board-check": "node scripts/board-check.mjs",

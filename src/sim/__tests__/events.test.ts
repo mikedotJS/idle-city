@@ -106,6 +106,28 @@ describe('what counts as news', () => {
     recordEvent(bad, { kind: 'derelict', at: 50, where: 0, type: 'house' })
     expect(worthReporting(summarise(bad))).toBe(true)
   })
+
+  it('counts merges and keeps the anchor of the latest one', () => {
+    const state = quietCity()
+    state.time = 100
+    state.lastSeenAt = 45
+    recordEvent(state, { kind: 'merged', at: 40, where: tileIndex(3, 3), type: 'house' })
+    expect(summarise(state).merged).toBe(0)
+
+    recordEvent(state, { kind: 'merged', at: 50, where: tileIndex(5, 5), type: 'shop' })
+    recordEvent(state, { kind: 'merged', at: 60, where: tileIndex(9, 9), type: 'shop' })
+
+    const summary = summarise(state)
+    expect(summary.merged).toBe(2)
+    expect(summary.mergedAt).toBe(tileIndex(9, 9))
+  })
+
+  it('speaks up about a merge, even with nothing else to say', () => {
+    const state = quietCity()
+    state.time = 100
+    recordEvent(state, { kind: 'merged', at: 50, where: tileIndex(5, 5), type: 'shop' })
+    expect(worthReporting(summarise(state))).toBe(true)
+  })
 })
 
 describe('the log survives a save', () => {

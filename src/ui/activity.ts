@@ -11,7 +11,7 @@
 
 import './activity.css'
 
-import { BUILDINGS } from '../sim/buildings'
+import { BUILDINGS, COMMERCE_KIND_LABELS, MAXI_LABELS } from '../sim/buildings'
 import { WORLD_SIZE } from '../sim/config'
 import { noteInteraction, summarise, worthReporting } from '../sim/events'
 import type { ActivitySummary } from '../sim/events'
@@ -84,6 +84,27 @@ function derelictNoun(state: CityState, summary: ActivitySummary): string {
   return summary.derelict === 1 ? base : base + 's'
 }
 
+/**
+ * What the merged block is called, when we can still tell. Same caveat as
+ * `derelictNoun`: the anchor tile may have been bulldozed since, so the maxi
+ * name is only claimed while the tile still holds a merged building — a
+ * shop's kind label, the type's maxi label otherwise — with a generic word
+ * as the fallback.
+ */
+function mergedNoun(state: CityState, summary: ActivitySummary): string {
+  const tile = summary.mergedAt
+  const building = tile !== null ? state.grid[tile] : null
+  let base = 'block'
+  if (building && building.mergeAnchor !== null) {
+    const label =
+      building.type === 'shop' && building.commerceKind
+        ? COMMERCE_KIND_LABELS[building.commerceKind]
+        : MAXI_LABELS[building.type]
+    if (label) base = label.toLowerCase()
+  }
+  return summary.merged === 1 ? base : base + 's'
+}
+
 /** "a, b, and c" — never an Oxford-comma-less pair, never a trailing "and" on one item. */
 function joinAnd(parts: string[]): string {
   if (parts.length === 0) return ''
@@ -122,6 +143,12 @@ function buildMessage(state: CityState, summary: ActivitySummary): string {
   }
   if (summary.built > 0) {
     clauses.push(`${summary.built} new building${summary.built === 1 ? '' : 's'} went up`)
+  }
+  if (summary.merged > 0) {
+    const noun = mergedNoun(state, summary)
+    const place = summary.mergedAt !== null ? ` in the ${compassOf(summary.mergedAt)} of town` : ''
+    const subject = summary.merged === 1 ? `a ${noun}` : `${summary.merged} ${noun}`
+    clauses.push(`${subject} formed${place}`)
   }
 
   return `In the last ${span}, ${joinAnd(clauses)}.`
@@ -195,9 +222,12 @@ export function createActivityPanel(
     // Recomputed every frame (it is three field comparisons and a string),
     // but the DOM itself — the expensive part — is only touched when the
     // sentence it would show has actually changed.
-    const signature = `${summary.built}|${summary.upgraded}|${summary.derelict}|${summary.recovered}|${summary.trouble}`
-    currentTrouble = summary.trouble
-    goToButton.hidden = summary.trouble === null
+    // Dereliction gets the pointer first; a merge is the next best thing to
+    // show, since it is the only other clause that names a place.
+    const target = summary.trouble ?? summary.mergedAt
+    const signature = `${summary.built}|${summary.upgraded}|${summary.derelict}|${summary.recovered}|${summary.merged}|${target}`
+    currentTrouble = target
+    goToButton.hidden = target === null
 
     if (signature === lastSignature) {
       if (!shown) {

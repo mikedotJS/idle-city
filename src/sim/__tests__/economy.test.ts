@@ -6,6 +6,7 @@ import {
   FACTORY_COINS,
   FRIEND_INCOME_BONUS,
   INCOME_FLOOR,
+  MERGE_OUTPUT_BONUS,
   POP_PER_HOUSE,
   SHOP_COINS_PER_POP,
   SHOP_POP_CAP,
@@ -121,5 +122,45 @@ describe('derive', () => {
   it('leaves an already-zero income at zero no matter how many friends', () => {
     // An empty city earns nothing to begin with; friends multiply that, not add to it.
     expect(derive(quietCity(), 50).incomeRate).toBe(0)
+  })
+
+  it('produces MERGE_OUTPUT_BONUS per cell of a merged block — four as six', () => {
+    // The block (5,5)..(6,6) anchored at 65, as tryMerges would leave it.
+    const merged = quietCity()
+    for (const [x, z] of [
+      [5, 5],
+      [6, 5],
+      [5, 6],
+      [6, 6],
+    ]) {
+      put(merged, 'house', x, z).mergeAnchor = 65
+    }
+    expect(derive(merged).population).toBe(6 * POP_PER_HOUSE)
+
+    // Four merged factories pay what six unmerged ones would. Clearing the
+    // anchors changes nothing else — field and happiness are untouched — so
+    // the ratio between the two derives is exactly the bonus.
+    const factories = quietCity()
+    for (const [x, z] of [
+      [5, 5],
+      [6, 5],
+      [5, 6],
+      [6, 6],
+    ]) {
+      put(factories, 'factory', x, z).mergeAnchor = 65
+    }
+    const withBonus = derive(factories).incomeRate
+    for (let i = 0; i < factories.grid.length; i++) {
+      const b = factories.grid[i]
+      if (b) b.mergeAnchor = null
+    }
+    expect(withBonus).toBeCloseTo(derive(factories).incomeRate * MERGE_OUTPUT_BONUS, 9)
+  })
+
+  it('pays no bonus for a mergeAnchor no valid block stands behind', () => {
+    const state = quietCity()
+    // One house pointing at an anchor whose other three cells are empty.
+    put(state, 'house', 5, 5).mergeAnchor = 65
+    expect(derive(state).population).toBe(POP_PER_HOUSE)
   })
 })
