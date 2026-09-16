@@ -10,12 +10,8 @@
  * cached up front and the DOM is only touched when a displayed value has
  * actually changed.
  *
- * Collapsed by default, like tools.ts. A player in their first hour has no
- * charter and nothing built up worth retiring for — see prestige.ts's own
- * header: a city left to grow itself earns nothing at all. Surfacing a
- * half-empty shop for a currency that doesn't exist yet would just be more
- * furniture around the board. The toggle carries a live charter badge once
- * there is any, so the panel finds the player instead of the other way round.
+ * Reached through the sheet's "Prestige" nav item (shell.ts) rather than
+ * behind a toggle of its own — the nav already is the reveal gesture.
  *
  * Positioned by ui/shell.ts's .dock-popover now, alongside Tools and the
  * music/sound controls, instead of picking its own fixed spot — see
@@ -92,19 +88,12 @@ export function createPrestigePanel(
 ): PrestigePanel {
   const wrap = el('div', 'prestige-root')
 
-  // ------------------------------------------------------------------ toggle
-
-  const toggleButton = el('button', 'btn prestige-toggle')
-  toggleButton.type = 'button'
-  toggleButton.setAttribute('aria-expanded', 'false')
-  const toggleLabel = el('span', undefined, 'Prestige')
-  const toggleBadge = el('span', 'prestige-toggle__badge')
-  toggleBadge.hidden = true
-  toggleButton.append(toggleLabel, toggleBadge)
-
+  // The sheet's own nav (shell.ts) is what navigates a player here — no inner
+  // toggle on top of that, so the panel is always expanded.
   const panel = el('section', 'panel prestige-panel')
-  panel.hidden = true
-  panel.append(el('h2', 'panel__title', 'Prestige'))
+  // No inner "Prestige" heading here: the sheet's own section title already
+  // says that (see tools.ts's identical note) — a second one right under it
+  // would just repeat the old floating-panel's chrome.
 
   // -------------------------------------------------------------- retire
 
@@ -194,14 +183,22 @@ export function createPrestigePanel(
   const bankLine = el('p', 'prestige-bank')
   spendSection.append(bankLine)
 
+  // One row per upgrade: title + level, a short description, and the
+  // buy button, all on one line — the "upgrade row" shape from the
+  // approved Design Canvas mockup (title/blurb/action, not a title row
+  // stacked above a separate description paragraph above a separate
+  // button row).
   const rows: UpgradeRow[] = []
   for (const key of UPGRADE_KEYS) {
     const def = UPGRADES[key]
     const row = el('div', 'prestige-upgrade')
-    const head = el('div', 'prestige-upgrade__head')
+    const text = el('div', 'prestige-upgrade__text')
+    const titleLine = el('div', 'prestige-upgrade__title')
     const levelNode = el('span', 'prestige-upgrade__level')
-    head.append(el('span', 'prestige-upgrade__label', def.label), levelNode)
-    const buyButton = el('button', 'btn prestige-buy-btn')
+    titleLine.append(el('b', 'prestige-upgrade__label', def.label), levelNode)
+    text.append(titleLine, el('span', 'prestige-upgrade__desc', def.blurb))
+
+    const buyButton = el('button', 'btn btn--primary prestige-buy-btn')
     buyButton.type = 'button'
     const buyLabel = el('span', undefined, 'Buy')
     const buyCost = el('span', 'btn__cost')
@@ -220,7 +217,7 @@ export function createPrestigePanel(
       paintBank(prestige)
       paintStarting(prestige)
     })
-    row.append(head, el('p', 'hint', def.blurb), buyButton)
+    row.append(text, buyButton)
     spendSection.append(row)
     rows.push({
       key,
@@ -310,14 +307,7 @@ export function createPrestigePanel(
 
   panel.append(retireSection, spendSection, startingSection)
 
-  toggleButton.addEventListener('click', () => {
-    const opening = panel.hidden
-    panel.hidden = !opening
-    toggleButton.classList.toggle('is-open', opening)
-    toggleButton.setAttribute('aria-expanded', String(opening))
-  })
-
-  wrap.append(toggleButton, panel)
+  wrap.append(panel)
 
   // ------------------------------------------------------------------ frame
 
@@ -325,24 +315,11 @@ export function createPrestigePanel(
   let lastRetireLabel: string | null = null
   let lastZeroVisible: boolean | null = null
   let lastRetireEnabled: boolean | null = null
-  let lastToggleBadge = ''
   let lastLiveSignature = ''
 
   function update(state: CityState): void {
     lastState = state
     const prestige = getPrestige()
-
-    // The toggle's badge is cheap (no derive() involved) and worth keeping
-    // live even while the panel is collapsed, so a player notices charter
-    // piling up without opening anything.
-    const badgeText = prestige.charter >= 1 ? formatCoins(prestige.charter) : ''
-    if (badgeText !== lastToggleBadge) {
-      lastToggleBadge = badgeText
-      toggleBadge.hidden = badgeText === ''
-      setText(toggleBadge, badgeText)
-    }
-
-    if (panel.hidden) return
 
     // charterFor() calls derive() internally, and so does the manual derive()
     // call just below — two cheap passes over a 144-tile field, only while

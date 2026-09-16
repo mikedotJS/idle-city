@@ -4,8 +4,9 @@
  * Three quality-of-life features bolted onto a game that otherwise has none:
  * the save is trapped in one browser's localStorage, the sim only ever runs
  * at 1x, and demolishing is instant, free and irreversible. None of that is
- * part of the core loop, so it lives in its own collapsed-by-default panel
- * rather than crowding the board — see tools.css for where it sits.
+ * part of the core loop, so it lives in its own panel, reached through the
+ * sheet's "Speed" nav item rather than crowding the board — see tools.css
+ * for where it sits.
  *
  * Same shape as hud.ts: reads sim state, never mutates it directly, and every
  * player action leaves through `ToolsCallbacks`. `update()` runs every
@@ -35,7 +36,7 @@ export interface ToolsCallbacks {
 }
 
 export interface ToolsPanel {
-  /** The whole tools block (toggle + collapsible panel), for a caller to place. */
+  /** The whole tools block, for a caller to place. */
   element: HTMLElement
   /** Called every animation frame. Cheap: bail early when nothing changed. */
   update(state: CityState): void
@@ -77,15 +78,14 @@ export function createToolsPanel(
 ): ToolsPanel {
   const wrap = el('div', 'tools-root')
 
-  // ------------------------------------------------------------------ toggle
-
-  const toggleButton = el('button', 'btn tools-toggle', 'Tools')
-  toggleButton.type = 'button'
-  toggleButton.setAttribute('aria-expanded', 'false')
-
+  // The sheet's own nav (shell.ts) is what navigates a player here — an inner
+  // toggle on top of that would just be a second click to reveal what the
+  // player already asked to see, so the panel is always expanded.
   const panel = el('section', 'panel tools-panel')
-  panel.hidden = true
-  panel.append(el('h2', 'panel__title', 'Tools'))
+  // No inner "Tools" heading here: nested in the sheet, the section's own
+  // title ("Speed", set by shell.ts from the section list in main.ts)
+  // already says what this is — a second heading right under it would just
+  // be the old floating-panel chrome repeating itself.
 
   // ------------------------------------------------------------------- speed
 
@@ -307,15 +307,7 @@ export function createToolsPanel(
 
   panel.append(speedSection, undoSection, postcardSection, exportSection, importSection)
 
-  toggleButton.addEventListener('click', () => {
-    const opening = panel.hidden
-    panel.hidden = !opening
-    toggleButton.classList.toggle('is-open', opening)
-    toggleButton.setAttribute('aria-expanded', String(opening))
-    if (opening) refreshExport()
-  })
-
-  wrap.append(toggleButton, panel)
+  wrap.append(panel)
 
   refreshUndo(getState())
 

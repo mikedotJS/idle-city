@@ -15,6 +15,7 @@ import type { Leaderboard, BoardEntry } from '../net/leaderboard'
 import type { BasedUser } from '../net/based'
 import type { CityState } from '../sim/types'
 import { scoreOf } from '../sim/score'
+import { createDialogFocus } from './focusTrap'
 import { formatCoins } from './format'
 
 const CITY_NAME_KEY = 'micro-city-name'
@@ -66,9 +67,14 @@ export function createLeaderboardUI(
   const overlay = el('div', 'overlay')
   overlay.hidden = true
   const card = el('section', 'panel panel--board')
+  card.setAttribute('role', 'dialog')
+  card.setAttribute('aria-modal', 'true')
+  card.setAttribute('aria-labelledby', 'board-title')
+  card.tabIndex = -1
 
   const headingRow = el('div', 'board__heading')
   const heading = el('h2', 'board__title', 'World leaderboard')
+  heading.id = 'board-title'
   const infoBadge = el('span', 'board__info', 'i')
   infoBadge.title =
     'Ranked by happiness x population x income. Every factor grows with time, so a long session outranks a tidy plan.'
@@ -129,6 +135,7 @@ export function createLeaderboardUI(
   card.append(headingRow, form, account, publishRow, status, list, closeButton)
   overlay.append(card)
   root.append(overlay)
+  const dialogFocus = createDialogFocus(card)
 
   // ------------------------------------------------------------------- state
 
@@ -206,10 +213,12 @@ export function createLeaderboardUI(
     setError(null)
     publishNote.textContent = previewScore()
     void refresh()
+    dialogFocus.open()
   })
 
   function close(): void {
     overlay.hidden = true
+    dialogFocus.close()
   }
   closeButton.addEventListener('click', close)
   overlay.addEventListener('click', (event) => {
@@ -217,10 +226,13 @@ export function createLeaderboardUI(
   })
 
   const onKey = (event: KeyboardEvent): void => {
-    if (event.key === 'Escape' && !overlay.hidden) {
+    if (overlay.hidden) return
+    if (event.key === 'Escape') {
       event.stopPropagation()
       close()
+      return
     }
+    dialogFocus.onKeydown(event)
   }
   // Capture, so Escape closes the modal before the game clears the held tool.
   window.addEventListener('keydown', onKey, true)

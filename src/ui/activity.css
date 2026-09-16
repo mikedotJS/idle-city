@@ -1,36 +1,31 @@
 /*
  * The activity panel: "what the city did while you weren't looking."
  *
- * Placed top-centre, not bottom-centre. Toasts and the dock bar (ui/shell.ts)
- * already own the bottom-centre spot and fire/sit there on ordinary play, so
- * a report that can appear the instant the player looks back would otherwise
- * land on top of - or directly under - a toast, or behind the bar. The
- * always-visible readout that used to float top-center moved into the dock
- * bar at the bottom, so the top of the screen is free again: this sits at
- * the same small corner margin every other panel in this HUD uses, and
- * still reads as a notification bar dropping in from off-screen, not a
- * permanent HUD element.
+ * It stacks in the right rail below the inspect card (see layout.ts/
+ * layout.css and main.ts's append order, which is what puts it second) as a
+ * plain flow child of `.hud-zone--right-rail` rather than its own
+ * `position: fixed` element — the zone's flex column now owns its position,
+ * the same way the resource ribbon and inspect card are anchored by their
+ * zones instead of positioning themselves. It still reads as a notification
+ * dropping in, not a permanent fixture, via the same entrance animation as
+ * before; only its *position* moved, not its behaviour.
  *
- * Same rule as everywhere else in this HUD: the full-width wrapper is
- * pointer-events: none so it never shadows the board underneath it, and only
- * the panel itself (and its buttons) opts back in.
+ * Same rule as everywhere else in this HUD: the wrapper is pointer-events:
+ * none so it never shadows the board underneath it, and only the panel
+ * itself (and its buttons) opts back in.
  */
 
 .activity-wrap {
-  position: fixed;
-  top: 18px;
-  left: 0;
-  right: 0;
-  z-index: 8;
+  width: 100%;
   display: flex;
-  justify-content: center;
+  justify-content: flex-end;
   pointer-events: none;
 }
 
 .activity-panel {
   pointer-events: auto;
-  width: 420px;
-  max-width: calc(100vw - 36px);
+  width: var(--hud-side);
+  max-width: 100%;
   background: var(--paper);
   border: 1px solid var(--line);
   border-radius: var(--radius-panel);
@@ -117,11 +112,5 @@
 @media (prefers-reduced-motion: reduce) {
   .activity-panel {
     animation-duration: 0.01ms !important;
-  }
-}
-
-@media (max-width: 560px) {
-  .activity-panel {
-    width: calc(100vw - 24px);
   }
 }

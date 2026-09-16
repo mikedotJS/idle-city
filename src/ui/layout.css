@@ -1,0 +1,54 @@
+/*
+ * The three HUD zones (see layout.ts's header comment for what mounts where).
+ *
+ * Each zone is a `position: fixed` wrapper pinned to its corner/edge with the
+ * same small margin every other panel in this HUD uses, and — same rule as
+ * everywhere else here (see style.css's header comment) — `pointer-events:
+ * none` so an empty or loosely-filled zone never shadows the board; only
+ * actual content appended inside opts back into pointer events.
+ *
+ * Every occupant — the resource ribbon, the inspect card, and now the
+ * activity feed — mounts as a plain flow child of its zone rather than
+ * carrying its own `position: fixed`: the zone alone anchors them, the same
+ * way a normal layout would. In the right rail that makes the column's own
+ * order the stacking order (inspect card first, activity feed below it —
+ * see main.ts's append order), with `gap` alone providing the separation
+ * between the two cards; each keeps its own border/shadow, so no extra
+ * divider line is needed. Deliberately no `z-index` on the zone itself —
+ * doing so would open a new stacking context and re-cap the flow children
+ * inside it to one value, silently changing who wins a stacking fight
+ * against a toast or an overlay.
+ */
+
+.hud-zone {
+  position: fixed;
+  pointer-events: none;
+}
+
+.hud-zone--top-left {
+  top: 18px;
+  left: 24px;
+}
+
+.hud-zone--bottom-center {
+  left: 50%;
+  bottom: 18px;
+  transform: translateX(-50%);
+}
+
+.hud-zone--right-rail {
+  top: 18px;
+  right: 24px;
+  bottom: 18px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--space-4);
+  /* The column can now hold two stacked cards instead of one. On a short
+     viewport (a laptop lid half-closed, a landscape phone) inspect card +
+     activity feed can together exceed the space between the top and bottom
+     margins; scroll the column internally rather than letting it run off
+     the bottom of the screen or overlap the dock bar. */
+  overflow-y: auto;
+  overflow-x: visible;
+}

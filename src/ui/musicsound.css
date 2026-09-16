@@ -1,178 +1,105 @@
 /*
- * Music and sound-effect panels. Layout position comes from wherever
+ * Music and sound-effect rows. Layout position comes from wherever
  * musicsound.ts's `element` is placed by its caller — nothing here is
  * position: fixed.
+ *
+ * `.toggle-row` / `.toggle-row__btn` / `.toggle-row__slider` match the
+ * approved Design Canvas mockup (MoreSheet.dc.html): a fixed-width toggle
+ * button beside a fixed-width slider, both `flex: none` so neither stretches
+ * to fill the row. The slider deliberately does NOT use `flex: 1` — that was
+ * a real bug caught during mockup review, where a slider competing for space
+ * against a sibling of a different length ended up a different width on the
+ * Music row than on the Sound row, even though both controls are meant to
+ * look identical.
  */
 
 .musicsound-root {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: var(--space-3);
 }
 
-/* ------------------------------------------------------------------- music */
-
-.panel--music {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding: 12px 14px;
-  min-width: 210px;
-}
-
-.panel--music.is-muted {
-  opacity: 0.72;
-}
-
-.music__row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.music__toggle {
-  flex: none;
-  padding: 5px 11px;
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  background: var(--paper-sunk);
-  color: var(--ink-soft);
-  font: inherit;
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: background 0.16s ease, color 0.16s ease, border-color 0.16s ease;
-}
-
-.music__toggle.is-on {
-  border-color: var(--accent);
-  background: var(--accent-wash);
-  color: var(--accent-deep);
-}
-
-.music__toggle:hover {
-  border-color: var(--accent);
-}
-
-/* The track name changes on every crossfade, so it must never reflow the
-   panel or resize the board beside it. */
-.music__title {
-  flex: 1 1 auto;
-  min-width: 0;
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-  font-size: 12px;
-  color: var(--ink-soft);
-}
-
-.music__volume {
-  width: 100%;
-  height: 4px;
-  appearance: none;
-  border-radius: 999px;
-  background: var(--line);
-  cursor: pointer;
-}
-
-.music__volume::-webkit-slider-thumb {
-  appearance: none;
-  width: 14px;
-  height: 14px;
-  border: none;
-  border-radius: 50%;
-  background: var(--accent);
-}
-
-.music__volume::-moz-range-thumb {
-  width: 14px;
-  height: 14px;
-  border: none;
-  border-radius: 50%;
-  background: var(--accent);
-}
-
-/* ------------------------------------------------------------------- sound */
-
-/* Identical rules to .panel--music under a different name, on purpose: two
-   panels for two independent decisions (hear the score, hear the city) read
-   as two controls precisely because they look like the same kind of control
-   twice, not like one split unevenly in half. */
-
+.panel--music,
 .panel--sound {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  padding: 12px 14px;
-  min-width: 210px;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
 }
 
+.panel--music.is-muted,
 .panel--sound.is-muted {
   opacity: 0.72;
 }
 
-.sound__row {
+.toggle-row {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: var(--space-3);
 }
 
-.sound__toggle {
+.toggle-row__btn {
   flex: none;
-  padding: 5px 11px;
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  background: var(--paper-sunk);
-  color: var(--ink-soft);
+  width: 136px;
+  padding: 7px var(--space-3);
+  border: 1.5px solid var(--line-color);
+  border-radius: var(--radius-pill-base);
+  background: var(--surface-raised);
+  color: var(--text-secondary);
   font: inherit;
-  font-size: 12px;
-  font-weight: 600;
+  font-size: var(--text-sm);
+  font-weight: 700;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
   cursor: pointer;
   transition: background 0.16s ease, color 0.16s ease, border-color 0.16s ease;
 }
 
-.sound__toggle.is-on {
-  border-color: var(--accent);
-  background: var(--accent-wash);
-  color: var(--accent-deep);
+.toggle-row__btn.is-on {
+  border-color: var(--accent-deep-base);
+  background: var(--accent-base);
+  color: #fff;
 }
 
-.sound__toggle:hover {
-  border-color: var(--accent);
+.toggle-row__btn:hover {
+  border-color: var(--accent-base);
 }
 
-.sound__title {
-  flex: 1 1 auto;
-  min-width: 0;
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-  font-size: 12px;
-  color: var(--ink-soft);
+.toggle-row__btn:focus-visible {
+  outline: 2px solid var(--accent-base);
+  outline-offset: 2px;
 }
 
-.sound__volume {
-  width: 100%;
-  height: 4px;
+/* Fixed width, matching the toggle button — never `flex: 1`, so the two
+   rows' sliders line up regardless of what the toggle button next to them
+   says. Pushed to the row's trailing edge so both rows read as one aligned
+   pair even though the button text differs in length. */
+.toggle-row__slider {
+  flex: none;
+  width: 136px;
+  margin-left: auto;
+  height: 5px;
   appearance: none;
-  border-radius: 999px;
-  background: var(--line);
+  border-radius: var(--radius-pill-base);
+  background: var(--line-color);
   cursor: pointer;
 }
 
-.sound__volume::-webkit-slider-thumb {
+.toggle-row__slider::-webkit-slider-thumb {
   appearance: none;
   width: 14px;
   height: 14px;
   border: none;
   border-radius: 50%;
-  background: var(--accent);
+  background: var(--accent-base);
 }
 
-.sound__volume::-moz-range-thumb {
+.toggle-row__slider::-moz-range-thumb {
   width: 14px;
   height: 14px;
   border: none;
   border-radius: 50%;
-  background: var(--accent);
+  background: var(--accent-base);
 }

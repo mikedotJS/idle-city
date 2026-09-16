@@ -9,6 +9,7 @@ import { createCitySync } from './net/citysync'
 import { createRenderer } from './render/scene'
 import type { PickTarget, Renderer, Tool } from './render/api'
 import { createHud } from './ui/hud'
+import { createHudLayout } from './ui/layout'
 import { createShell } from './ui/shell'
 import { createMusicSoundControls } from './ui/musicsound'
 import { createActivityPanel } from './ui/activity'
@@ -34,13 +35,17 @@ import { remoteIsNewer } from './sim/citysync'
 import { reloadAfterCloudReset } from './sim/cityreset'
 import { BUILDINGS, COMMERCE_KIND_LABELS, MAXI_LABELS, buildingCost } from './sim/buildings'
 import { isMergedBlock } from './sim/merge'
-import { AUTOSAVE_INTERVAL, OFFLINE_CAP_SECONDS, PARCEL_SIZE, SIM_DT } from './sim/config'
+import { AUTOSAVE_INTERVAL, MAX_LEVEL, OFFLINE_CAP_SECONDS, PARCEL_SIZE, SIM_DT } from './sim/config'
 import { tileIndex } from './sim/grid'
 import { buildableTilesInParcel, terrainFor } from './sim/terrain'
 import type { Building, BuildingType, CityState, CommerceKind, Derived } from './sim/types'
 
 const canvas = document.getElementById('scene') as HTMLCanvasElement
 const uiRoot = document.getElementById('ui') as HTMLElement
+
+// The three fixed zones every HUD piece below mounts into instead of
+// `uiRoot` directly — see layout.ts's header comment for what belongs where.
+const layout = createHudLayout(uiRoot)
 
 /**
  * Read before the city, because founding one consults it: prestige is applied
@@ -212,7 +217,12 @@ const friendsUI = createFriendsUI(uiRoot, friends, (confirmedCount) => {
   friendCount = confirmedCount
 })
 
-const activity = createActivityPanel(uiRoot, {
+// The inspect card mounts first so it sits above the activity feed in the
+// right rail's column (see layout.ts and api.ts's inspectElement doc) —
+// order here is the visual stacking order, not just bookkeeping.
+layout.rightRail.append(hud.inspectElement)
+
+const activity = createActivityPanel(layout.rightRail, {
   onGoTo: (tile) => {
     renderer.flashTile(tile)
   },
@@ -310,28 +320,50 @@ citySync.onChange((user) => {
   }
 })
 
-// Outside any shell section, like topStripElement: CSS shows it only at
-// desktop widths, where it floats free instead of hiding inside the Ville
-// tab (see api.ts's hoverCardElement doc).
-uiRoot.append(hud.hoverCardElement)
+// The resource ribbon is always visible regardless of which shell section is
+// open, so it mounts straight into the top-left zone rather than into any
+// section's panel list (see layout.ts).
+layout.topLeft.append(hud.topStripElement)
 
-const shell = createShell(uiRoot, hud.topStripElement, [
-  {
-    id: 'ville',
-    label: 'Ville',
-    panels: [hud.paletteElement, hud.hoverPanelElement, hud.queueElement, hud.restartElement],
-  },
-  {
-    id: 'menu',
-    label: 'Menu',
-    panels: [musicSound.element, tools.element, prestigePanel.element],
-  },
-  {
-    id: 'social',
-    label: 'Social',
-    panels: [leaderboardUI.launcher, friendsUI.launcher],
-  },
-])
+// Five sections in one "More" sheet rather than the earlier three separate
+// dock tabs (Ville/Menu/Social) — build tools and the queue already moved
+// out into the bar itself (hud.buildDockElement/queueStripElement below),
+// leaving only these secondary destinations needing a home. "Ville"'s one
+// remaining control (restart) moves in beside the rest of tools.ts's city
+// management (speed, postcard, export/import, undo) rather than keeping a
+// section of its own for a single button.
+const shell = createShell(
+  layout.bottomCenter,
+  [
+    {
+      id: 'sound',
+      label: 'Sound',
+      panels: [musicSound.element],
+    },
+    {
+      id: 'speed',
+      label: 'Speed',
+      panels: [tools.element, hud.restartElement],
+    },
+    {
+      id: 'prestige',
+      label: 'Prestige',
+      panels: [prestigePanel.element],
+    },
+    {
+      id: 'leaderboard',
+      label: 'Leaderboard',
+      panels: [leaderboardUI.launcher],
+    },
+    {
+      id: 'friends',
+      label: 'Friends',
+      panels: [friendsUI.launcher],
+    },
+  ],
+  hud.buildDockElement,
+  hud.queueStripElement,
+)
 
 // Browsers block audio until the page has been interacted with, so the first
 // real gesture is what actually starts playback. Placing a park counts.
@@ -438,7 +470,11 @@ function describe(target: PickTarget): HoverInfo {
     // label stays only for the palette and for shops built before this existed.
     const merged =
       building.mergeAnchor !== null && isMergedBlock(state, building.mergeAnchor)
-    if (merged) lines.push('Four merged into one — worth six.')
+    if (merged) {
+      lines.push('Four merged into one — worth six.')
+    } else if (!building.derelict) {
+      lines.push(`Level ${building.level} of ${MAX_LEVEL}.`)
+    }
     const title = building.commerceKind
       ? COMMERCE_KIND_LABELS[building.commerceKind]
       : merged

@@ -1,0 +1,172 @@
+/*
+ * Design tokens.
+ *
+ * One coherent vocabulary for surfaces, text, accent/status colors, spacing,
+ * radii, elevation and type scale. Everything else in the codebase should be
+ * written against these tokens.
+ *
+ * The block at the bottom re-exposes the old variable names (--paper, --ink,
+ * etc.) as aliases so existing CSS keeps working unchanged. This file is a
+ * pure reorganization: no color, size or shadow value has changed from what
+ * style.css used to define directly.
+ */
+
+:root {
+  /* Surfaces: base paper, a sunk/recessed surface, and an elevated one. */
+  --surface-0: #fdf9f2;
+  --surface-1: #f4ece0;
+  --surface-raised: #fdf9f2;
+
+  /* Text levels, from most to least prominent. */
+  --text-primary: #453d34;
+  --text-secondary: #837768;
+  --text-faint: #a3968599;
+
+  /* Hairline separators. */
+  --line-color: rgba(69, 61, 52, 0.1);
+
+  /* Accent (warm orange). */
+  --accent-base: #e0864a;
+  --accent-deep-base: #c56d33;
+  --accent-wash-base: #fbe7d5;
+
+  /* Status colors (settlement/building condition). */
+  --status-thriving: #6ea866;
+  --status-content: #97b06c;
+  --status-strained: #dda449;
+  --status-rotting: #c4705c;
+
+  /* Warn wash/ink pair (unaffordable costs, destructive-adjacent notices). */
+  --warn-wash-base: #f7ded7;
+  --warn-ink-base: #8d4436;
+
+  /* Page background behind the fixed board/HUD layers. */
+  --surface-page: #e9e0d2;
+
+  /* Translucent frosted-glass surface (dock bar, queue strip, "More" sheet) —
+     derived from --surface-0 so it follows the surface in both light and
+     dark mode instead of a fixed hardcoded rgba(). */
+  --surface-0-translucent: color-mix(in srgb, var(--surface-0) 80%, transparent);
+
+  /* Spacing scale. */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+
+  /* Radii. */
+  --radius-sm: 14px;
+  --radius-md: 20px;
+  --radius-pill-base: 999px;
+
+  /* Elevation. */
+  --elevation-panel: 0 14px 30px rgba(74, 58, 40, 0.14), 0 2px 6px rgba(74, 58, 40, 0.07);
+  --elevation-lift: 0 4px 10px rgba(74, 58, 40, 0.12);
+
+  /* Type scale. */
+  --text-xs: 11px;
+  --text-sm: 13px;
+  --text-md: 15px;
+  --text-lg: 18px;
+  --text-xl: 24px;
+
+  /* Base font stack. */
+  --font-base: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial,
+    "Noto Sans", sans-serif;
+
+  /* Motion. A short, shared timing vocabulary for the small interactive
+     transitions scattered across the HUD (tile hover/selection, the "More"
+     sheet opening and swapping sections, the queue strip's progress fill) —
+     two durations and one easing curve, used instead of ad-hoc numbers so
+     everything settles at the same tempo. `--duration-fast` covers quick
+     state flips (hover, selection); `--duration-base` covers slightly larger
+     moves (a sheet fading/sliding in). Global `prefers-reduced-motion`
+     handling already lives in style.css (the `*` rule near the bottom),
+     collapsing every animation/transition duration for users who asked for
+     it — nothing further to do here for that. */
+  --duration-fast: 130ms;
+  --duration-base: 200ms;
+  --ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
+
+  /* Width of the left and right HUD columns. Exported as a variable because
+     panels outside the .hud grid have to clear them, and a copy of this number
+     in another file goes stale silently. Wide enough that the tool grid's two
+     columns fit their longest card ("Harbour 300") without the grid's own
+     min-content forcing a horizontal scrollbar, but still narrow enough to
+     clear the popover's own max-width (100vw - 24px, minus its border and
+     .dock-popover__body's padding) on a 360px-wide phone. */
+  --hud-side-base: 300px;
+
+  /* --- Legacy aliases: keep every old variable name working unchanged. --- */
+  --paper: var(--surface-0);
+  --paper-sunk: var(--surface-1);
+  --ink: var(--text-primary);
+  --ink-soft: var(--text-secondary);
+  --ink-faint: var(--text-faint);
+  --line: var(--line-color);
+
+  --accent: var(--accent-base);
+  --accent-deep: var(--accent-deep-base);
+  --accent-wash: var(--accent-wash-base);
+
+  --thriving: var(--status-thriving);
+  --content: var(--status-content);
+  --strained: var(--status-strained);
+  --rotting: var(--status-rotting);
+
+  --warn-wash: var(--warn-wash-base);
+  --warn-ink: var(--warn-ink-base);
+
+  --shadow-panel: var(--elevation-panel);
+  --shadow-lift: var(--elevation-lift);
+
+  --radius-panel: var(--radius-md);
+  --radius-card: var(--radius-sm);
+  --radius-pill: var(--radius-pill-base);
+
+  --font: var(--font-base);
+  --hud-side: var(--hud-side-base);
+}
+
+/*
+ * Dark/night variant.
+ *
+ * The simulation has no day/night or time-of-day state to react to (checked
+ * src/sim for "night"/"day"/time-of-day concepts — none exists; the only
+ * "day" in the sim is the elapsed-days counter used for scoring/history, not
+ * a lighting state). So this variant follows the OS/browser's own light-dark
+ * preference instead of inventing new game state.
+ *
+ * Only surface, text and line tokens are redefined. The accent color itself
+ * is untouched so it stays recognizable in both modes — just its wash/deep
+ * companions are swapped for a pairing that keeps contrast on dark surfaces
+ * (the wash becomes a muted dark tint of the accent, the "deep" tone becomes
+ * light enough to read as text on that tint). Status colors are left as-is;
+ * they already read fine against the darker surfaces.
+ */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --surface-0: #241f19;
+    --surface-1: #17130f;
+    --surface-raised: #302a22;
+
+    --text-primary: #f1e9dc;
+    --text-secondary: #b3a68f;
+    --text-faint: #8d806c99;
+
+    --line-color: rgba(241, 233, 220, 0.12);
+
+    --accent-deep-base: #ffb37e;
+    --accent-wash-base: #4a2f1c;
+
+    --warn-wash-base: #4a2620;
+    --warn-ink-base: #f4b7a8;
+
+    --surface-page: #15120d;
+
+    --elevation-panel: 0 14px 30px rgba(0, 0, 0, 0.45), 0 2px 6px rgba(0, 0, 0, 0.3);
+    --elevation-lift: 0 4px 10px rgba(0, 0, 0, 0.35);
+  }
+}

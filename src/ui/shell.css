@@ -4,52 +4,407 @@
  * mobile tab bar split. Only these rules change between screen sizes: the
  * DOM shell.ts builds is identical on a phone and on a desktop monitor.
  *
- * z-index layers, low to high: the bar and its popover (5) < toasts and the
- * activity feed, which must never lose a stacking fight (8) < full-screen
- * overlays (10). Kept a two-step gap from the previous five-step scale
- * because there is no longer a separate tabbar/sheet pair to slot between
- * them — the bar and popover are peers now, one nav element and one content
- * surface, not a background layer under a foreground one.
+ * z-index layers, low to high: the bar and its popover (5) < toasts, which
+ * must never lose a stacking fight (8) < full-screen overlays (10). Kept a
+ * two-step gap from the previous five-step scale because there is no longer
+ * a separate tabbar/sheet pair to slot between them — the bar and popover
+ * are peers now, one nav element and one content surface, not a background
+ * layer under a foreground one. The activity feed no longer needs a slot of
+ * its own here: it stacks as a plain flow child of the right rail zone (see
+ * layout.css) instead of positioning itself, so it never competes with these
+ * for stacking order.
  */
 
-.dock-bar {
+/*
+ * The fixed, centered bottom-center cluster: the queue strip (see
+ * .queue-strip below) stacked directly above the bar whenever the queue
+ * holds anything, both laid out as one column so the strip always reads as
+ * part of the same cluster rather than a separately floating element. The
+ * bar itself no longer carries its own fixed positioning — this wrapper
+ * does, so the two stay visually connected regardless of which one is
+ * taller on a given screen or a given queue state.
+ */
+.dock-stack {
   position: fixed;
   left: 50%;
   bottom: 18px;
   transform: translateX(-50%);
   z-index: 5;
   display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  max-width: calc(100vw - 24px);
+}
+
+.dock-bar {
+  display: flex;
   align-items: center;
   gap: 14px;
-  max-width: calc(100vw - 24px);
-  background: var(--paper);
+  max-width: 100%;
+  background: var(--surface-0-translucent);
   border: 1px solid var(--line);
   border-radius: var(--radius-pill);
   box-shadow: var(--shadow-panel);
   padding: 8px 10px 8px 18px;
   padding-bottom: calc(8px + env(safe-area-inset-bottom, 0px));
   pointer-events: auto;
-}
-
-.dock-bar__stats {
-  display: flex;
-  align-items: center;
-  gap: 13px;
-  min-width: 0;
-  overflow: hidden;
-}
-
-.dock-bar__divider {
-  width: 1px;
-  height: 24px;
-  flex: none;
-  background: var(--line);
+  -webkit-backdrop-filter: blur(20px) saturate(160%);
+  backdrop-filter: blur(20px) saturate(160%);
 }
 
 .dock-bar__tabs {
   display: flex;
   gap: 4px;
   flex: none;
+}
+
+/* ------------------------------------------------------------- build dock */
+
+/*
+ * The build tool tiles (house/shop/factory/.../demolish): a permanent row
+ * inside the bar itself, ahead of the section tabs, rather than a panel
+ * tucked inside the Ville tab's popover — picking what to build is the most
+ * frequent action in the game, so it costs no extra tap to reach. It shares
+ * the bar's flex row with `.dock-bar__tabs`; the tabs stay a fixed size
+ * (`flex: none`) and this row takes whatever space is left, scrolling its
+ * own content horizontally rather than shrinking the tabs or wrapping onto a
+ * second line when the tiles don't all fit (narrow phones, more buildings
+ * later).
+ */
+.dock-build {
+  position: relative;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.dock-build__scroll {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.dock-build__scroll::-webkit-scrollbar {
+  display: none;
+}
+
+/* A soft fade at each edge hints there is more to scroll to, in place of a
+   visible scrollbar a bar this small has no room for. Harmless to show even
+   when the row already fits and nothing is scrollable. */
+.dock-build::before,
+.dock-build::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 18px;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.dock-build::before {
+  left: 0;
+  background: linear-gradient(to right, var(--surface-0-translucent), transparent);
+}
+
+.dock-build::after {
+  right: 0;
+  background: linear-gradient(to left, var(--surface-0-translucent), transparent);
+}
+
+/* Separates the constructive tools from demolish, which is destructive and
+   free rather than a thing you build — the same distinct treatment it had
+   as its own `.tool--demolish` card before this moved into the bar. Wider
+   side margins than a plain hairline would use give the break real weight
+   (it reads as a deliberate zone boundary, not a stray rule between two
+   otherwise-identical tiles), and a faint warm tint toward --rotting (the
+   same status token demolish's own tile leans on below) previews the
+   destructive tile that follows rather than looking like generic chrome. */
+.dock-divider {
+  flex: none;
+  align-self: stretch;
+  width: 1px;
+  margin: 6px 10px;
+  background: color-mix(in srgb, var(--rotting) 28%, var(--line) 72%);
+}
+
+/* ------------------------------------------------------------ queue strip */
+
+/*
+ * The compact "what's building now" strip (hud.ts's `queueStripElement`),
+ * docked directly above the bar in the same `.dock-stack` column — see
+ * shell.ts. It also carries the queue's own controls (add house/shop,
+ * pause) as small inline icon buttons at its end, so the strip is fully
+ * self-sufficient and stays on screen even with an empty queue — only its
+ * "now building" readout (`.queue-strip__now`) hides itself then, via its
+ * own `hidden` attribute. Same glassy pill treatment as the bar underneath
+ * it, sized to its own compact content rather than stretched to the bar's
+ * width.
+ */
+.queue-strip {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  max-width: 100%;
+  background: var(--surface-0-translucent);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-pill);
+  box-shadow: var(--shadow-panel);
+  padding: 7px 14px;
+  -webkit-backdrop-filter: blur(20px) saturate(160%);
+  backdrop-filter: blur(20px) saturate(160%);
+}
+
+.queue-strip__now {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.queue-strip__icon {
+  width: 20px;
+  height: 20px;
+  flex: none;
+  object-fit: contain;
+}
+
+.queue-strip__body {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 96px;
+}
+
+.queue-strip__name {
+  font-size: 12px;
+  font-weight: 650;
+  line-height: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.queue-strip__track {
+  width: 100%;
+  height: 4px;
+  border-radius: var(--radius-pill);
+  background: var(--paper-sunk);
+  overflow: hidden;
+}
+
+.queue-strip__fill {
+  height: 100%;
+  border-radius: var(--radius-pill);
+  background: var(--accent);
+  transition: width var(--duration-base) var(--ease-standard);
+}
+
+.queue-strip__waiting {
+  flex: none;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--ink-soft);
+  white-space: nowrap;
+  padding-left: 8px;
+  border-left: 1px solid var(--line);
+}
+
+/*
+ * The queue's own controls — add house, add shop, pause — as a cluster of
+ * small icon buttons at the end of the strip. Moved in from a separate
+ * controls-only panel that used to sit in the Ville tab (Task 12 left it
+ * behind); now that the strip carries them itself, that panel is gone.
+ * A hairline separates the cluster from whatever the strip is showing to
+ * its left, same treatment as `.queue-strip__waiting` above.
+ */
+.queue-strip__actions {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex: none;
+  padding-left: 8px;
+  border-left: 1px solid var(--line);
+}
+
+.queue-strip__action,
+.queue-strip__pause {
+  pointer-events: auto;
+  appearance: none;
+  font: inherit;
+  color: var(--ink-soft);
+  cursor: pointer;
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  width: 28px;
+  height: 28px;
+  padding: 2px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--line);
+  background: var(--paper-sunk);
+  transition: transform var(--duration-fast) var(--ease-standard),
+    box-shadow var(--duration-fast) var(--ease-standard),
+    background-color var(--duration-fast) var(--ease-standard);
+}
+
+.queue-strip__action:hover,
+.queue-strip__pause:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-lift);
+}
+
+.queue-strip__action:active,
+.queue-strip__pause:active {
+  transform: translateY(0);
+}
+
+.queue-strip__action:focus-visible,
+.queue-strip__pause:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.queue-strip__action-icon {
+  width: 15px;
+  height: 15px;
+  flex: none;
+  object-fit: contain;
+}
+
+.queue-strip__action-cost {
+  font-size: 8.5px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--accent-deep);
+  line-height: 1;
+  white-space: nowrap;
+}
+
+/* The pause/stop control reads as a plain icon button, no cost badge to
+   balance, so its glyph sits centered rather than stacked. */
+.queue-strip__pause-icon {
+  width: 15px;
+  height: 15px;
+  flex: none;
+}
+
+.tile {
+  pointer-events: auto;
+  appearance: none;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  width: 52px;
+  height: 52px;
+  padding: 6px 4px;
+  border-radius: var(--radius-card);
+  border: 1.5px solid var(--line);
+  background: var(--paper-sunk);
+  transition: transform var(--duration-fast) var(--ease-standard),
+    box-shadow var(--duration-fast) var(--ease-standard),
+    background-color var(--duration-fast) var(--ease-standard),
+    border-color var(--duration-fast) var(--ease-standard);
+}
+
+.tile:hover {
+  transform: translateY(-1px);
+  background: color-mix(in srgb, var(--paper-sunk) 80%, var(--accent-wash) 20%);
+  box-shadow: var(--shadow-lift);
+}
+
+.tile:active {
+  transform: translateY(0);
+}
+
+.tile:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.tile__icon {
+  width: 26px;
+  height: 26px;
+  flex: none;
+  object-fit: contain;
+}
+
+/* Demolish reads as destructive at rest, not only once picked — a faint
+   --rotting tint on the shell itself, so the tile still stands apart from
+   the build tiles even when the row is scrolled past the divider and the
+   two sit side by side with no visible break between them. */
+.tile--demolish {
+  border-color: color-mix(in srgb, var(--rotting) 30%, var(--line));
+  background: color-mix(in srgb, var(--paper-sunk) 92%, var(--rotting) 8%);
+}
+
+.tile--demolish:hover {
+  background: color-mix(in srgb, var(--paper-sunk) 78%, var(--rotting) 22%);
+}
+
+.tile--demolish.is-selected {
+  background: color-mix(in srgb, var(--rotting) 20%, var(--paper-sunk));
+  border-color: var(--rotting);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--rotting) 22%, transparent), var(--shadow-lift);
+}
+
+.tile--demolish .tile__icon {
+  color: var(--ink-soft);
+}
+
+.tile__cost {
+  font-size: 10.5px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--accent-deep);
+  line-height: 1;
+  /* The tile row scrolls (.dock-build__scroll's overflow-x: auto implicitly
+     turns overflow-y auto too), so a badge that wrapped to a second line
+     would get clipped at the row's edge instead of just looking cramped —
+     keep it to one line and shrink rather than wrap. */
+  white-space: nowrap;
+  max-width: 100%;
+}
+
+.tile.is-selected {
+  background: var(--accent-wash);
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(224, 134, 74, 0.22), var(--shadow-lift);
+}
+
+/* Unaffordable: dim the icon and shell, but never the cost badge itself —
+   applying opacity to the whole tile would fade the badge's text toward the
+   background along with it, which is exactly backwards for the one thing on
+   the tile you most need to read when you can't afford it. */
+.tile.is-broke:not(.is-selected) {
+  border-color: transparent;
+  background: color-mix(in srgb, var(--paper-sunk) 65%, transparent);
+}
+
+.tile.is-broke:not(.is-selected) .tile__icon {
+  opacity: 0.45;
+  filter: saturate(0.5);
+}
+
+.tile.is-broke .tile__cost {
+  color: var(--rotting);
+  font-weight: 750;
+}
+
+.tile--demolish .tile__cost {
+  color: var(--ink-soft);
+  font-weight: 620;
 }
 
 /* Icon-only now — the label survives as the button's accessible name and
@@ -74,11 +429,8 @@
   white-space: nowrap;
 }
 
-.dock-tab__icon {
-  width: 32px;
-  height: 32px;
-  flex: none;
-  object-fit: contain;
+.dock-tab:hover {
+  background: var(--paper-sunk);
 }
 
 .dock-tab.is-active {
@@ -86,33 +438,144 @@
   color: var(--accent-deep);
 }
 
+.dock-tab:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* The "More" (•••) tab is the one dock-tab that still shows a text glyph
+   instead of an icon, so its label needs its own sizing rather than relying
+   on the icon-only baseline above. */
+.dock-tab--more {
+  gap: 0;
+}
+
+.dock-tab__label {
+  font-size: 16px;
+  line-height: 1;
+  letter-spacing: 0.06em;
+}
+
 /*
- * One card for whatever tab is open — a title, a close button, then that
- * section's panels underneath — instead of each panel keeping its own
- * bordered, shadowed box stacked under the last. The card itself supplies
- * the background/border/shadow every individual panel used to bring on its
- * own; the rule block below strips that duplicate chrome from panels once
- * they're nested here (a plain top divider replaces it, same idea as
- * tools.css's own `.tools-section + .tools-section` rule), so a panel that
- * still floats on its own elsewhere in the HUD (there is none today, but a
- * future one might) is unaffected outside `.dock-popover`.
+ * One sheet, whichever section is current — a nav column listing every
+ * section down the side (`.dock-popover__nav`), and a main area
+ * (`.dock-popover__main`) with a title, a close button, then that section's
+ * panels underneath. The card itself supplies the background/border/shadow
+ * every individual panel used to bring on its own; the rule block below
+ * strips that duplicate chrome from panels once they're nested here (a
+ * plain top divider replaces it, same idea as tools.css's own
+ * `.tools-section + .tools-section` rule), so a panel that still floats on
+ * its own elsewhere in the HUD (there is none today, but a future one
+ * might) is unaffected outside `.dock-popover`.
  */
 .dock-popover {
   position: fixed;
   left: 50%;
   bottom: calc(var(--dock-bar-h, 68px) + 10px);
-  transform: translateX(-50%);
+  transform: translateX(-50%) translateY(0) scale(1);
   z-index: 5;
   display: flex;
-  flex-direction: column;
-  width: max-content;
+  flex-direction: row;
+  align-items: stretch;
+  width: 620px;
   max-width: calc(100vw - 24px);
   max-height: calc(100vh - var(--dock-bar-h, 68px) - 36px);
-  background: var(--paper);
+  overflow: hidden;
+  background: var(--surface-0-translucent);
   border: 1px solid var(--line);
   border-radius: var(--radius-panel);
   box-shadow: var(--shadow-panel);
   pointer-events: auto;
+  -webkit-backdrop-filter: blur(20px) saturate(160%);
+  backdrop-filter: blur(20px) saturate(160%);
+  opacity: 1;
+  visibility: visible;
+  transition: opacity var(--duration-base) var(--ease-standard),
+    transform var(--duration-base) var(--ease-standard), visibility 0s linear 0s;
+}
+
+/*
+ * Opening/closing fade+slide instead of the sheet just snapping in and out
+ * with `hidden`'s default `display: none`. `display` itself can't be
+ * transitioned, so this keeps the box laid out (still `position: fixed`, so
+ * nothing else on the page shifts) and fades/scales it away instead — the
+ * `visibility: hidden` transition, delayed until the fade finishes, is what
+ * actually pulls it out of the accessibility tree and off the hit-test path
+ * once it's done animating, same end state as `display: none` gave it
+ * before. `pointer-events: none` blocks clicks through it immediately
+ * rather than waiting on that same delay.
+ */
+.dock-popover[hidden] {
+  display: flex;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateX(-50%) translateY(6px) scale(0.97);
+  pointer-events: none;
+  transition: opacity var(--duration-base) var(--ease-standard),
+    transform var(--duration-base) var(--ease-standard),
+    visibility 0s linear var(--duration-base);
+}
+
+/*
+ * The sheet's internal section nav — Sound / Speed / Prestige / Leaderboard
+ * / Friends — the thing that lets one sheet stand in for what used to be
+ * three separate dock tabs. Picking an item swaps `.dock-popover__main`'s
+ * content without the sheet closing; see shell.ts's `render()`.
+ */
+.dock-popover__nav {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: none;
+  width: 152px;
+  padding: 14px 8px;
+  overflow-y: auto;
+  border-right: 1px solid var(--line);
+}
+
+.dock-popover__nav-item {
+  appearance: none;
+  border: none;
+  background: transparent;
+  color: var(--ink-soft);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 620;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 10px;
+  border-radius: var(--radius-sm);
+  text-align: left;
+  white-space: nowrap;
+}
+
+.dock-popover__nav-item svg {
+  width: 18px;
+  height: 18px;
+  flex: none;
+}
+
+.dock-popover__nav-item:hover {
+  background: var(--paper-sunk);
+}
+
+.dock-popover__nav-item.is-active {
+  background: var(--accent-wash);
+  color: var(--accent-deep);
+}
+
+.dock-popover__nav-item:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.dock-popover__main {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1 1 auto;
 }
 
 .dock-popover__head {
@@ -158,6 +621,27 @@
   padding: 14px 16px 16px;
 }
 
+/* Picking a different nav item (Sound/Speed/Prestige/Leaderboard/Friends)
+   swaps this whole subtree in one go (see shell.ts's `render()`), which
+   would otherwise read as an abrupt content jump — a brief fade+rise on
+   whatever just landed here softens the swap into something closer to a
+   cross-fade. Runs again every time, since `replaceChildren` removes and
+   reinserts the section's root node on every switch. */
+.dock-popover__body > * {
+  animation: dock-section-in var(--duration-base) var(--ease-standard) both;
+}
+
+@keyframes dock-section-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
 .dock-popover__column {
   display: flex;
   flex-direction: column;
@@ -195,15 +679,64 @@
     gap: 8px;
     padding: 6px 6px 6px 14px;
   }
-  /* The full readout (happiness, population, next build) is the first
-     thing to go on the narrowest phones — coins and the income rate are
-     the two numbers worth glancing at one-handed; the rest is a tap away
-     inside Ville/Menu. */
-  .dock-bar__stats .topstrip__happy,
-  .dock-bar__stats .topstrip__stat,
-  .dock-bar__stats .topstrip__next,
-  .dock-bar__stats .topstrip__info {
-    display: none;
+
+  .queue-strip {
+    padding: 6px 10px;
+    gap: 8px;
+  }
+
+  .queue-strip__body {
+    min-width: 72px;
+  }
+
+  .queue-strip__action,
+  .queue-strip__pause {
+    width: 24px;
+    height: 24px;
+  }
+
+  .queue-strip__action-icon,
+  .queue-strip__pause-icon {
+    width: 13px;
+    height: 13px;
+  }
+
+  .queue-strip__action-cost {
+    font-size: 7.5px;
+  }
+
+  /* Smaller tiles buy back some of the width the tabs and the bar's own
+     padding still need on a phone, before the row falls back to scrolling. */
+  .tile {
+    width: 44px;
+    height: 44px;
+  }
+
+  .tile__icon {
+    width: 22px;
+    height: 22px;
+  }
+
+  /* The sheet's nav column becomes a horizontal, scrollable row above its
+     body instead of a side column — a phone doesn't have 620px of width to
+     spare for two columns side by side. */
+  .dock-popover {
+    flex-direction: column;
+    width: min(420px, calc(100vw - 24px));
+  }
+
+  .dock-popover__nav {
+    flex-direction: row;
+    width: auto;
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding: 10px 12px;
+    border-right: none;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .dock-popover__nav-item {
+    flex: none;
   }
 }
 
@@ -217,13 +750,3 @@
   }
 }
 
-/* -------------------------------------------------------------- desktop */
-
-@media (min-width: 960px) {
-  /* The hovered-tile info now floats free of the dock (style.css's
-     .panel--hover-float) once there's room for it — its copy nested here
-     would just be the same info twice. */
-  .dock-popover__column[data-section='ville'] .panel--hover {
-    display: none;
-  }
-}

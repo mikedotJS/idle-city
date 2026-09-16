@@ -11,6 +11,7 @@
 
 import type { Friends } from '../net/friends'
 import type { BasedUser } from '../net/based'
+import { createDialogFocus } from './focusTrap'
 
 export interface FriendsUI {
   /** The launcher button + hint, ready to be placed by a caller. The modal overlay it opens is unaffected — it's appended straight to root and stays fixed, full-screen, independent of any dock. */
@@ -50,9 +51,14 @@ export function createFriendsUI(
   const overlay = el('div', 'overlay')
   overlay.hidden = true
   const card = el('section', 'panel panel--board')
+  card.setAttribute('role', 'dialog')
+  card.setAttribute('aria-modal', 'true')
+  card.setAttribute('aria-labelledby', 'friends-title')
+  card.tabIndex = -1
 
   const headingRow = el('div', 'board__heading')
   const heading = el('h2', 'board__title', 'Friends')
+  heading.id = 'friends-title'
   const infoBadge = el('span', 'board__info', 'i')
   infoBadge.title =
     'Each confirmed friend nudges your income up a little. Add someone by their code, and they need to add yours back before it counts.'
@@ -102,6 +108,7 @@ export function createFriendsUI(
   )
   overlay.append(card)
   root.append(overlay)
+  const dialogFocus = createDialogFocus(card)
 
   // ------------------------------------------------------------------- state
 
@@ -117,15 +124,25 @@ export function createFriendsUI(
     incomingList.hidden = !signedIn
     confirmedHeading.hidden = !signedIn
     confirmedList.hidden = !signedIn
-    if (signedIn) codeLabel.textContent = `Your code: ${friends.myCode()}`
+    if (signedIn) {
+      codeLabel.replaceChildren(
+        document.createTextNode('Your code: '),
+        el('span', 'friend-code', friends.myCode() ?? ''),
+      )
+    }
   }
 
-  function renderIds(list: HTMLOListElement, ids: string[]): void {
+  function renderIds(list: HTMLOListElement, ids: string[], incoming: boolean): void {
     list.replaceChildren()
     for (const id of ids) {
       // No directory to turn an id into a name, so the code itself is the
       // label — the same one its owner copied out of their own panel.
-      list.append(el('li', 'board__row', id))
+      const row = el(
+        'li',
+        incoming ? 'board__row friend-row friend-row--incoming' : 'board__row friend-row',
+      )
+      row.append(el('span', 'friend-code', id))
+      list.append(row)
     }
   }
 
@@ -139,11 +156,11 @@ export function createFriendsUI(
       confirmedHeading.textContent = confirmed.length
         ? `Friends (${confirmed.length})`
         : 'No confirmed friends yet.'
-      renderIds(confirmedList, confirmed)
+      renderIds(confirmedList, confirmed, false)
       incomingHeading.textContent = incoming.length
         ? `Added you — add them back to confirm (${incoming.length})`
         : ''
-      renderIds(incomingList, incoming)
+      renderIds(incomingList, incoming, true)
       onCountChange(confirmed.length)
     } catch (error) {
       confirmedHeading.textContent = `Could not load friends: ${(error as Error).message}`
@@ -155,10 +172,12 @@ export function createFriendsUI(
   openButton.addEventListener('click', () => {
     overlay.hidden = false
     void refresh()
+    dialogFocus.open()
   })
 
   function close(): void {
     overlay.hidden = true
+    dialogFocus.close()
   }
   closeButton.addEventListener('click', close)
   overlay.addEventListener('click', (event) => {
@@ -166,10 +185,13 @@ export function createFriendsUI(
   })
 
   const onKey = (event: KeyboardEvent): void => {
-    if (event.key === 'Escape' && !overlay.hidden) {
+    if (overlay.hidden) return
+    if (event.key === 'Escape') {
       event.stopPropagation()
       close()
+      return
     }
+    dialogFocus.onKeydown(event)
   }
   window.addEventListener('keydown', onKey, true)
 

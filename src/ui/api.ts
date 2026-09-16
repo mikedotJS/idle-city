@@ -25,23 +25,27 @@ export interface HudCallbacks {
 }
 
 export interface Hud {
-  /** Compact, always-visible readouts. Placed by main.ts outside any
-   * shell section — it must stay visible no matter which section (or,
-   * later, which mobile tab) is open. */
+  /** The resource ribbon card (coins, income rate, happiness, population).
+   * Placed by main.ts in the top-left HUD zone, outside any shell section —
+   * it must stay visible no matter which section (or, later, which mobile
+   * tab) is open. */
   topStripElement: HTMLElement
-  /** The "Place by hand" build palette. */
-  paletteElement: HTMLElement
-  /** The hovered-tile info panel, shown beneath the palette in the Ville tab
-   * (phone/tablet widths). */
-  hoverPanelElement: HTMLElement
-  /** The same hovered-tile info, as a standalone floating card. Placed by
-   * main.ts outside any shell section, directly on `#ui`; CSS shows it only
-   * at desktop widths (and hides `hoverPanelElement`'s copy inside the Ville
-   * tab there), so the info reads as its own thing instead of hiding inside
-   * a menu once there's room for it to float freely. */
-  hoverCardElement: HTMLElement
-  /** The build queue. */
-  queueElement: HTMLElement
+  /** The permanent row of build tool tiles (house/shop/.../demolish),
+   * placed by main.ts directly in the dock bar rather than in any shell
+   * section's popover — see shell.ts. */
+  buildDockElement: HTMLElement
+  /** The single inspect card: whatever tile or building is currently
+   * hovered or selected, at every viewport size. Placed by main.ts in the
+   * right-rail HUD zone, alongside the activity feed — see layout.ts. Shows
+   * a placeholder message when nothing is hovered or selected, rather than
+   * disappearing, so the right rail always holds the same card. */
+  inspectElement: HTMLElement
+  /** The compact "what's building now" strip, docked directly above the
+   * build dock bar — see shell.ts. Always on screen: it also carries the
+   * queue's own controls (add house/shop, pause) as small inline icon
+   * buttons, so it's the only place needed to manage the queue — only its
+   * "now building" readout hides itself when the queue is empty. */
+  queueStripElement: HTMLElement
   /** The "New city" restart button, in its own panel. */
   restartElement: HTMLElement
   update(state: CityState, derived: Derived): void

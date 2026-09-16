@@ -13,6 +13,7 @@ import { OFFLINE_CAP_SECONDS } from '../sim/config'
 import type { BuildingType, CityState, Derived, QueueableType } from '../sim/types'
 import type { HoverInfo, Hud, HudCallbacks } from './api'
 import { BUILDING_ICONS } from './buildingIcons'
+import { createDialogFocus } from './focusTrap'
 import { formatCoins, formatDuration, formatPercent, formatRate, happinessBand } from './format'
 import { RESOURCE_ICONS } from './resourceIcons'
 import type { HappinessKey } from './format'
@@ -30,7 +31,6 @@ const MANUAL_TYPES: BuildingType[] = BUILDING_TYPES.filter(
 /** Buildings the auto-builder will take off the queue. */
 const QUEUE_TYPES: QueueableType[] = ['house', 'shop']
 
-const MAX_QUEUE_ROWS = 8
 const MAX_TOASTS = 4
 const TOAST_LIFE_MS = 2600
 const TOAST_FADE_MS = 400
@@ -63,6 +63,47 @@ function buildingIcon(type: BuildingType, className: string): HTMLImageElement {
   img.src = BUILDING_ICONS[type]
   img.alt = ''
   return img
+}
+
+/**
+ * Demolish has no building of its own to draw, so it gets a plain X glyph
+ * instead of one of the PNGs in buildingIcons.ts — drawn as an inline SVG
+ * (not an <img>) so it tints with `currentColor` like any other icon-as-text
+ * would, with no asset file to add just for one tool.
+ */
+function demolishIcon(className: string): SVGSVGElement {
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg')
+  svg.setAttribute('viewBox', '0 0 24 24')
+  svg.setAttribute('class', className)
+  svg.setAttribute('aria-hidden', 'true')
+  const path = document.createElementNS('http://www.w3.org/2000/svg', 'path')
+  path.setAttribute('d', 'M5 5l14 14M19 5L5 19')
+  path.setAttribute('stroke', 'currentColor')
+  path.setAttribute('stroke-width', '2.5')
+  path.setAttribute('stroke-linecap', 'round')
+  path.setAttribute('fill', 'none')
+  svg.append(path)
+  return svg
+}
+
+/**
+ * Two plain bars — the universal "stop/pause" glyph — for the queue strip's
+ * inline pause control. An inline SVG for the same reason demolishIcon is:
+ * it tints with `currentColor`, and doesn't need an asset file of its own.
+ */
+function pauseIcon(className: string): SVGSVGElement {
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg')
+  svg.setAttribute('viewBox', '0 0 24 24')
+  svg.setAttribute('class', className)
+  svg.setAttribute('aria-hidden', 'true')
+  const path = document.createElementNS('http://www.w3.org/2000/svg', 'path')
+  path.setAttribute(
+    'd',
+    'M7 5.5a1 1 0 0 1 1 1v11a1 1 0 1 1-2 0v-11a1 1 0 0 1 1-1Zm10 0a1 1 0 0 1 1 1v11a1 1 0 1 1-2 0v-11a1 1 0 0 1 1-1Z',
+  )
+  path.setAttribute('fill', 'currentColor')
+  svg.append(path)
+  return svg
 }
 
 function resourceIcon(key: keyof typeof RESOURCE_ICONS, className: string): HTMLImageElement {
@@ -102,155 +143,120 @@ interface QueueAddButton {
 export function createHud(root: HTMLElement, cb: HudCallbacks): Hud {
   // -------------------------------------------------------------- top strip
 
+  // Coins are the hero figure: big and bold, with the income rate directly
+  // beneath it. Happiness renders as a small colored meter (fill color
+  // switches per mood band, see the `topstrip--<band>` class below) with its
+  // percentage as a label, and population is the smallest, least prominent
+  // line — see the design reference this task builds to.
   const topStrip = el('section', 'topstrip')
+
   const tsCoins = el('span', 'topstrip__coins', '0')
+  const tsCoinRow = el('div', 'topstrip__coinrow')
+  tsCoinRow.append(resourceIcon('coins', 'topstrip__coin-icon'), tsCoins)
+
   const tsRateValue = el('span', undefined, '+0.0/s')
-  const tsRate = el('span', 'topstrip__rate')
+  const tsRate = el('div', 'topstrip__rate')
   tsRate.append(resourceIcon('income', 'topstrip__rate-icon'), tsRateValue)
-  const tsHappyValue = el('span', undefined, '50%')
-  const tsHappy = el('span', 'topstrip__happy')
-  tsHappy.append(resourceIcon('happiness', 'topstrip__happy-icon'), tsHappyValue)
+
+  const tsHappyFill = el('div', 'topstrip__meter-fill')
+  const tsHappyTrack = el('div', 'topstrip__meter-track')
+  tsHappyTrack.append(tsHappyFill)
+  const tsHappyValue = el('span', 'topstrip__meter-label', '50%')
+  const tsHappy = el('div', 'topstrip__happy')
+  tsHappy.append(resourceIcon('happiness', 'topstrip__happy-icon'), tsHappyTrack, tsHappyValue)
+
   const tsPopValue = el('span', undefined, '0')
-  const tsPop = el('span', 'topstrip__stat')
+  const tsPop = el('div', 'topstrip__pop')
   tsPop.append(resourceIcon('population', 'topstrip__pop-icon'), tsPopValue)
-  const tsNext = el('span', 'topstrip__next', '')
+
+  const tsNext = el('div', 'topstrip__next', '')
+
   const tsInfo = el('span', 'topstrip__info')
   tsInfo.append(resourceIcon('info', 'topstrip__info-icon'))
   tsInfo.tabIndex = 0
   tsInfo.title =
     'Income multiplier = 0.50 + happiness, so 0.50x at worst and 1.50x at best — the rate shown here already includes it. A happier city earns more from the same buildings, and builds faster too.'
-  topStrip.append(
-    resourceIcon('coins', 'topstrip__coin-icon'),
-    tsCoins,
-    tsRate,
-    tsHappy,
-    tsPop,
-    tsNext,
-    tsInfo,
-  )
 
-  // ------------------------------------------------------------- hover panel
+  topStrip.append(tsCoinRow, tsRate, tsHappy, tsPop, tsNext, tsInfo)
+
+  // ------------------------------------------------------------ inspect card
 
   /**
-   * Two copies of the same tile-info readout: `hoverPanelElement` nested in
-   * the Ville tab (the only place it fits on a phone/tablet) and
-   * `hoverCardElement` floating free on its own (desktop, where CSS hides
-   * the Ville copy in favour of this one — see api.ts). Both stay in sync
-   * because `setHoverInfo` writes through this shared handle rather than
-   * duplicating the update logic per copy.
+   * The single tile-info readout, in the right rail at every viewport size
+   * (see layout.ts/api.ts's `inspectElement` doc) — replaces what used to be
+   * two copies of the same panel (one nested in the Ville tab for phone/
+   * tablet, one floating free on desktop). It never hides: with nothing
+   * hovered or selected it falls back to `INSPECT_EMPTY_LINE` instead of
+   * disappearing, so the right rail always holds the same card rather than
+   * the layout shifting as the player moves the cursor.
    */
-  interface HoverCopy {
-    panel: HTMLElement
-    icon: HTMLImageElement
-    title: HTMLElement
-    lines: HTMLElement
-    cost: HTMLElement
-  }
+  const INSPECT_EMPTY_TITLE = 'Nothing selected'
+  const INSPECT_EMPTY_LINE = 'Hover a tile or building to see what it is.'
 
-  function buildHoverCopy(extraClass?: string): HoverCopy {
-    const panel = el('section', 'panel panel--hover' + (extraClass ? ' ' + extraClass : ''))
-    panel.hidden = true
-    const head = el('div', 'hover__head')
-    const icon = el('img', 'hover__icon')
-    icon.alt = ''
-    icon.hidden = true
-    const title = el('div', 'hover__title')
-    head.append(icon, title)
-    const lines = el('div', 'hover__lines')
-    const cost = el('div', 'hover__cost')
-    cost.hidden = true
-    panel.append(head, lines, cost)
-    return { panel, icon, title, lines, cost }
-  }
+  const inspectPanel = el('section', 'panel panel--inspect')
+  const inspectHead = el('div', 'hover__head')
+  const inspectIcon = el('img', 'hover__icon')
+  inspectIcon.alt = ''
+  inspectIcon.hidden = true
+  const inspectTitle = el('div', 'hover__title')
+  inspectHead.append(inspectIcon, inspectTitle)
+  const inspectLines = el('div', 'hover__lines')
+  const inspectCost = el('div', 'hover__cost')
+  inspectCost.hidden = true
+  inspectPanel.append(inspectHead, inspectLines, inspectCost)
+  // Built already showing the placeholder, matching EMPTY_SIGNATURE below,
+  // so the card never has a blank frame before the first real hover.
+  setText(inspectTitle, INSPECT_EMPTY_TITLE)
+  inspectLines.append(el('div', 'hover__line', INSPECT_EMPTY_LINE))
 
-  const hoverPanel = buildHoverCopy()
-  const hoverCard = buildHoverCopy('panel--hover-float')
-  const hoverCopies = [hoverPanel, hoverCard]
+  // -------------------------------------------------------------- build dock
 
-  // ------------------------------------------------------------ tool palette
-
-  const toolsPanel = el('section', 'panel panel--tools')
-  toolsPanel.append(el('h2', 'panel__title', 'Place by hand'))
-  const toolList = el('div', 'tool-list')
+  // A permanent row of icon tiles in the dock bar itself (see shell.ts/
+  // shell.css) rather than a panel tucked inside the Ville tab's popover —
+  // picking what to build is the single most frequent action in the game,
+  // so it no longer costs an extra tap to open a menu first. Each tile is
+  // just an icon and a cost badge; the full name and blurb that used to sit
+  // on the card live in the tooltip (`title`) instead — the same trade the
+  // nav tabs in the bar already made.
+  const buildDock = el('div', 'dock-build')
+  const buildScroll = el('div', 'dock-build__scroll')
   const cards: ToolCard[] = []
 
   for (const type of MANUAL_TYPES) {
     const def = BUILDINGS[type]
-    const button = el('button', 'tool')
-    button.type = 'button'
-    const head = el('span', 'tool__head')
-    const costNode = el('span', 'tool__cost', formatCoins(def.baseCost))
-    head.append(buildingIcon(type, 'tool__icon'), el('span', 'tool__name', def.label), costNode)
-    button.append(head, el('span', 'tool__blurb', def.blurb))
+    const tile = el('button', 'tile')
+    tile.type = 'button'
+    tile.title = `${def.label} — ${formatCoins(def.baseCost)} coins. ${def.blurb}`
+    tile.setAttribute('aria-label', def.label)
+    const costNode = el('span', 'tile__cost', formatCoins(def.baseCost))
+    tile.append(buildingIcon(type, 'tile__icon'), costNode)
     const tool: Tool = { kind: 'place', type }
-    button.addEventListener('click', () => select(tool))
-    toolList.append(button)
-    cards.push({ button, tool, type, costNode, lastCost: -1, lastAffordable: null })
+    tile.addEventListener('click', () => select(tool))
+    buildScroll.append(tile)
+    cards.push({ button: tile, tool, type, costNode, lastCost: -1, lastAffordable: null })
   }
 
-  const demolishButton = el('button', 'tool tool--demolish')
-  demolishButton.type = 'button'
-  const demolishHead = el('span', 'tool__head')
-  demolishHead.append(el('span', 'tool__name', 'Demolish'), el('span', 'tool__cost', 'free'))
-  demolishButton.append(
-    demolishHead,
-    el('span', 'tool__blurb', 'Clear a tile instantly. Costs nothing, refunds nothing.'),
-  )
+  buildScroll.append(el('div', 'dock-divider'))
+
+  const demolishTile = el('button', 'tile tile--demolish')
+  demolishTile.type = 'button'
+  demolishTile.title = 'Demolish — free. Clear a tile instantly. Costs nothing, refunds nothing.'
+  demolishTile.setAttribute('aria-label', 'Demolish')
+  const demolishCost = el('span', 'tile__cost', 'free')
+  demolishTile.append(demolishIcon('tile__icon'), demolishCost)
   const demolishTool: Tool = { kind: 'demolish' }
-  demolishButton.addEventListener('click', () => select(demolishTool))
-  toolList.append(demolishButton)
+  demolishTile.addEventListener('click', () => select(demolishTool))
+  buildScroll.append(demolishTile)
   cards.push({
-    button: demolishButton,
+    button: demolishTile,
     tool: demolishTool,
     type: null,
-    costNode: demolishHead,
+    costNode: demolishCost,
     lastCost: 0,
     lastAffordable: null,
   })
 
-  toolsPanel.append(toolList)
-  toolsPanel.append(
-    el('p', 'hint', 'Pick a tool, then click a tile. Escape or right-click puts it down again.'),
-    el(
-      'p',
-      'hint',
-      'The pale land past your plot is for sale. Click it to buy, and the city will spread into it.',
-    ),
-  )
-
-  // ------------------------------------------------------------- build queue
-
-  const queuePanel = el('section', 'panel panel--queue')
-  queuePanel.append(el('h2', 'panel__title', 'Build queue'))
-  queuePanel.append(
-    el('p', 'hint', 'The city builds this list on repeat, paying out of your coins.'),
-  )
-  const queueList = el('ol', 'queue-list')
-  const queueRepeat = el('p', 'repeat')
-  const queueActions = el('div', 'queue-actions')
-  const addButtons: QueueAddButton[] = []
-
-  for (const type of QUEUE_TYPES) {
-    const def = BUILDINGS[type]
-    const button = el('button', 'btn')
-    button.type = 'button'
-    const costNode = el('span', 'btn__cost', formatCoins(def.baseCost))
-    button.append(
-      buildingIcon(type, 'btn__icon'),
-      el('span', 'btn__label', 'Add ' + def.label),
-      costNode,
-    )
-    button.title = def.blurb
-    button.addEventListener('click', () => cb.onQueue(type))
-    queueActions.append(button)
-    addButtons.push({ type, costNode, lastCost: -1 })
-  }
-
-  const clearButton = el('button', 'btn btn--ghost', 'Pause building')
-  clearButton.type = 'button'
-  clearButton.title = 'Empty the queue.'
-  clearButton.addEventListener('click', () => cb.onClearQueue())
-  queueActions.append(clearButton)
+  buildDock.append(buildScroll)
 
   // A restart throws the city away, so it asks twice. The second press is the
   // confirmation, and moving the pointer away or waiting cancels it — nobody
@@ -290,7 +296,58 @@ export function createHud(root: HTMLElement, cb: HudCallbacks): Hud {
   // is a click somewhere else or four seconds of hesitation.
   window.addEventListener('click', disarm)
 
-  queuePanel.append(queueList, queueRepeat, queueActions)
+  // --------------------------------------------------------- queue strip
+
+  // A slim strip docked directly above the build dock (see shell.ts/
+  // shell.css — it shares the same fixed bottom-center cluster as the bar,
+  // not a floating panel of its own) showing what the auto-builder is
+  // working toward right now, plus the queue's own controls — adding to it
+  // and pausing it — as small inline icon buttons at its end. Those used to
+  // live in a separate controls-only panel tucked in the Ville tab; now the
+  // strip is fully self-sufficient, so that panel is gone. Because the
+  // controls live here too, the strip itself always stays on screen (only
+  // its "now building" readout hides when the queue is empty) — it's the
+  // only place left to start the queue back up.
+  const queueStrip = el('div', 'queue-strip')
+  const queueStripIcon = el('img', 'queue-strip__icon')
+  queueStripIcon.alt = ''
+  const queueStripName = el('span', 'queue-strip__name')
+  const queueStripFill = el('div', 'queue-strip__fill')
+  const queueStripTrack = el('div', 'queue-strip__track')
+  queueStripTrack.append(queueStripFill)
+  const queueStripBody = el('div', 'queue-strip__body')
+  queueStripBody.append(queueStripName, queueStripTrack)
+  const queueStripNow = el('div', 'queue-strip__now')
+  queueStripNow.hidden = true
+  queueStripNow.append(queueStripIcon, queueStripBody)
+  const queueStripWaiting = el('span', 'queue-strip__waiting')
+  queueStripWaiting.hidden = true
+
+  const queueStripActions = el('div', 'queue-strip__actions')
+  const addButtons: QueueAddButton[] = []
+
+  for (const type of QUEUE_TYPES) {
+    const def = BUILDINGS[type]
+    const button = el('button', 'queue-strip__action')
+    button.type = 'button'
+    const costNode = el('span', 'queue-strip__action-cost', formatCoins(def.baseCost))
+    button.append(buildingIcon(type, 'queue-strip__action-icon'), costNode)
+    button.title = `Add ${def.label} to the queue — ${formatCoins(def.baseCost)} coins. ${def.blurb}`
+    button.setAttribute('aria-label', 'Add ' + def.label)
+    button.addEventListener('click', () => cb.onQueue(type))
+    queueStripActions.append(button)
+    addButtons.push({ type, costNode, lastCost: -1 })
+  }
+
+  const pauseButton = el('button', 'queue-strip__pause')
+  pauseButton.type = 'button'
+  pauseButton.title = 'Empty the queue — the auto-builder stops until something is added again.'
+  pauseButton.setAttribute('aria-label', 'Pause building')
+  pauseButton.append(pauseIcon('queue-strip__pause-icon'))
+  pauseButton.addEventListener('click', () => cb.onClearQueue())
+  queueStripActions.append(pauseButton)
+
+  queueStrip.append(queueStripNow, queueStripWaiting, queueStripActions)
 
   // Its own panel, not a third button in the queue's action row. Restarting is
   // not a queue action, and crowding that row made it wrap, which overflowed
@@ -307,22 +364,22 @@ export function createHud(root: HTMLElement, cb: HudCallbacks): Hud {
   const offlineOverlay = el('div', 'overlay')
   offlineOverlay.hidden = true
   const offlineCard = el('section', 'panel panel--offline')
+  offlineCard.setAttribute('role', 'dialog')
+  offlineCard.setAttribute('aria-modal', 'true')
+  offlineCard.setAttribute('aria-labelledby', 'offline-title')
+  offlineCard.tabIndex = -1
+  const offlineTitle = el('h2', 'offline__title', 'Welcome back')
+  offlineTitle.id = 'offline-title'
   const offlineAway = el('p', 'offline__away')
   const offlineCoins = el('p', 'offline__coins')
   const offlineRule = el('p', 'note')
   const offlineCap = el('p', 'offline__cap')
   offlineCap.hidden = true
-  const offlineDismiss = el('button', 'btn btn--primary', 'Back to the city')
+  const offlineDismiss = el('button', 'btn btn--primary offline__dismiss', 'Back to the city')
   offlineDismiss.type = 'button'
-  offlineCard.append(
-    el('h2', 'offline__title', 'Welcome back'),
-    offlineAway,
-    offlineCoins,
-    offlineRule,
-    offlineCap,
-    offlineDismiss,
-  )
+  offlineCard.append(offlineTitle, offlineAway, offlineCoins, offlineRule, offlineCap, offlineDismiss)
   offlineOverlay.append(offlineCard)
+  const offlineFocus = createDialogFocus(offlineCard)
 
   root.append(toastLayer, offlineOverlay)
 
@@ -338,8 +395,12 @@ export function createHud(root: HTMLElement, cb: HudCallbacks): Hud {
   let lastPopulation = -1
   let lastHappiness = Number.NaN
   let lastBand: HappinessKey | null = null
-  let lastQueueSignature: string | null = null
-  let lastHoverSignature: string | null = null
+  let lastStripType: QueueableType | null = null
+  let lastStripWaiting = -1
+  /** Matches the signature `setHoverInfo(null)` computes, since the card is
+   * built already showing the placeholder — see `inspectPanel` above. */
+  const EMPTY_SIGNATURE = '__empty__'
+  let lastHoverSignature: string = EMPTY_SIGNATURE
 
   function paintSelection(): void {
     for (const card of cards) {
@@ -386,46 +447,57 @@ export function createHud(root: HTMLElement, cb: HudCallbacks): Hud {
     return displayCoins
   }
 
-  function renderQueue(state: CityState): void {
-    const signature = state.queue.join(',')
-    if (signature === lastQueueSignature) return
-    lastQueueSignature = signature
-
-    const rows: HTMLLIElement[] = []
-    const shown = Math.min(state.queue.length, MAX_QUEUE_ROWS)
-    for (let i = 0; i < shown; i++) {
-      const type = state.queue[i]
-      const row = el('li', i === 0 ? 'qrow qrow--next' : 'qrow')
-      row.append(buildingIcon(type, 'qrow__icon'))
-      row.append(el('span', 'qrow__name', BUILDINGS[type].label))
-      if (i === 0) row.append(el('span', 'qrow__badge', 'building next'))
-      rows.push(row)
-    }
-    const hiddenCount = state.queue.length - shown
-    if (hiddenCount > 0) {
-      rows.push(el('li', 'qrow qrow--more', '+' + hiddenCount + ' more'))
-    }
-    if (rows.length === 0) {
-      rows.push(el('li', 'qrow qrow--empty', 'Nothing queued'))
-    }
-    queueList.replaceChildren(...rows)
-
-    if (state.queue.length === 0) {
-      setClass(queueRepeat, 'repeat repeat--empty')
-      setText(
-        queueRepeat,
-        'Building is paused, so nothing new goes up and your coins pile up instead. ' +
-          'This is how you save for land or a factory: the city spends from the same purse you do.',
-      )
+  /**
+   * The compact dock strip: the currently-building item's name and a
+   * progress fill toward its cost (coins already saved toward it, out of
+   * what it costs — the actual gate on the auto-builder most of the time,
+   * since BUILD_INTERVAL itself is short), plus a "+N waiting" count for
+   * whatever else sits behind it in the rotation. The strip itself stays on
+   * screen even with an empty queue now (it carries the add/pause controls,
+   * the only place left to start the queue back up) — only the "now
+   * building" readout and the waiting badge hide when there's nothing
+   * queued.
+   */
+  function updateQueueStrip(state: CityState): void {
+    const type = state.queue[0] ?? null
+    if (!type) {
+      if (!queueStripNow.hidden) queueStripNow.hidden = true
+      if (!queueStripWaiting.hidden) queueStripWaiting.hidden = true
+      lastStripType = null
+      lastStripWaiting = -1
+      queueStrip.title = ''
       return
     }
-    setClass(queueRepeat, 'repeat')
-    setText(
-      queueRepeat,
+    if (queueStripNow.hidden) queueStripNow.hidden = false
+
+    if (type !== lastStripType) {
+      lastStripType = type
+      queueStripIcon.src = BUILDING_ICONS[type]
+      setText(queueStripName, BUILDINGS[type].label)
+    }
+
+    const cost = buildingCost(type, state.builtCount[type])
+    const progress = cost > 0 ? Math.max(0, Math.min(1, state.coins / cost)) : 1
+    queueStripFill.style.width = progress * 100 + '%'
+
+    const waiting = state.queue.length - 1
+    if (waiting !== lastStripWaiting) {
+      lastStripWaiting = waiting
+      if (waiting > 0) {
+        setText(queueStripWaiting, '+' + waiting + ' waiting')
+        queueStripWaiting.hidden = false
+      } else {
+        queueStripWaiting.hidden = true
+      }
+    }
+
+    // The standing-policy explanation used to sit as always-visible text in
+    // the queue panel; it survives as this tooltip instead of a second
+    // on-screen copy of what the strip already shows at a glance.
+    queueStrip.title =
       state.queue.length === 1
         ? `This list repeats forever, so the city will keep building ${pluralLabel(state.queue[0])} and nothing else.`
-        : `This list repeats forever: ${describeCycle(state.queue)}, then round again.`,
-    )
+        : `This list repeats forever: ${describeCycle(state.queue)}, then round again.`
   }
 
   /** "two houses, then a shop" — the queue read as the standing policy it is. */
@@ -460,6 +532,7 @@ export function createHud(root: HTMLElement, cb: HudCallbacks): Hud {
     if (!(Math.abs(happiness - lastHappiness) < 0.0005)) {
       lastHappiness = happiness
       setText(tsHappyValue, formatPercent(happiness))
+      tsHappyFill.style.width = Math.max(0, Math.min(1, happiness)) * 100 + '%'
       const band = happinessBand(happiness)
       if (band.key !== lastBand) {
         lastBand = band.key
@@ -473,6 +546,10 @@ export function createHud(root: HTMLElement, cb: HudCallbacks): Hud {
       if (cost !== card.lastCost) {
         card.lastCost = cost
         setText(card.costNode, formatCoins(cost))
+        // The tooltip quotes the price too, so it must track the same
+        // rising cost as the badge rather than freeze at the opening price.
+        const def = BUILDINGS[card.type]
+        card.button.title = `${def.label} — ${formatCoins(cost)} coins. ${def.blurb}`
       }
       const affordable = state.coins >= cost
       if (affordable !== card.lastAffordable) {
@@ -489,7 +566,7 @@ export function createHud(root: HTMLElement, cb: HudCallbacks): Hud {
       }
     }
 
-    renderQueue(state)
+    updateQueueStrip(state)
 
     const nextBuild = state.queue[0]
     const nextLabel = nextBuild ? '▶ ' + BUILDINGS[nextBuild].label : ''
@@ -497,46 +574,41 @@ export function createHud(root: HTMLElement, cb: HudCallbacks): Hud {
   }
 
   function setHoverInfo(info: HoverInfo | null): void {
+    const signature = info
+      ? [
+          info.title,
+          info.lines.join('\n'),
+          info.cost === undefined ? '' : String(info.cost),
+          info.affordable === undefined ? '' : String(info.affordable),
+        ].join('|')
+      : EMPTY_SIGNATURE
+
+    if (signature === lastHoverSignature) return
+    lastHoverSignature = signature
+
     if (!info) {
-      for (const copy of hoverCopies) {
-        if (!copy.panel.hidden) copy.panel.hidden = true
-      }
-      lastHoverSignature = null
+      inspectIcon.hidden = true
+      setText(inspectTitle, INSPECT_EMPTY_TITLE)
+      inspectLines.replaceChildren(el('div', 'hover__line', INSPECT_EMPTY_LINE))
+      inspectCost.hidden = true
       return
     }
-    const signature = [
-      info.title,
-      info.lines.join('\n'),
-      info.cost === undefined ? '' : String(info.cost),
-      info.affordable === undefined ? '' : String(info.affordable),
-    ].join('|')
 
-    if (signature !== lastHoverSignature) {
-      lastHoverSignature = signature
-      for (const copy of hoverCopies) {
-        if (info.icon) {
-          copy.icon.src = BUILDING_ICONS[info.icon]
-          copy.icon.hidden = false
-        } else {
-          copy.icon.hidden = true
-        }
-        setText(copy.title, info.title)
-        copy.lines.replaceChildren(...info.lines.map((line) => el('div', 'hover__line', line)))
-        if (info.cost === undefined) {
-          copy.cost.hidden = true
-        } else {
-          const affordable = info.affordable !== false
-          setClass(copy.cost, 'hover__cost ' + (affordable ? 'is-affordable' : 'is-unaffordable'))
-          setText(
-            copy.cost,
-            formatCoins(info.cost) + (affordable ? ' coins' : ' coins - not enough'),
-          )
-          copy.cost.hidden = false
-        }
-      }
+    if (info.icon) {
+      inspectIcon.src = BUILDING_ICONS[info.icon]
+      inspectIcon.hidden = false
+    } else {
+      inspectIcon.hidden = true
     }
-    for (const copy of hoverCopies) {
-      if (copy.panel.hidden) copy.panel.hidden = false
+    setText(inspectTitle, info.title)
+    inspectLines.replaceChildren(...info.lines.map((line) => el('div', 'hover__line', line)))
+    if (info.cost === undefined) {
+      inspectCost.hidden = true
+    } else {
+      const affordable = info.affordable !== false
+      setClass(inspectCost, 'hover__cost ' + (affordable ? 'is-affordable' : 'is-unaffordable'))
+      setText(inspectCost, formatCoins(info.cost) + (affordable ? ' coins' : ' coins - not enough'))
+      inspectCost.hidden = false
     }
   }
 
@@ -554,13 +626,18 @@ export function createHud(root: HTMLElement, cb: HudCallbacks): Hud {
   }
 
   function onOfflineKey(event: KeyboardEvent): void {
-    if (event.key === 'Escape') hideOffline()
+    if (event.key === 'Escape') {
+      hideOffline()
+      return
+    }
+    offlineFocus.onKeydown(event)
   }
 
   function hideOffline(): void {
     if (offlineOverlay.hidden) return
     offlineOverlay.hidden = true
     window.removeEventListener('keydown', onOfflineKey)
+    offlineFocus.close()
   }
 
   offlineDismiss.addEventListener('click', hideOffline)
@@ -587,6 +664,7 @@ export function createHud(root: HTMLElement, cb: HudCallbacks): Hud {
     if (offlineOverlay.hidden) {
       offlineOverlay.hidden = false
       window.addEventListener('keydown', onOfflineKey)
+      offlineFocus.open()
     }
   }
 
@@ -594,10 +672,9 @@ export function createHud(root: HTMLElement, cb: HudCallbacks): Hud {
 
   return {
     topStripElement: topStrip,
-    paletteElement: toolsPanel,
-    hoverPanelElement: hoverPanel.panel,
-    hoverCardElement: hoverCard.panel,
-    queueElement: queuePanel,
+    buildDockElement: buildDock,
+    inspectElement: inspectPanel,
+    queueStripElement: queueStrip,
     restartElement: restartPanel,
     update,
     setTool,

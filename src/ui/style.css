@@ -9,45 +9,16 @@
  * ever catches a pointer event.
  *
  * No CDN, no webfont, no external asset. Everything is here.
+ *
+ * Colors, spacing, radii, shadows and type scale live in theme.css as design
+ * tokens; this file and the rest of the HUD consume the old variable names,
+ * which theme.css re-exposes as aliases over the new tokens.
  */
 
+@import "./theme.css";
+
 :root {
-  --paper: #fdf9f2;
-  --paper-sunk: #f4ece0;
-  --ink: #453d34;
-  --ink-soft: #837768;
-  --ink-faint: #a3968599;
-  --line: rgba(69, 61, 52, 0.1);
-
-  --accent: #e0864a;
-  --accent-deep: #c56d33;
-  --accent-wash: #fbe7d5;
-
-  --thriving: #6ea866;
-  --content: #97b06c;
-  --strained: #dda449;
-  --rotting: #c4705c;
-
-  --shadow-panel: 0 14px 30px rgba(74, 58, 40, 0.14), 0 2px 6px rgba(74, 58, 40, 0.07);
-  --shadow-lift: 0 4px 10px rgba(74, 58, 40, 0.12);
-
-  /* Width of the left and right HUD columns. Exported as a variable because
-     panels outside the .hud grid have to clear them, and a copy of this number
-     in another file goes stale silently. Wide enough that the tool grid's two
-     columns fit their longest card ("Harbour 300") without the grid's own
-     min-content forcing a horizontal scrollbar, but still narrow enough to
-     clear the popover's own max-width (100vw - 24px, minus its border and
-     .dock-popover__body's padding) on a 360px-wide phone. */
-  --hud-side: 300px;
-
-  --radius-panel: 20px;
-  --radius-card: 14px;
-  --radius-pill: 999px;
-
-  --font: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial,
-    "Noto Sans", sans-serif;
-
-  color-scheme: light;
+  color-scheme: light dark;
 }
 
 * {
@@ -59,7 +30,7 @@ body {
   height: 100%;
   margin: 0;
   overflow: hidden;
-  background: #e9e0d2;
+  background: var(--surface-page);
   color: var(--ink);
   font-family: var(--font);
   -webkit-font-smoothing: antialiased;
@@ -106,13 +77,6 @@ body {
   flex-shrink: 0;
 }
 
-.panel__title {
-  margin: 0;
-  font-size: 15px;
-  font-weight: 650;
-  letter-spacing: 0.01em;
-}
-
 .hint {
   margin: 0;
   font-size: 12px;
@@ -130,12 +94,11 @@ body {
   padding: 9px 11px;
 }
 
-/* These four used to get their width for free from the `.hud__zone`
-   wrapper they shared. Now that each is its own top-level panel in the
-   Ville shell section, each needs to say so itself. */
-.panel--tools,
-.panel--hover,
-.panel--queue,
+/* This used to get its width for free from the `.hud__zone` wrapper it
+   shared with other panels. Now that it's the one panel left in the Ville
+   shell section, it needs to say so itself. (The build palette that used to
+   be a fourth panel here — `.panel--tools` — moved into the dock bar
+   itself; see shell.css's `.dock-build`.) */
 .panel--restart {
   width: var(--hud-side);
 }
@@ -143,74 +106,155 @@ body {
 /* --------------------------------------------------------------- topstrip */
 
 /*
- * Just the readout now — no card of its own. It used to be its own
- * fixed-position panel, floating top-center; ui/shell.ts now embeds it
- * directly inside the bottom dock bar's own card, so it only needs to be a
- * flex row of numbers, not a positioned panel.
+ * The resource ribbon: a small standalone card in the top-left HUD zone (see
+ * layout.ts/layout.css), not embedded in the dock bar any more. Coins are the
+ * hero figure, the income rate sits directly beneath it in the accent color,
+ * happiness is a small filled meter that shifts color across the mood bands
+ * (`topstrip--<band>`, set by hud.ts off the same bands the sim already
+ * uses), and population is the smallest, least prominent line. The zone
+ * wrapper is `pointer-events: none` (see layout.css), so the card opts back
+ * into pointer events itself — the info button still needs to be hoverable.
  */
 .topstrip {
+  position: relative;
   display: flex;
-  flex-direction: row;
-  align-items: center;
-  gap: 12px;
-  min-width: 0;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  min-width: 170px;
+  max-width: 230px;
+  padding: 12px 34px 12px 14px;
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-panel);
+  box-shadow: var(--shadow-panel);
+  pointer-events: auto;
   font-variant-numeric: tabular-nums;
 }
 
+.topstrip__coinrow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .topstrip__coin-icon {
-  width: 40px;
-  height: 40px;
+  width: 30px;
+  height: 30px;
   flex: none;
   object-fit: contain;
 }
 
 .topstrip__coins {
-  font-size: 19px;
-  font-weight: 700;
+  font-size: var(--text-xl);
+  font-weight: 800;
   letter-spacing: -0.01em;
+  line-height: 1;
+  color: var(--ink);
 }
 
 .topstrip__rate {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  font-size: 13px;
+  margin-left: 38px;
+  font-size: var(--text-sm);
   font-weight: 620;
   color: var(--accent-deep);
   white-space: nowrap;
 }
 
-.topstrip__stat,
+.topstrip__rate-icon {
+  width: 16px;
+  height: 16px;
+  flex: none;
+  object-fit: contain;
+}
+
 .topstrip__happy {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  margin-top: 2px;
+}
+
+.topstrip__happy-icon {
+  width: 18px;
+  height: 18px;
+  flex: none;
+  object-fit: contain;
+}
+
+.topstrip__meter-track {
+  flex: 1 1 auto;
+  min-width: 36px;
+  height: 6px;
+  border-radius: var(--radius-pill);
+  background: var(--paper-sunk);
+  overflow: hidden;
+}
+
+.topstrip__meter-fill {
+  height: 100%;
+  border-radius: inherit;
+  background: var(--content);
+  transition: width 0.2s ease;
+}
+
+.topstrip__meter-label {
+  flex: none;
+  font-size: var(--text-xs);
+  color: var(--ink-soft);
+}
+
+.topstrip--thriving .topstrip__meter-fill {
+  background: var(--thriving);
+}
+
+.topstrip--content .topstrip__meter-fill {
+  background: var(--content);
+}
+
+.topstrip--strained .topstrip__meter-fill {
+  background: var(--strained);
+}
+
+.topstrip--rotting .topstrip__meter-fill {
+  background: var(--rotting);
+}
+
+.topstrip__pop {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  font-size: 13px;
-  color: var(--ink-soft);
+  font-size: var(--text-xs);
+  color: var(--ink-faint);
   white-space: nowrap;
 }
 
-.topstrip__rate-icon,
-.topstrip__happy-icon,
 .topstrip__pop-icon {
-  width: 32px;
-  height: 32px;
+  width: 14px;
+  height: 14px;
   flex: none;
   object-fit: contain;
 }
 
 .topstrip__next {
-  font-size: 12.5px;
+  font-size: var(--text-xs);
   color: var(--ink-soft);
   white-space: nowrap;
 }
 
 .topstrip__info {
+  position: absolute;
+  top: 10px;
+  right: 10px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 32px;
-  height: 32px;
+  width: 22px;
+  height: 22px;
   border-radius: 50%;
   border: 1px solid var(--line);
   cursor: help;
@@ -218,8 +262,8 @@ body {
 }
 
 .topstrip__info-icon {
-  width: 24px;
-  height: 24px;
+  width: 16px;
+  height: 16px;
   object-fit: contain;
 }
 
@@ -229,17 +273,43 @@ body {
   outline: none;
 }
 
-.topstrip--strained .topstrip__happy {
-  color: var(--strained);
+/* -------------------------------------------------------- topstrip on mobile */
+
+@media (max-width: 599px) {
+  .topstrip {
+    min-width: 160px;
+    max-width: 190px;
+    padding: 10px 28px 10px 12px;
+  }
+
+  /* Hide the meter track (progress bar visual) on narrow screens,
+     keeping only the happiness icon and percentage label. */
+  .topstrip__meter-track {
+    display: none;
+  }
+
+  /* Adjust happy section to be more compact and not take full width. */
+  .topstrip__happy {
+    width: auto;
+    margin-top: 0;
+    gap: 4px;
+  }
+
+  /* Put population on same line as happiness for compact layout. */
+  .topstrip__pop {
+    margin-left: 6px;
+  }
 }
 
-.topstrip--rotting .topstrip__happy {
-  color: var(--rotting);
-}
+/* ----------------------------------------------------------- inspect card */
 
-/* ------------------------------------------------------------ hover panel */
-
-.panel--hover {
+/* The single inspect card: whatever tile or building is hovered or selected,
+   in the right rail at every viewport size (see layout.ts/api.ts's
+   inspectElement doc). Replaces what used to be two copies of this same
+   readout — one nested in the Ville tab for phone/tablet, one floating free
+   on desktop. */
+.panel--inspect {
+  width: var(--hud-side);
   gap: 6px;
   padding: 13px 15px;
 }
@@ -290,246 +360,37 @@ body {
 }
 
 .hover__cost.is-unaffordable {
-  color: #8d4436;
-  background: #f7ded7;
+  color: var(--warn-ink);
+  background: var(--warn-wash);
 }
 
-/* The floating twin of the hover panel (see api.ts's hoverCardElement doc):
-   hidden by default, since it only makes sense once there's room for it to
-   float free of the dock instead of hiding inside the Ville tab. Above that
-   width, the Ville tab hides its own copy (shell.css) so the info reads as
-   one thing, not two. */
-.panel--hover-float {
-  display: none;
-}
+/* The build palette (house/shop/.../demolish) no longer lives here as a
+   panel of `.tool` cards — it moved into the dock bar as a permanent row of
+   `.tile` icons; see shell.css's `.dock-build` block. */
 
-@media (min-width: 960px) {
-  .panel--hover-float {
-    display: flex;
-    position: fixed;
-    left: 24px;
-    /* Same row as the dock bar, not stacked above it — the two read as one
-       bottom band instead of the card floating at an unrelated height. */
-    bottom: 18px;
-    z-index: 5;
-    width: var(--hud-side);
+/* The inspect card's desktop width (--hud-side, 300px) overlaps the topstrip
+   on phones once both sit in their fixed top corners with just 24px margins
+   — there isn't 300px of clearance left of a 190px-wide topstrip at these
+   viewport sizes. Narrow it here rather than in the shared token so wider
+   right-rail consumers (the popover) keep their desktop width. */
+@media (max-width: 599px) {
+  .panel--inspect {
+    width: min(200px, calc(100vw - 190px - 24px - 24px - 12px));
   }
-}
-
-/* ----------------------------------------------------------- tool palette */
-
-.tool-list {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 8px;
-  min-height: 0;
-  overflow-y: auto;
-  /* Room for a scrollbar without the cards jumping when one appears. */
-  scrollbar-gutter: stable;
-}
-
-.tool {
-  pointer-events: auto;
-  appearance: none;
-  font: inherit;
-  color: inherit;
-  text-align: left;
-  cursor: pointer;
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-  padding: 10px 12px;
-  border-radius: var(--radius-card);
-  border: 1.5px solid var(--line);
-  background: var(--paper-sunk);
-  transition: transform 0.12s ease, box-shadow 0.12s ease, background-color 0.12s ease,
-    border-color 0.12s ease;
-}
-
-.tool:hover {
-  transform: translateY(-1px);
-  box-shadow: var(--shadow-lift);
-}
-
-.tool:active {
-  transform: translateY(0);
-}
-
-.tool:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
-}
-
-.tool__head {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.tool__icon {
-  width: 18px;
-  height: 18px;
-  flex: none;
-  object-fit: contain;
-}
-
-.tool__name {
-  font-size: 14.5px;
-  font-weight: 700;
-  margin-right: auto;
-}
-
-.tool__cost {
-  font-size: 13px;
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-  color: var(--accent-deep);
-}
-
-/*
- * Hidden until the card is pointed at or chosen. Eight buildings each carrying
- * two lines of explanation is 90px a card and taller than the window; the same
- * text also appears in the hover panel the moment the tool is aimed at a tile,
- * so nothing is lost by showing it only where it is being asked for.
- */
-.tool__blurb {
-  font-size: 11.5px;
-  line-height: 1.4;
-  color: var(--ink-soft);
-  display: none;
-}
-
-.tool:hover .tool__blurb,
-.tool:focus-visible .tool__blurb,
-.tool.is-selected .tool__blurb {
-  display: block;
-}
-
-.tool.is-selected {
-  background: var(--accent-wash);
-  border-color: var(--accent);
-  box-shadow: 0 0 0 3px rgba(224, 134, 74, 0.22), var(--shadow-lift);
-}
-
-.tool.is-selected .tool__name::after {
-  content: " — selected";
-  font-size: 11px;
-  font-weight: 650;
-  color: var(--accent-deep);
-}
-
-/* Unaffordable: dimmed, but still selectable so you can line up the next buy. */
-.tool.is-broke:not(.is-selected) {
-  opacity: 0.5;
-  filter: saturate(0.6);
-}
-
-.tool.is-broke .tool__cost {
-  color: var(--rotting);
-}
-
-.tool--demolish .tool__cost {
-  color: var(--ink-soft);
-  font-weight: 620;
 }
 
 /* ------------------------------------------------------------ build queue */
 
-.queue-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-  max-height: 236px;
-  overflow-y: auto;
-}
-
-.qrow {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  padding: 7px 11px;
-  border-radius: var(--radius-card);
-  background: var(--paper-sunk);
-  font-size: 13.5px;
-}
-
-.qrow--next {
-  background: var(--accent-wash);
-  box-shadow: inset 0 0 0 1.5px var(--accent);
-}
-
-.qrow--more,
-.qrow--empty {
-  background: transparent;
-  color: var(--ink-soft);
-  font-size: 12px;
-  padding: 4px 11px;
-}
-
-.qrow__icon {
-  width: 22px;
-  height: 22px;
-  flex: none;
-  object-fit: contain;
-}
-
-.qrow__name {
-  font-weight: 620;
-  margin-right: auto;
-}
-
-.qrow__badge {
-  font-size: 10.5px;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--accent-deep);
-}
-
-.repeat {
-  margin: 0;
-  font-size: 12px;
-  line-height: 1.5;
-  color: var(--ink);
-  background: var(--accent-wash);
-  border-radius: var(--radius-card);
-  padding: 9px 11px;
-}
-
-.repeat--empty {
-  background: var(--paper-sunk);
-  color: var(--ink-soft);
-}
-
-.queue-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 7px;
-}
-
-/* Only these two .btn buttons carry an icon — centring the row here rather
-   than on .btn itself leaves every icon-less button elsewhere (Pause
-   building, New city, the offline overlay, prestige) at its usual baseline
-   alignment. */
-.queue-actions .btn {
-  align-items: center;
-}
-
-.btn__icon {
-  width: 18px;
-  height: 18px;
-  flex: none;
-  object-fit: contain;
-}
+/* The queue's own display (what's building, what's waiting) and its
+   controls (add house/shop, pause) all live in the compact `.queue-strip`
+   docked above the build dock now — see shell.css's `.queue-strip__action`
+   and `.queue-strip__pause`. No panel of its own is left here. */
 
 .btn {
   pointer-events: auto;
   appearance: none;
   font: inherit;
-  font-size: 13px;
+  font-size: var(--text-sm);
   font-weight: 650;
   color: var(--ink);
   cursor: pointer;
@@ -581,19 +442,34 @@ body {
 
 /* ------------------------------------------------------------------ toasts */
 
+/*
+ * Top-center now, not bottom-center. They used to track the dock bar's
+ * height (`--dock-bar-h`) and sit just above it, back when the bottom edge
+ * was otherwise free — but that's the exact spot `.dock-popover` (shell.css)
+ * opens from too, so a toast could land stacked over open panel content, and
+ * on a short viewport it also crowded the queue strip. The top edge between
+ * the two side zones has nothing else fixed to it (see layout.css's three
+ * zones), so a toast here never competes with the dock/popover cluster at
+ * all, at any viewport size.
+ *
+ * `top: 190px` clears the resource ribbon (`.topstrip`, top-left zone),
+ * which currently renders at roughly 145-160px tall including its 18px top
+ * margin — this is a static estimate, not a measurement, so give the ribbon
+ * a few more content rows later and this offset needs bumping with it. The
+ * `max-width` keeps a long message from stretching wide enough to reach the
+ * right rail's column on typical tablet/desktop widths; short toasts (the
+ * common case) never get near it regardless.
+ */
 .toasts {
   position: fixed;
+  top: 190px;
   left: 50%;
-  /* The dock bar sits bottom-center at every viewport size now (see
-     ui/shell.ts), so toasts clear it unconditionally — this used to be a
-     mobile-only override, back when only the mobile tab bar occupied this
-     spot and desktop's docks left the bottom edge free. */
-  bottom: calc(var(--dock-bar-h, 68px) + 18px);
   transform: translateX(-50%);
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 7px;
+  max-width: min(360px, calc(100vw - 48px));
   pointer-events: none;
   z-index: 8;
 }
@@ -602,7 +478,7 @@ body {
   pointer-events: none;
   background: var(--ink);
   color: var(--paper);
-  font-size: 13px;
+  font-size: var(--text-sm);
   font-weight: 600;
   padding: 9px 16px;
   border-radius: var(--radius-pill);
@@ -636,7 +512,7 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 24px;
+  padding: var(--space-5);
   background: rgba(60, 48, 36, 0.28);
   pointer-events: auto;
   animation: fade-in 0.2s ease-out both;
@@ -645,27 +521,27 @@ body {
 .panel--offline {
   width: 380px;
   max-width: 100%;
-  padding: 24px 26px;
-  gap: 10px;
+  padding: var(--space-5);
+  gap: var(--space-3);
   animation: card-in 0.28s cubic-bezier(0.2, 0.9, 0.3, 1.2) both;
 }
 
 .offline__title {
   margin: 0;
-  font-size: 22px;
+  font-size: var(--text-lg);
   font-weight: 700;
   letter-spacing: -0.01em;
 }
 
 .offline__away {
   margin: 0;
-  font-size: 13.5px;
+  font-size: var(--text-sm);
   color: var(--ink-soft);
 }
 
 .offline__coins {
-  margin: 2px 0 4px;
-  font-size: 32px;
+  margin: var(--space-1) 0;
+  font-size: var(--text-xl);
   font-weight: 700;
   letter-spacing: -0.02em;
   color: var(--accent-deep);
@@ -674,13 +550,20 @@ body {
 
 .offline__cap {
   margin: 0;
-  font-size: 12px;
+  font-size: var(--text-xs);
   line-height: 1.5;
   font-weight: 620;
-  color: #8d4436;
-  background: #f7ded7;
+  color: var(--warn-ink);
+  background: var(--warn-wash);
   border-radius: var(--radius-card);
-  padding: 9px 11px;
+  padding: var(--space-2) var(--space-3);
+}
+
+.offline__dismiss {
+  width: 100%;
+  justify-content: center;
+  text-align: center;
+  margin-top: var(--space-1);
 }
 
 @keyframes fade-in {
@@ -706,9 +589,6 @@ body {
 /* ------------------------------------------------------------- small views */
 
 @media (max-height: 760px) {
-  .queue-list {
-    max-height: 150px;
-  }
   .panel {
     padding: 13px 15px;
   }
@@ -727,16 +607,25 @@ body {
 .panel--board-launch {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  padding: 12px 14px;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
   pointer-events: auto;
   max-width: 230px;
 }
 
 .panel--friends-launch {
   display: flex;
-  padding: 10px 12px;
+  padding: var(--space-2) var(--space-3);
   pointer-events: auto;
+}
+
+.panel--board:focus,
+.panel--offline:focus {
+  /* Only ever reached as the createDialogFocus() fallback target, when a
+     dialog somehow opens with nothing focusable inside it — every real open
+     moves focus onto a child control instead. Suppresses the default UA
+     outline around the whole card in that edge case. */
+  outline: none;
 }
 
 .panel--board {
@@ -745,20 +634,20 @@ body {
   overflow-y: auto;
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  padding: 22px 24px;
+  gap: var(--space-3);
+  padding: var(--space-5) var(--space-5);
 }
 
 .board__heading {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-2);
 }
 
 .board__title {
   margin: 0;
-  font-size: 19px;
-  color: var(--ink);
+  font-size: var(--text-lg);
+  color: var(--text-primary);
 }
 
 .board__info {
@@ -768,17 +657,17 @@ body {
   width: 18px;
   height: 18px;
   border-radius: 50%;
-  border: 1px solid var(--line);
-  color: var(--ink-soft);
-  font-size: 11px;
+  border: 1px solid var(--line-color);
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
   font-style: italic;
   cursor: help;
 }
 
 .board__info:hover,
 .board__info:focus-visible {
-  color: var(--ink);
-  border-color: var(--accent);
+  color: var(--text-primary);
+  border-color: var(--accent-base);
   outline: none;
 }
 
@@ -786,24 +675,24 @@ body {
 .board__publish {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: var(--space-2);
   align-items: center;
 }
 
 .board__input {
   flex: 1 1 180px;
   min-width: 0;
-  padding: 8px 11px;
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  background: var(--paper-sunk);
-  color: var(--ink);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--line-color);
+  border-radius: var(--radius-sm);
+  background: var(--surface-1);
+  color: var(--text-primary);
   font: inherit;
-  font-size: 13px;
+  font-size: var(--text-sm);
 }
 
 .board__input:focus-visible {
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--accent-base);
   outline-offset: 1px;
 }
 
@@ -811,15 +700,15 @@ body {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 10px;
-  padding: 8px 12px;
-  border-radius: 12px;
-  background: var(--paper-sunk);
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  background: var(--surface-1);
 }
 
 .board__who {
-  font-size: 13px;
-  color: var(--ink-soft);
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -828,14 +717,14 @@ body {
 .board__error {
   flex: 1 0 100%;
   margin: 0;
-  font-size: 12px;
-  color: var(--rotting);
+  font-size: var(--text-xs);
+  color: var(--status-rotting);
 }
 
 .board__status {
   margin: 0;
-  font-size: 13px;
-  color: var(--ink-soft);
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
 }
 
 .board__list {
@@ -844,38 +733,40 @@ body {
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: var(--space-1);
 }
 
 .board__row {
   display: grid;
   grid-template-columns: 28px 1fr auto;
   grid-template-areas: "rank city score" ". detail detail";
-  gap: 2px 10px;
-  padding: 8px 12px;
-  border-radius: 12px;
-  background: var(--paper-sunk);
+  gap: var(--space-1) var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  background: var(--surface-1);
   align-items: baseline;
 }
 
-/* Your own entry has to be findable without counting down the list. */
+/* Your own entry has to be findable without counting down the list — the
+   same accent-wash/accent-deep "this is you" treatment used across the rest
+   of the HUD for an active/current state. */
 .board__row.is-me {
-  background: var(--accent-wash);
-  box-shadow: inset 0 0 0 1px var(--accent);
+  background: var(--accent-wash-base);
+  box-shadow: inset 0 0 0 1px var(--accent-base);
 }
 
 .board__rank {
   grid-area: rank;
   font-variant-numeric: tabular-nums;
-  color: var(--ink-faint);
-  font-size: 13px;
+  color: var(--text-faint);
+  font-size: var(--text-sm);
 }
 
 .board__city {
   grid-area: city;
   font-weight: 600;
-  font-size: 14px;
-  color: var(--ink);
+  font-size: var(--text-sm);
+  color: var(--text-primary);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -885,13 +776,42 @@ body {
   grid-area: score;
   font-variant-numeric: tabular-nums;
   font-weight: 700;
-  color: var(--accent-deep);
+  font-size: var(--text-sm);
+  color: var(--accent-deep-base);
 }
 
 .board__detail {
   grid-area: detail;
-  font-size: 12px;
-  color: var(--ink-soft);
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+}
+
+/* ------------------------------------------------------------------ friends */
+
+/* A friend code is an identifier, not prose — set it apart from surrounding
+   labels the way a code/mono token reads elsewhere. */
+.friend-code {
+  font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  font-weight: 700;
+  font-size: var(--text-sm);
+  color: var(--text-primary);
+  letter-spacing: 0.02em;
+  overflow-wrap: anywhere;
+}
+
+.friend-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+/* An incoming request is something to act on — they added you, and adding
+   them back is what confirms it — so it gets the same accent-wash/accent
+   treatment as `.board__row.is-me` above, rather than reading identical to
+   an already-confirmed friend. */
+.friend-row--incoming {
+  background: var(--accent-wash-base);
+  box-shadow: inset 0 0 0 1px var(--accent-base);
 }
 
 /* A destructive action should not look like the buttons beside it. */

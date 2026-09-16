@@ -3,9 +3,8 @@
  *
  * One of three panels docked together in the shell's Menu section (see
  * ui/shell.ts), alongside Prestige and the music/sound controls, instead of
- * positioning itself independently. Collapsed by default behind a single
- * toggle: the board in the middle of the screen is the point of the game,
- * not a wall of controls around it.
+ * positioning itself independently. Reached through the sheet's own "Speed"
+ * nav item, not behind a toggle of its own.
  *
  * Uses the custom properties from style.css's :root — no colours of its own.
  */
@@ -19,54 +18,47 @@
   gap: 12px;
 }
 
-.tools-toggle {
-  pointer-events: auto;
-}
-
-.tools-toggle.is-open {
-  background: var(--accent-wash);
-  border-color: var(--accent);
-}
-
 .tools-panel {
   pointer-events: auto;
-  width: 300px;
-  /* A control must not overflow its own panel: this is wide enough for the
-     three speed buttons and the undo label at once, and still fits above
-     small viewports. */
+  /* Nested inside the sheet's own column now (see shell.css's
+     `.dock-popover__column`), which already sets the available width —
+     this no longer needs to claim a fixed width of its own, just a sane
+     cap for the rare case it renders outside that column. */
+  width: 100%;
   max-width: calc(100vw - 36px);
   max-height: calc(100vh - 96px);
   overflow-y: auto;
 }
 
 .tools-section + .tools-section {
-  border-top: 1px solid var(--line);
-  padding-top: 12px;
+  border-top: 1px solid var(--line-color);
+  padding-top: var(--space-3);
 }
 
 .tools-section__title {
-  margin: 0 0 8px;
-  font-size: 11px;
+  margin: 0 0 var(--space-2);
+  font-size: var(--text-xs);
   font-weight: 650;
   letter-spacing: 0.09em;
   text-transform: uppercase;
-  color: var(--ink-soft);
+  color: var(--text-secondary);
 }
 
 .tools-speed-row {
   display: flex;
-  gap: 7px;
+  gap: var(--space-2);
 }
 
+/* Auto-width pills, not equal-flex: matches the approved mockup, and reads
+   as three small choices rather than three stretched tiles. */
 .tools-speed-btn {
-  flex: 1 1 0;
-  justify-content: center;
+  padding: 8px var(--space-4);
 }
 
 .tools-speed-btn.is-selected {
-  background: var(--accent);
-  border-color: var(--accent-deep);
-  color: #fff;
+  background: var(--accent-wash);
+  border-color: var(--accent-base);
+  color: var(--accent-deep-base);
 }
 
 .tools-undo-btn {
@@ -88,19 +80,19 @@
   box-sizing: border-box;
   resize: vertical;
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  font-size: 11px;
+  font-size: var(--text-xs);
   line-height: 1.4;
-  padding: 8px;
-  border-radius: var(--radius-card);
-  border: 1.5px solid var(--line);
-  background: var(--paper-sunk);
-  color: var(--ink);
+  padding: var(--space-2);
+  border-radius: var(--radius-sm);
+  border: 1.5px solid var(--line-color);
+  background: var(--surface-1);
+  color: var(--text-primary);
 }
 
 .tools-row {
   display: flex;
-  gap: 7px;
-  margin-top: 8px;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
 }
 
 .tools-row .btn {
@@ -112,10 +104,4 @@
   background: var(--rotting);
   border-color: var(--accent-deep);
   color: #fff;
-}
-
-.tools-status {
-  margin: 6px 0 0;
-  font-size: 11.5px;
-  color: var(--ink-soft);
 }

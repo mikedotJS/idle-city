@@ -1,8 +1,20 @@
 /**
- * Music and sound-effect controls: two identical toggle+volume panels for
- * two independent decisions (hear the score, hear the city). Split out of
- * hud.ts so it can be placed by the new shell (ui/shell.ts) instead of
- * hud.ts's own hud__zone--tr.
+ * Music and sound-effect controls: two identical toggle+volume rows for two
+ * independent decisions (hear the score, hear the city). Split out of hud.ts
+ * so it can be placed by the new shell (ui/shell.ts) instead of hud.ts's own
+ * hud__zone--tr.
+ *
+ * Row shape follows the approved Design Canvas mockup (MoreSheet.dc.html):
+ * a fixed-width toggle button beside a fixed-width volume slider, nothing
+ * else in the row. No small text label explaining what the row does — the
+ * section heading ("Sound") already says that, and a per-row label was
+ * called out as clutter during mockup review. The toggle button's own text
+ * names the control ("Music" / "Sound effects"); its enabled/disabled state
+ * shows through color (`.is-on`) rather than through changing that text, so
+ * both buttons keep one fixed width regardless of state. The richer status
+ * ("Click anywhere to start the music", the current track name) still
+ * exists — as the button's `title` tooltip and `aria-label`, not as visible
+ * row furniture.
  */
 
 import './musicsound.css'
@@ -21,10 +33,6 @@ function el<K extends keyof HTMLElementTagNameMap>(
   return node
 }
 
-function setText(node: HTMLElement, value: string): void {
-  if (node.textContent !== value) node.textContent = value
-}
-
 export interface MusicSoundCallbacks {
   onToggleMusic(): void
   onMusicVolume(volume: number): void
@@ -39,55 +47,52 @@ export interface MusicSoundControls {
   setSfxState(state: SfxState): void
 }
 
+function buildVolumeSlider(ariaLabel: string): HTMLInputElement {
+  const slider = document.createElement('input')
+  slider.type = 'range'
+  slider.className = 'toggle-row__slider'
+  slider.min = '0'
+  slider.max = '100'
+  slider.step = '1'
+  slider.setAttribute('aria-label', ariaLabel)
+  return slider
+}
+
 export function createMusicSoundControls(callbacks: MusicSoundCallbacks): MusicSoundControls {
   const wrap = el('div', 'musicsound-root')
 
   // ------------------------------------------------------------------- music
 
   const musicPanel = el('section', 'panel panel--music')
-  const musicRow = el('div', 'music__row')
-  const musicButton = el('button', 'music__toggle')
+  const musicRow = el('div', 'toggle-row')
+  const musicButton = el('button', 'toggle-row__btn', 'Music')
   musicButton.type = 'button'
   musicButton.addEventListener('click', () => callbacks.onToggleMusic())
-  const musicTitle = el('span', 'music__title')
-  musicRow.append(musicButton, musicTitle)
 
-  const musicVolume = document.createElement('input')
-  musicVolume.type = 'range'
-  musicVolume.className = 'music__volume'
-  musicVolume.min = '0'
-  musicVolume.max = '100'
-  musicVolume.step = '1'
-  musicVolume.setAttribute('aria-label', 'Music volume')
+  const musicVolume = buildVolumeSlider('Music volume')
   musicVolume.addEventListener('input', () => {
     callbacks.onMusicVolume(Number(musicVolume.value) / 100)
   })
 
-  musicPanel.append(musicRow, musicVolume)
+  musicRow.append(musicButton, musicVolume)
+  musicPanel.append(musicRow)
   wrap.append(musicPanel)
 
   // ------------------------------------------------------------------- sound
 
   const soundPanel = el('section', 'panel panel--sound')
-  const soundRow = el('div', 'sound__row')
-  const soundButton = el('button', 'sound__toggle')
+  const soundRow = el('div', 'toggle-row')
+  const soundButton = el('button', 'toggle-row__btn', 'Sound effects')
   soundButton.type = 'button'
   soundButton.addEventListener('click', () => callbacks.onToggleSfx())
-  const soundTitle = el('span', 'sound__title', 'Sound effects')
-  soundRow.append(soundButton, soundTitle)
 
-  const soundVolume = document.createElement('input')
-  soundVolume.type = 'range'
-  soundVolume.className = 'sound__volume'
-  soundVolume.min = '0'
-  soundVolume.max = '100'
-  soundVolume.step = '1'
-  soundVolume.setAttribute('aria-label', 'Sound effects volume')
+  const soundVolume = buildVolumeSlider('Sound effects volume')
   soundVolume.addEventListener('input', () => {
     callbacks.onSfxVolume(Number(soundVolume.value) / 100)
   })
 
-  soundPanel.append(soundRow, soundVolume)
+  soundRow.append(soundButton, soundVolume)
+  soundPanel.append(soundRow)
   wrap.append(soundPanel)
 
   // ------------------------------------------------------------------- state
@@ -98,19 +103,19 @@ export function createMusicSoundControls(callbacks: MusicSoundCallbacks): MusicS
   function setMusicState(music: MusicState): void {
     // The waiting state is the normal state on load, not a failure: browsers
     // block audio until the page has been interacted with.
-    const label = !music.enabled
+    const status = !music.enabled
       ? 'Music off'
       : music.waitingForGesture
         ? 'Click anywhere to start the music'
         : (music.nowPlaying ?? 'Music on')
-    const signature = `${music.enabled}|${label}|${music.volume}`
+    const signature = `${music.enabled}|${status}|${music.volume}`
     if (signature === musicSignature) return
     musicSignature = signature
 
-    setText(musicButton, music.enabled ? 'Music on' : 'Music off')
-    musicButton.className = music.enabled ? 'music__toggle is-on' : 'music__toggle'
+    musicButton.classList.toggle('is-on', music.enabled)
     musicButton.setAttribute('aria-pressed', String(music.enabled))
-    setText(musicTitle, music.enabled ? label : '')
+    musicButton.title = status
+    musicButton.setAttribute('aria-label', `Music: ${status}`)
     musicPanel.classList.toggle('is-muted', !music.enabled)
     if (document.activeElement !== musicVolume) {
       musicVolume.value = String(Math.round(music.volume * 100))
@@ -118,19 +123,19 @@ export function createMusicSoundControls(callbacks: MusicSoundCallbacks): MusicS
   }
 
   function setSfxState(sfx: SfxState): void {
-    const label = !sfx.enabled
+    const status = !sfx.enabled
       ? 'Sound off'
       : sfx.waitingForGesture
         ? 'Click anywhere to start'
         : 'Sound on'
-    const signature = `${sfx.enabled}|${label}|${sfx.volume}`
+    const signature = `${sfx.enabled}|${status}|${sfx.volume}`
     if (signature === sfxSignature) return
     sfxSignature = signature
 
-    setText(soundButton, sfx.enabled ? 'Sound on' : 'Sound off')
-    soundButton.className = sfx.enabled ? 'sound__toggle is-on' : 'sound__toggle'
+    soundButton.classList.toggle('is-on', sfx.enabled)
     soundButton.setAttribute('aria-pressed', String(sfx.enabled))
-    setText(soundTitle, sfx.enabled ? label : 'Sound effects')
+    soundButton.title = status
+    soundButton.setAttribute('aria-label', `Sound effects: ${status}`)
     soundPanel.classList.toggle('is-muted', !sfx.enabled)
     if (document.activeElement !== soundVolume) {
       soundVolume.value = String(Math.round(sfx.volume * 100))
