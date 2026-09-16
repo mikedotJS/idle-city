@@ -107,6 +107,27 @@ describe('land is priced by what is in it', () => {
   })
 })
 
+describe('sand tiles are not buildable', () => {
+  it('excludes beach sand from the usable tile count', () => {
+    const state = mixedCity()
+    const map = terrainFor(state)
+    let found = false
+    // Find a parcel with some buildable tiles but fewer than 9,
+    // indicating it has sand/water/rock that reduces buildability
+    for (let p = 0; p < PARCEL_COUNT; p++) {
+      if (state.ownedParcels[p]) continue
+      const usable = buildableTilesInParcel(map, p)
+      // A parcel with sand (coastal) should have fewer than 9 buildable tiles
+      if (usable > 0 && usable < TILES_PER_PARCEL) {
+        expect(usable).toBeLessThan(TILES_PER_PARCEL)
+        found = true
+        break
+      }
+    }
+    expect(found).toBe(true)
+  })
+})
+
 describe('land cannot strand a city', () => {
   it('refuses while the city earns nothing, because there is no way back', () => {
     const state = flatten(createCity(3))

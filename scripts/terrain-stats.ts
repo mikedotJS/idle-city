@@ -95,12 +95,16 @@ function main(): void {
 
       stats.generationTimes.push(elapsed)
 
-      // Count terrain types.
+      // Count terrain types and beach tiles (sand, unbuildable).
       const waterCount = countTerrain(map, Terrain.Water)
       const mountainCount = countTerrain(map, Terrain.Mountain)
+      let beachCount = 0
+      for (let tile = 0; tile < TILE_COUNT; tile++) {
+        if (map.beach[tile]) beachCount++
+      }
 
-      // Non-buildable fraction: (water + mountain) / total tiles.
-      const nonBuildableFraction = (waterCount + mountainCount) / TILE_COUNT
+      // Non-buildable fraction: (water + mountain + beach) / total tiles.
+      const nonBuildableFraction = (waterCount + mountainCount + beachCount) / TILE_COUNT
       stats.nonBuildable.push(nonBuildableFraction)
 
       // Water and mountain fractions separately.
@@ -114,11 +118,7 @@ function main(): void {
         }
       }
 
-      // Count beach tiles.
-      let beachCount = 0
-      for (let tile = 0; tile < TILE_COUNT; tile++) {
-        if (map.beach[tile]) beachCount++
-      }
+      // Beach tiles collected above with waterCount and mountainCount.
       stats.beaches.push(beachCount)
     }
 
@@ -133,7 +133,7 @@ function main(): void {
     // Print results.
     console.log('\n=== Terrain Statistics (400 seeds) ===\n')
 
-    console.log('Non-buildable terrain (water + mountain) as fraction of all tiles:')
+    console.log('Non-buildable terrain (water + mountain + beach/sand) as fraction of all tiles:')
     console.log(
       '  min      p05      med      p95      max',
     )

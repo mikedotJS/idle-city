@@ -80,8 +80,9 @@ describe('the harbour', () => {
   })
 
   it('marks the shore the renderer draws, not a shore of its own', () => {
-    // isCoast reads the same beach array the sand strip comes from. If these
-    // ever diverge, a harbour lands on a tile with no visible water by it.
+    // isCoast identifies plain tiles with coast biome that are not beach tiles —
+    // the inland ring facing the sand. All such tiles must be plain terrain for
+    // the harbour's placement rule to work correctly.
     const map = generateTerrain(12345)
     for (let tile = 0; tile < map.terrain.length; tile++) {
       if (!isCoast(map, tile)) continue

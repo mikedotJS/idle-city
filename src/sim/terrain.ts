@@ -328,6 +328,34 @@ export function generateTerrain(seed: number): TerrainMap {
 
   // Second pass: biome and beaches both come from what a tile is next to, so
   // they can only be resolved once every tile's terrain is known.
+  //
+  // Pass A: Mark beach (plain tiles touching water)
+  for (let z = 0; z < WORLD_SIZE; z++) {
+    for (let x = 0; x < WORLD_SIZE; x++) {
+      const i = tileIndex(x, z)
+      if (terrain[i] !== Terrain.Plain) continue
+
+      let touchesWater = false
+      for (let dz = -1; dz <= 1; dz++) {
+        for (let dx = -1; dx <= 1; dx++) {
+          if (dx === 0 && dz === 0) continue
+          const nx = x + dx
+          const nz = z + dz
+          if (nx < 0 || nz < 0 || nx >= WORLD_SIZE || nz >= WORLD_SIZE) continue
+          if (terrain[tileIndex(nx, nz)] === Terrain.Water) {
+            touchesWater = true
+          }
+        }
+      }
+      if (touchesWater) {
+        beach[i] = 1
+      }
+    }
+  }
+
+  // Pass B: Assign biome. Coast moves inland to plain tiles touching beach.
+  // Water tiles and beach tiles keep Coast biome; non-beach plain tiles that
+  // touch beach also get Coast, moving the coast building look one tile inland.
   for (let z = 0; z < WORLD_SIZE; z++) {
     for (let x = 0; x < WORLD_SIZE; x++) {
       const i = tileIndex(x, z)
@@ -341,6 +369,7 @@ export function generateTerrain(seed: number): TerrainMap {
       }
 
       let touchesWater = false
+      let touchesBeach = false
       let touchesMountain = false
       for (let dz = -1; dz <= 1; dz++) {
         for (let dx = -1; dx <= 1; dx++) {
@@ -348,17 +377,22 @@ export function generateTerrain(seed: number): TerrainMap {
           const nx = x + dx
           const nz = z + dz
           if (nx < 0 || nz < 0 || nx >= WORLD_SIZE || nz >= WORLD_SIZE) continue
-          const t = terrain[tileIndex(nx, nz)]
+          const ni = tileIndex(nx, nz)
+          const t = terrain[ni]
           if (t === Terrain.Water) touchesWater = true
           else if (t === Terrain.Mountain) touchesMountain = true
+          if (beach[ni] === 1) touchesBeach = true
         }
       }
 
       // Water wins a tie: a beach is the more distinctive of the two, and a
       // tile squeezed between a lake and a ridge is rare enough not to matter.
+      // After this change, water influence (direct or via beach) still beats mountain.
       if (touchesWater) {
         biome[i] = Biome.Coast
         beach[i] = 1
+      } else if (touchesBeach) {
+        biome[i] = Biome.Coast
       } else if (touchesMountain) {
         biome[i] = Biome.Alpine
       }
@@ -369,16 +403,16 @@ export function generateTerrain(seed: number): TerrainMap {
 }
 
 export function isBuildable(map: TerrainMap, tile: number): boolean {
-  return map.terrain[tile] === Terrain.Plain
+  return map.terrain[tile] === Terrain.Plain && map.beach[tile] !== 1
 }
 
 /**
- * A land tile that touches water — the sand strip. Same array the renderer
- * draws the beach from, so "looks like it is on the shore" and "counts as the
- * shore" can never drift apart.
+ * A plain tile with coast biome that is not itself a beach tile — the inland
+ * ring facing the sand. The harbour's shoreline rule uses this to place on land
+ * looking at water, not on sand that will become unbuildable in later tasks.
  */
 export function isCoast(map: TerrainMap, tile: number): boolean {
-  return map.beach[tile] === 1
+  return map.terrain[tile] === Terrain.Plain && map.biome[tile] === Biome.Coast && map.beach[tile] === 0
 }
 
 export function biomeOf(map: TerrainMap, tile: number): Biome {

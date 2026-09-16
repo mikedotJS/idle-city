@@ -10,9 +10,8 @@
  * it warm and low in chroma; the lake is a dusty blue-green and the rock is a
  * cool slate that leans violet. Neither can be misread as a happiness reading
  * whatever the light does to it. The sand strip along the shore is not drawn
- * here at all — a beach tile is still buildable and still has to show its
- * happiness, so it stays a tinted ground plate and only shifts warm, which is
- * ground.ts's job.
+ * here at all — beach tiles are unbuildable and use fixed sand colour, which
+ * is ground.ts's job.
  *
  * The second rule is that this is a calm game. The lake ripples, slowly, at an
  * amplitude of 0.014 against a tile pitch of 1.0 — enough that the specular

@@ -8,23 +8,18 @@
  *
  * Terrain rides on the same plates, under three rules:
  *
- * - **Water and mountain tiles leave the ramp entirely.** Nothing can be built
- *   on them and nobody lives there, so a happiness colour on them would be a
- *   reading of nothing — worse than useless, because the player reads the board
- *   at a glance and would count them. A water tile's plate drops to the sim's
- *   own water height and becomes the lake bed, seen only through the surface
- *   render/terrain.ts lays over it; a mountain tile's plate becomes plain rock
- *   under the peak. Both take cool, low-chroma colours the warm happiness ramp
- *   cannot produce, so neither can be mistaken for a reading on it.
- * - **Beaches keep their happiness.** A beach tile is ordinary buildable
- *   ground that happens to touch water, so it keeps the full tint and is only
- *   shifted toward sand — far enough that every beach tile carries a warm cast
- *   the ramp never has at any happiness (red minus blue above 40 against the
- *   ramp's 16 to 30), not so far that the tint stops being legible. Sand that
- *   swamped the tint would be trading the interface for scenery.
+ * - **Water, mountain, and beach tiles leave the ramp entirely.** Nothing can
+ *   be built on them and nobody lives there, so a happiness colour on them
+ *   would be a reading of nothing — worse than useless, because the player
+ *   reads the board at a glance and would count them. A water tile's plate
+ *   drops to the sim's own water height and becomes the lake bed, seen only
+ *   through the surface render/terrain.ts lays over it; a mountain tile's plate
+ *   becomes plain rock under the peak; a beach tile shows fixed sand. All three
+ *   take cool or neutral low-chroma colours the warm happiness ramp cannot
+ *   produce, so none can be mistaken for a reading on it.
  * - **Terrain ignores ownership.** Unowned plain drops 0.1 to show it can be
- *   bought; water and rock stay where they are, because the drop says
- *   "buildable, not yours yet" and neither of them will ever be buildable.
+ *   bought; water, rock, and sand stay where they are, because the drop says
+ *   "buildable, not yours yet" and none of them will ever be buildable.
  */
 
 import {
@@ -49,7 +44,6 @@ import { PARCEL_SIZE, TILE_COUNT, WORLD_SIZE } from '../sim/config'
 import { parcelOfTile, tileIndex, tileToWorld } from '../sim/grid'
 import { Terrain, terrainFor } from '../sim/terrain'
 import type { CityState } from '../sim/types'
-import type { RGB } from './palette'
 import {
   HIGHLIGHT_COLOR,
   PARCEL_BORDER,
@@ -59,7 +53,6 @@ import {
   UNOWNED_GROUND,
   hexToRgb,
   happinessRgb,
-  mixRgb,
   setSrgb,
 } from './palette'
 
@@ -69,15 +62,10 @@ const UNOWNED_DROP = 0.1
 /**
  * Sand. Warmer and more chromatic than anything on the happiness ramp, whose
  * warmest stop is a near-neutral 0xc2bda4, so a beach reads as a material
- * rather than as a score.
+ * rather than as a score. Brightened to keep it legible: sand is the palest
+ * ground on the board.
  */
 const SAND = hexToRgb(0xf0cf9b)
-/** How far a beach plate is pulled toward sand. Above ~0.5 the tint dies. */
-const BEACH_MIX = 0.38
-/** And a little brighter with it: sand is the palest ground on the board. */
-const BEACH_LIFT = 1.05
-/** Unowned beaches show their sand too, but stay flat and unbought. */
-const UNOWNED_BEACH_MIX = 0.3
 
 /** The lake bed, seen only through the water surface. Cool, silty, off-ramp. */
 const SEA_FLOOR = hexToRgb(0x8f9b95)
@@ -349,8 +337,8 @@ export function createGround(scene: Scene): GroundLayer {
   const UNOWNED_WASH = setSrgb(new Color(), hexToRgb(0xcfc7b6))
   const seaFloor = setSrgb(new Color(), SEA_FLOOR)
   const rock = setSrgb(new Color(), ROCK_PLATE)
-  const sandLinear = setSrgb(new Color(), SAND)
-  const sandMix: RGB = [0, 0, 0]
+  // Sand: fixed color with brightness lift, like water and rock
+  const sandFixed = setSrgb(new Color(), SAND).multiplyScalar(1.05)
 
   function update(u: GroundUpdate): void {
     stepFlash(u.dt)
@@ -367,21 +355,16 @@ export function createGround(scene: Scene): GroundLayer {
         color.copy(seaFloor)
       } else if (kind[tile] === Terrain.Mountain) {
         color.copy(rock)
+      } else if (beach[tile]) {
+        // Beach tiles cannot be built on, like water and rock: they get fixed sand.
+        color.copy(sandFixed)
       } else if (owned[tile]) {
-        // Beaches are tinted first and sanded second, so the sand rides on top
-        // of the reading instead of standing in for it.
-        if (beach[tile]) {
-          setSrgb(color, mixRgb(happinessRgb(u.field[tile]), SAND, BEACH_MIX, sandMix))
-          color.multiplyScalar(BEACH_LIFT)
-        } else {
-          setSrgb(color, happinessRgb(u.field[tile]))
-        }
+        setSrgb(color, happinessRgb(u.field[tile]))
       } else {
         // Washed out and slightly brighter than the plot, not darker: unowned
         // land is space the city could have, and a dark ring around a small
         // plot reads as a void the city is hiding in.
         color.copy(unowned).lerp(UNOWNED_WASH, 0.32).multiplyScalar(1.02)
-        if (beach[tile]) color.lerp(sandLinear, UNOWNED_BEACH_MIX)
       }
       color.multiplyScalar(lift)
       if (u.night > 0) {

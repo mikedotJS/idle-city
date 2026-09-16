@@ -130,7 +130,13 @@ export function placementProblem(
   if (!state.ownedParcels[parcelOfTile(tile)]) return 'You do not own that land'
   const map = terrainFor(state)
   if (!isBuildable(map, tile)) {
-    return map.terrain[tile] === Terrain.Water ? 'You cannot build on water' : 'Too steep to build on'
+    if (map.terrain[tile] === Terrain.Water) {
+      return 'You cannot build on water'
+    } else if (map.beach[tile] === 1) {
+      return 'You cannot build on the sand'
+    } else {
+      return 'Too steep to build on'
+    }
   }
   if (def.coastOnly && !isCoast(map, tile)) return `A ${def.label.toLowerCase()} needs a shoreline`
   if (state.grid[tile]) return 'That tile is taken'

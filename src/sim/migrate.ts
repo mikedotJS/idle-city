@@ -12,6 +12,15 @@
  * this module has to reason about the OLD size and the new one side by side.
  * The index helpers below are the same arithmetic, just taking a width
  * parameter instead of reading the module-level constant.
+ *
+ * Buildings already standing on sand/beach from before the rule making sand
+ * unbuildable are grandfathered — they remain in place. The isBuildable check
+ * from sim/terrain.ts gates NEW placement only, not the deserialization or
+ * continued existence of old buildings on load. This preserves backwards
+ * compatibility: a city saved before sand became unbuildable retains all its
+ * structures when reloaded, even if some happen to sit on terrain that is no
+ * longer buildable. validate() does not re-validate buildings against current
+ * terrain rules; it only checks that the building data itself is well-formed.
  */
 
 import { PARCEL_SIZE } from './config'

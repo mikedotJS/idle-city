@@ -26,7 +26,7 @@ const page = await context.newPage()
 page.on('console', (m) => m.type() === 'error' && errors.push(m.text()))
 page.on('pageerror', (e) => errors.push('PAGEERROR: ' + e.message))
 
-await page.goto('http://localhost:5173/', { waitUntil: 'load' })
+await page.goto('http://localhost:5174/', { waitUntil: 'load' })
 await page.waitForTimeout(2500)
 
 const report = await page.evaluate(async () => {
@@ -44,6 +44,7 @@ const report = await page.evaluate(async () => {
     const alpine = []
     for (let i = 0; i < cfg.TILE_COUNT; i++) {
       if (map.terrain[i] !== 0) continue
+      if (map.beach[i]) continue
       if (map.biome[i] === 1) coast.push(i)
       else if (map.biome[i] === 2) alpine.push(i)
     }
@@ -91,7 +92,7 @@ console.log('SETUP:', JSON.stringify(report))
 const view = await context.newPage()
 view.on('pageerror', (e) => errors.push('PAGEERROR: ' + e.message))
 view.on('console', (m) => m.type() === 'error' && errors.push(m.text()))
-await view.goto('http://localhost:5173/', { waitUntil: 'load' })
+await view.goto('http://localhost:5174/', { waitUntil: 'load' })
 await view.waitForTimeout(5000)
 
 const loaded = await view.evaluate(() => ({

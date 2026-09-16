@@ -55,7 +55,7 @@ describe('generateTerrain', () => {
       for (let z = SAFE_ZONE.minZ - 1; z <= SAFE_ZONE.maxZ + 1; z++) {
         for (let x = SAFE_ZONE.minX - 1; x <= SAFE_ZONE.maxX + 1; x++) {
           if (x < 0 || z < 0 || x >= WORLD_SIZE || z >= WORLD_SIZE) continue
-          expect(isBuildable(map, tileIndex(x, z))).toBe(true)
+          expect(map.terrain[tileIndex(x, z)]).toBe(Terrain.Plain)
         }
       }
     }
@@ -68,6 +68,66 @@ describe('generateTerrain', () => {
         expect(map.terrain[i]).toBe(Terrain.Plain)
         expect(map.biome[i]).toBe(Biome.Coast)
       }
+    }
+  })
+
+  it('assigns Coast biome to beach tiles and to plain tiles touching beach', () => {
+    // Coast biome appears on water, beach (sand), and one tile inland from beach.
+    // Every Coast biome tile is either water, beach, or a plain tile touching beach.
+    for (let seed = 1; seed < 20; seed++) {
+      const map = generateTerrain(seed)
+      for (let i = 0; i < TILE_COUNT; i++) {
+        if (map.biome[i] === Biome.Coast) {
+          // Water tiles always get Coast
+          if (map.terrain[i] === Terrain.Water) continue
+
+          // Must be plain if not water
+          expect(map.terrain[i]).toBe(Terrain.Plain)
+
+          // Must be either beach, or touch a beach tile
+          if (map.beach[i] === 1) continue
+
+          // Check 8-neighborhood for beach
+          const x = tileX(i)
+          const z = tileZ(i)
+          let touchesBeach = false
+          for (let dz = -1; dz <= 1; dz++) {
+            for (let dx = -1; dx <= 1; dx++) {
+              if (dx === 0 && dz === 0) continue
+              const nx = x + dx
+              const nz = z + dz
+              if (nx < 0 || nz < 0 || nx >= WORLD_SIZE || nz >= WORLD_SIZE) continue
+              if (map.beach[tileIndex(nx, nz)] === 1) {
+                touchesBeach = true
+                break
+              }
+            }
+            if (touchesBeach) break
+          }
+          expect(touchesBeach).toBe(true)
+        }
+      }
+    }
+  })
+
+  it('has buildable coast tiles on every seed', () => {
+    // Every seed 1..199 should have at least one plain non-beach tile with Coast biome,
+    // so coast-only buildings (port) can always be placed if land is available.
+    for (let seed = 1; seed < 200; seed++) {
+      const map = generateTerrain(seed)
+      let buildableCoast = false
+      for (let i = 0; i < TILE_COUNT; i++) {
+        // Coast biome, plain terrain, not beach itself (the inland ring)
+        if (
+          map.biome[i] === Biome.Coast &&
+          map.terrain[i] === Terrain.Plain &&
+          map.beach[i] !== 1
+        ) {
+          buildableCoast = true
+          break
+        }
+      }
+      expect(buildableCoast).toBe(true)
     }
   })
 

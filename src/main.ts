@@ -444,7 +444,7 @@ function describe(target: PickTarget): HoverInfo {
         ? [`${total} tiles, all of them buildable. The city spreads into it as soon as you own it.`]
         : usable === 0
           ? [`${total} tiles and nothing to build on. Worth owning only to reach what is past it.`]
-          : [`${total} tiles, ${usable} of them buildable. The rest is water or rock.`]
+          : [`${total} tiles, ${usable} of them buildable. The rest is water, rock or sand.`]
     // The one refusal worth saying before the click rather than after: a city
     // with no income has no way back if it spends its last coins here.
     if (derived.incomeRate <= 0) {
