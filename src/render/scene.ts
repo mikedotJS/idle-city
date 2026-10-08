@@ -23,6 +23,7 @@ import type { CityState, Derived } from '../sim/types'
 import type { ListenerPose, PickTarget, Renderer, RendererCallbacks, Tool } from './api'
 import { createBuildings } from './buildings'
 import { createCameraRig } from './camera'
+import { createDecorView } from './decor'
 import { createGround } from './ground'
 import { createRailView } from './rail'
 import { createRoads } from './roads'
@@ -50,9 +51,10 @@ export function createRenderer(canvas: HTMLCanvasElement, cb: RendererCallbacks)
   const roads = createRoads()
   const rail = createRailView()
   const traffic = createTraffic()
+  const decor = createDecorView()
   // Terrain first: the water surface is translucent and must draw after the
   // lake bed but before anything standing on the shore.
-  scene.add(terrainView.object, roads.object, rail.object, traffic.object)
+  scene.add(terrainView.object, roads.object, rail.object, traffic.object, decor.object)
   const rig = createCameraRig(canvas)
 
   const pickables = [...ground.pickables, ...buildings.pickables]
@@ -301,6 +303,7 @@ export function createRenderer(canvas: HTMLCanvasElement, cb: RendererCallbacks)
     roads.sync(state, network)
     rail.sync(state)
     traffic.sync(state, derived, network)
+    decor.sync(state)
     ground.update({ field: derived.field, night: 0, dt: 0 })
     rig.frameOwned(ownedExtent(state))
     applyHoverVisuals()
@@ -323,6 +326,7 @@ export function createRenderer(canvas: HTMLCanvasElement, cb: RendererCallbacks)
     roads.frame(dt, night)
     rail.frame(dt, night)
     traffic.frame(dt, night)
+    decor.frame(dt, night)
     rig.update(dt)
     if (pointerInside) refreshHover()
     renderer.render(scene, rig.camera)
@@ -341,6 +345,7 @@ export function createRenderer(canvas: HTMLCanvasElement, cb: RendererCallbacks)
     canvas.removeEventListener('pointerdown', onPointerDown)
     canvas.removeEventListener('pointerup', onPointerUp)
     rig.dispose()
+    decor.dispose()
     traffic.dispose()
     rail.dispose()
     roads.dispose()

@@ -42,6 +42,7 @@ import {
   Vector3,
 } from 'three'
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js'
+import { computeDecorAnchors } from '../sim/decor'
 import { WORLD_SIZE } from '../sim/config'
 import { inBounds, parcelOfTile, tileIndex } from '../sim/grid'
 import { CORNER_COUNT, cornerX, cornerZ } from '../sim/roads'
@@ -49,7 +50,7 @@ import type { RoadNetwork } from '../sim/roads'
 import { computeCrosswalks } from '../sim/sidewalks'
 import type { CityState } from '../sim/types'
 import type { Roads } from './ambient-api'
-import { clamp01, hexToRgb, setSrgb, smoothstep } from './palette'
+import { clamp01, DECOR_GALVANISED_GREY, hexToRgb, setSrgb, smoothstep } from './palette'
 
 // ---------------------------------------------------------------------------
 // Dimensions
@@ -112,6 +113,50 @@ const CROSSWALK_UNIT = ROAD_W / (2 * CROSSWALK_STRIPES - 1)
 const CROSSWALK_Y = ROAD_Y + 0.001
 const DASH = 0.2
 
+/**
+ * Storm drain grates and manhole covers — flat ground decals painted straight
+ * into the same merged surface geometry as the tarmac, crosswalks and centre
+ * line above, not raised InstancedMesh props like every prop in decor.ts.
+ * Both are vertex-coloured quads/discs in the road's own Y band, a hair above
+ * ROAD_Y for the same z-fighting reason CROSSWALK_Y sits above it, and they
+ * never cast a shadow because the whole `surface` mesh already never does.
+ *
+ * The grate draws from `kerb` anchors (sim/decor.ts) — the same lateral slot
+ * every kerb prop in decor.ts consumes — so it lines up with the kerb line at
+ * every street orientation for free. A kerb anchor's yaw is always axis
+ * aligned (this is a grid city; every segment runs along x or z), so the
+ * grate never needs a rotated quad: its outward normal rounds cleanly to
+ * (±1, 0) or (0, ±1) and the rectangle/slats fall out of addQuad() as-is.
+ *
+ * The manhole cover has no anchor pool of its own (the task scope is
+ * rendering, not new sim/decor.ts anchor infrastructure) — it is sampled
+ * directly off network.segments, one roll per segment at the segment's own
+ * clipped midpoint, the same point buildSurface() already computes for its
+ * ribbon quads.
+ */
+const DRAIN_SALT = 0x2c7a1e93
+/** A few percent of kerb slots, sparser than every decor.ts kerb prop band
+ *  (which sit at 0.08-0.1 each) — a drain is infrastructure, not furniture,
+ *  and should read as rare. */
+const DRAIN_CHANCE = 0.045
+const DRAIN_LEN = 0.05
+const DRAIN_WIDTH = 0.032
+/** Pulled back from the anchor toward the road centreline so the grate lands
+ *  on paved tarmac rather than out on the sidewalk band the kerb anchor
+ *  itself is offset into (KERB_OFFSET = 0.105, just past HALF_W = 0.1). */
+const DRAIN_INSET = 0.03
+const DRAIN_SLAT_COUNT = 4
+const DRAIN_Y = ROAD_Y + 0.001
+const DRAIN_SLAT_Y = DRAIN_Y + 0.0005
+
+const MANHOLE_SALT = 0x4e19c8a5
+const MANHOLE_CHANCE = 0.045
+const MANHOLE_R = 0.045
+const MANHOLE_SEGMENTS = 16
+const MANHOLE_Y = ROAD_Y + 0.001
+const MANHOLE_FACE_Y = MANHOLE_Y + 0.0005
+const MANHOLE_BAR_Y = MANHOLE_FACE_Y + 0.0005
+
 // Lamps ---------------------------------------------------------------------
 
 const POST_H = 0.3
@@ -150,6 +195,13 @@ const LAMP_POST = hexToRgb(0x6d675f)
 const LAMP_HEAD_DARK = hexToRgb(0x746d64)
 /** Sodium warm, a touch oranger than the palette's window glow. */
 const LAMP_GLOW = hexToRgb(0xffcf94)
+
+/** Drain grate and manhole cover metal, reusing DECOR_GALVANISED_GREY — the
+ *  same tone palette.ts's own comment already earmarks for "drains, meters" —
+ *  darkened at draw time (see drainSlat/manholeRim below) rather than defining
+ *  a second, permanently-dark palette entry, so a future prop that wants the
+ *  bright, unweathered version of this metal still can. */
+const DRAIN_METAL = hexToRgb(DECOR_GALVANISED_GREY)
 
 // Direction bits on a corner.
 const PX = 1
@@ -284,6 +336,18 @@ export function createRoads(): Roads {
   const sidewalk = setSrgb(new Color(), SIDEWALK)
   const lineColor = setSrgb(new Color(), CENTRE_LINE_RGB)
   const crosswalkColor = setSrgb(new Color(), CROSSWALK_RGB)
+  // Weathered dark iron for the grate's slots and the manhole's rim/ribbing;
+  // a lighter mid-tone of the same metal for the gaps between slats and the
+  // manhole's inset face, so both props read as one dark fixture with visible
+  // structure rather than a single flat-toned blob — the same "base colour,
+  // then a darker/lighter detail on top" trick TRASH_DARK/BIN_DARK use in
+  // decor.ts.
+  const drainMetal = setSrgb(new Color(), DRAIN_METAL)
+  const drainGap = drainMetal.clone().multiplyScalar(0.7)
+  const drainSlat = drainMetal.clone().multiplyScalar(0.42)
+  const manholeFace = drainMetal.clone().multiplyScalar(0.62)
+  const manholeRim = drainMetal.clone().multiplyScalar(0.4)
+  const manholeBar = drainMetal.clone().multiplyScalar(0.3)
 
   /** The state handed to the last sync(). Only read while rebuilding. */
   let stateRef: CityState | null = null
@@ -324,6 +388,66 @@ export function createRoads(): Roads {
         addQuad(x0 + a, z0 + sign * near, x0 + b, z0 + sign * far, CROSSWALK_Y, crosswalkColor)
       }
     }
+  }
+
+  /**
+   * A storm drain grate at a kerb anchor: a base gap-coloured plate with a
+   * few parallel dark slats laid on top, the same "base plate, then bars" the
+   * crosswalk zebra above already uses for its stripes. The anchor's yaw is
+   * always axis aligned (see the file header), so its outward normal rounds
+   * cleanly to (±1, 0) or (0, ±1) and both the plate and its slats are
+   * ordinary axis-aligned addQuad() calls — no rotated-quad helper needed.
+   */
+  function addStormDrain(x: number, z: number, yaw: number, gapColor: Color, slatColor: Color): void {
+    const nx = Math.round(Math.cos(yaw))
+    const nz = Math.round(Math.sin(yaw))
+    const gx = x - nx * DRAIN_INSET
+    const gz = z - nz * DRAIN_INSET
+    const halfLen = DRAIN_LEN / 2
+    const halfW = DRAIN_WIDTH / 2
+    const pitch = DRAIN_WIDTH / DRAIN_SLAT_COUNT
+    const slatThick = pitch * 0.5
+    if (nx !== 0) {
+      // Normal along x: the grate's long axis (kerb-parallel) runs along z.
+      addQuad(gx - halfW, gz - halfLen, gx + halfW, gz + halfLen, DRAIN_Y, gapColor)
+      for (let i = 0; i < DRAIN_SLAT_COUNT; i++) {
+        const sx = gx - halfW + pitch * (i + 0.5)
+        addQuad(sx - slatThick / 2, gz - halfLen, sx + slatThick / 2, gz + halfLen, DRAIN_SLAT_Y, slatColor)
+      }
+    } else {
+      // Normal along z: the grate's long axis runs along x.
+      addQuad(gx - halfLen, gz - halfW, gx + halfLen, gz + halfW, DRAIN_Y, gapColor)
+      for (let i = 0; i < DRAIN_SLAT_COUNT; i++) {
+        const sz = gz - halfW + pitch * (i + 0.5)
+        addQuad(gx - halfLen, sz - slatThick / 2, gx + halfLen, sz + slatThick / 2, DRAIN_SLAT_Y, slatColor)
+      }
+    }
+  }
+
+  /** A flat filled disc, wound so cross(p0 - centre, p1 - centre) points up —
+   *  the same "normal must point +y" rule addQuad()'s own winding follows. */
+  function addDisc(cx: number, cz: number, r: number, y: number, c: Color, segments: number): void {
+    for (let i = 0; i < segments; i++) {
+      const a0 = (i / segments) * Math.PI * 2
+      const a1 = ((i + 1) / segments) * Math.PI * 2
+      positions.push(cx, y, cz)
+      positions.push(cx + Math.cos(a0) * r, y, cz + Math.sin(a0) * r)
+      positions.push(cx + Math.cos(a1) * r, y, cz + Math.sin(a1) * r)
+      colors.push(c.r, c.g, c.b, c.r, c.g, c.b, c.r, c.g, c.b)
+    }
+  }
+
+  /** A manhole cover: a dark rim disc, an inset lighter face disc, and a
+   *  crossed pair of bars standing in for a lifting/ribbing detail — three
+   *  flat layers, cheapest way to read as "iron disc with structure" without
+   *  a texture. */
+  function addManholeCover(cx: number, cz: number, rimColor: Color, faceColor: Color, barColor: Color): void {
+    addDisc(cx, cz, MANHOLE_R, MANHOLE_Y, rimColor, MANHOLE_SEGMENTS)
+    addDisc(cx, cz, MANHOLE_R * 0.8, MANHOLE_FACE_Y, faceColor, MANHOLE_SEGMENTS)
+    const barHalf = MANHOLE_R * 0.78
+    const barThick = MANHOLE_R * 0.09
+    addQuad(cx - barHalf, cz - barThick, cx + barHalf, cz + barThick, MANHOLE_BAR_Y, barColor)
+    addQuad(cx - barThick, cz - barHalf, cx + barThick, cz + barHalf, MANHOLE_BAR_Y, barColor)
   }
 
   function buildSurface(network: RoadNetwork): void {
@@ -380,6 +504,16 @@ export function createRoads(): Roads {
           addQuad(start, z0 - HALF_W, end, z0, ROAD_Y, scratch)
           addQuad(start, z0 - WALK_OUT, end, z0 - HALF_W, WALK_Y, sidewalk)
         }
+        // Manhole cover: sampled at this ribbon's own clipped midpoint,
+        // mid-lane on the centreline — valid paved ground the moment either
+        // side is owned, since the owned side's quad always reaches the
+        // centreline itself.
+        if (plus || minus) {
+          const roll = hash32((a * 97 + 1) ^ MANHOLE_SALT) / 0xffffffff
+          if (roll < MANHOLE_CHANCE) {
+            addManholeCover((start + end) / 2, z0, manholeRim, manholeFace, manholeBar)
+          }
+        }
         bothSides = plus && minus
         if (CENTRE_LINE && bothSides) {
           const mid = x0 + 0.5
@@ -401,6 +535,14 @@ export function createRoads(): Roads {
         if (minus) {
           addQuad(x0 - HALF_W, start, x0, end, ROAD_Y, scratch)
           addQuad(x0 - WALK_OUT, start, x0 - HALF_W, end, WALK_Y, sidewalk)
+        }
+        // Manhole cover — see the mirrored comment in the horizontal branch
+        // above.
+        if (plus || minus) {
+          const roll = hash32((a * 97 + 2) ^ MANHOLE_SALT) / 0xffffffff
+          if (roll < MANHOLE_CHANCE) {
+            addManholeCover(x0, (start + end) / 2, manholeRim, manholeFace, manholeBar)
+          }
         }
         bothSides = plus && minus
         if (CENTRE_LINE && bothSides) {
@@ -464,6 +606,20 @@ export function createRoads(): Roads {
         if (mask & NX) addCrosswalk(cx, cz, NX)
         if (mask & PZ) addCrosswalk(cx, cz, PZ)
         if (mask & NZ) addCrosswalk(cx, cz, NZ)
+      }
+    }
+
+    // --- storm drain grates ---------------------------------------------------
+    // Reuses the SAME `kerb` anchor pool decor.ts's kerb props draw from
+    // (sim/decor.ts), so a grate lines up with the kerb line exactly like a
+    // bollard or a hydrant would, without re-deriving that geometry here.
+    if (stateRef) {
+      const kerbAnchors = computeDecorAnchors(stateRef, 1, network)
+      for (let i = 0; i < kerbAnchors.length; i++) {
+        const a = kerbAnchors[i]
+        if (a.kind !== 'kerb') continue
+        const roll = hash32(a.seed ^ DRAIN_SALT) / 0xffffffff
+        if (roll < DRAIN_CHANCE) addStormDrain(a.x, a.z, a.yaw, drainGap, drainSlat)
       }
     }
 

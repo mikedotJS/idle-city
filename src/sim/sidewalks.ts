@@ -26,8 +26,10 @@ export const NZ = 8
  * Cheap integer mix — a copy of the hash32 in src/render/roads.ts, so the sim
  * and the renderer pick the same deterministic subsets of corners (lamps there,
  * crosswalks here) without sharing code across the sim/render boundary.
+ * Exported so other sim modules (decor.ts) reuse this one copy rather than
+ * duplicating it a third time.
  */
-function hash32(n: number): number {
+export function hash32(n: number): number {
   let h = Math.imul(n ^ 0x9e3779b9, 0x85ebca6b)
   h ^= h >>> 13
   h = Math.imul(h, 0xc2b2ae35)

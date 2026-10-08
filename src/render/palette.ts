@@ -128,6 +128,30 @@ export const WINDOW_GLOW = hexToRgb(0xffd9a0)
 export const DERELICT_TINT = hexToRgb(0x6f675f)
 
 // ---------------------------------------------------------------------------
+// Street furniture and decor props
+// ---------------------------------------------------------------------------
+
+/** Warm wood for wooden structures (benches, furniture, fences). */
+export const DECOR_WOOD_BROWN = 0xa0845a
+/** Signal red for fire hydrants, mailboxes, warning elements, awning stripes. */
+export const DECOR_SIGNAL_RED = 0xd85a3f
+/** Leaf green for hedges, trees, painted structural elements. */
+export const DECOR_LEAF_GREEN = 0x7cb951
+/** Terracotta for planter pots and clay fixtures. */
+export const DECOR_TERRACOTTA = 0xcd6e4f
+/** Galvanised warm grey for metal fixtures (AC units, drains, meters, lamp poles). */
+export const DECOR_GALVANISED_GREY = 0xaaaaaa
+/** Cool neutral stone grey for masonry (garden walls, stacked-stone fixtures) —
+ *  distinct from DECOR_GALVANISED_GREY's warmer, lighter unpainted-metal tone. */
+export const DECOR_STONE_GREY = 0x8b8880
+/** Light cream/white for blank signboards and other painted panel faces. */
+export const DECOR_SIGN_CREAM = 0xe8e0d0
+/** Safety orange for traffic cones and other hazard-marker props. Warmer and
+ *  more saturated than DECOR_TERRACOTTA (a clay/planter tone), so a cone
+ *  reads as high-visibility plastic rather than a pot. */
+export const DECOR_SAFETY_ORANGE = 0xe8611f
+
+// ---------------------------------------------------------------------------
 // Day / night
 // ---------------------------------------------------------------------------
 

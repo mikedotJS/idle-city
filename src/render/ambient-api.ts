@@ -43,3 +43,15 @@ export interface RailView {
   readonly object: Object3D
   dispose(): void
 }
+
+/** Ambient street furniture and yard props (bollard lights, and later
+ *  hydrants, benches, fences...) placed on the decor anchors computed from
+ *  the road network and ownership. Purely cosmetic: never a pickable. */
+export interface DecorView {
+  /** Called only when the grid changed. Recomputes anchors and rebuilds. */
+  sync(state: CityState): void
+  /** Every frame. `night` is 0 at midday and 1 at midnight. */
+  frame(dt: number, night: number): void
+  readonly object: Object3D
+  dispose(): void
+}

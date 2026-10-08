@@ -55,14 +55,10 @@
 
 import {
   Box3,
-  BoxGeometry,
   BufferAttribute,
   BufferGeometry,
   Color,
-  ConeGeometry,
-  CylinderGeometry,
   Euler,
-  IcosahedronGeometry,
   InstancedBufferAttribute,
   InstancedMesh,
   Material,
@@ -101,75 +97,11 @@ import {
   setSrgb,
   smoothstep,
 } from './palette'
+import { blob, box, cone, cyl, gableGeometry, mergeParts, tint } from './shapes'
 
 // ---------------------------------------------------------------------------
 // Geometry helpers
 // ---------------------------------------------------------------------------
-
-/** Flat-shaded triangular prism roof, base at y = 0, ridge running along z. */
-function gableGeometry(w: number, d: number, h: number): BufferGeometry {
-  const hw = w / 2
-  const hd = d / 2
-  const L0 = [-hw, 0, -hd]
-  const L1 = [-hw, 0, hd]
-  const R0 = [hw, 0, -hd]
-  const R1 = [hw, 0, hd]
-  const A0 = [0, h, -hd]
-  const A1 = [0, h, hd]
-  const tris = [
-    L0, L1, A1, L0, A1, A0, // left slope
-    R1, R0, A0, R1, A0, A1, // right slope
-    L0, A0, R0, // gable end, -z
-    R1, A1, L1, // gable end, +z
-  ]
-  const pos = new Float32Array(tris.length * 3)
-  for (let i = 0; i < tris.length; i++) {
-    pos[i * 3] = tris[i][0]
-    pos[i * 3 + 1] = tris[i][1]
-    pos[i * 3 + 2] = tris[i][2]
-  }
-  const geom = new BufferGeometry()
-  geom.setAttribute('position', new BufferAttribute(pos, 3))
-  geom.setAttribute('uv', new BufferAttribute(new Float32Array(tris.length * 2), 2))
-  geom.computeVertexNormals()
-  return geom
-}
-
-function box(w: number, h: number, d: number, x = 0, y = 0, z = 0): BufferGeometry {
-  const g = new BoxGeometry(w, h, d)
-  g.translate(x, y, z)
-  return g
-}
-
-function cyl(
-  rTop: number,
-  rBottom: number,
-  h: number,
-  seg: number,
-  x = 0,
-  y = 0,
-  z = 0,
-): BufferGeometry {
-  const g = new CylinderGeometry(rTop, rBottom, h, seg)
-  g.translate(x, y, z)
-  return g
-}
-
-function cone(r: number, h: number, seg: number, x = 0, y = 0, z = 0): BufferGeometry {
-  const g = new ConeGeometry(r, h, seg)
-  g.translate(x, y, z)
-  return g
-}
-
-/** `sy` flattens or stretches the blob vertically before it is placed — a
- * landfill heap is a squashed blob, not a round one, and the squash is what
- * sells it. */
-function blob(r: number, x = 0, y = 0, z = 0, sy = 1): BufferGeometry {
-  const g = new IcosahedronGeometry(r, 0)
-  if (sy !== 1) g.scale(1, sy, 1)
-  g.translate(x, y, z)
-  return g
-}
 
 /**
  * A small low-poly "up" arrow: a hexagonal shaft topped by a hexagonal cone,
@@ -214,34 +146,6 @@ function ratioOf(base: Color, target: Color): Color {
     Math.min(6, target.g / Math.max(base.g, 1e-3)),
     Math.min(6, target.b / Math.max(base.b, 1e-3)),
   )
-}
-
-/** Make every part non-indexed and stamp a flat vertex colour on it. */
-function tint(geom: BufferGeometry, color: Color): BufferGeometry {
-  const flat = geom.index ? geom.toNonIndexed() : geom
-  if (flat !== geom) geom.dispose()
-  const n = flat.getAttribute('position').count
-  const colors = new Float32Array(n * 3)
-  for (let i = 0; i < n; i++) {
-    colors[i * 3] = color.r
-    colors[i * 3 + 1] = color.g
-    colors[i * 3 + 2] = color.b
-  }
-  flat.setAttribute('color', new BufferAttribute(colors, 3))
-  // Drop anything we do not use so every part merges with every other part.
-  for (const name of Object.keys(flat.attributes)) {
-    if (name !== 'position' && name !== 'normal' && name !== 'color') {
-      flat.deleteAttribute(name)
-    }
-  }
-  return flat
-}
-
-function mergeParts(parts: BufferGeometry[]): BufferGeometry {
-  const merged = mergeGeometries(parts, false)
-  for (const p of parts) p.dispose()
-  if (!merged) throw new Error('render/buildings: geometry merge failed')
-  return merged
 }
 
 /**
@@ -426,7 +330,7 @@ const SHOP_THEMES: Record<CommerceKind, Theme[]> = {
 // Parts, per type x biome x level
 // ---------------------------------------------------------------------------
 
-interface Parts {
+export interface Parts {
   body: BufferGeometry
   roof: BufferGeometry
   windows: BufferGeometry | null
@@ -434,6 +338,19 @@ interface Parts {
   roofPivotY: number
   /** How much of the base height per-instance jitter may add or remove. */
   heightJitter: number
+  /**
+   * Local y of the wall top — where a wall-mounted facade prop (an AC unit,
+   * an awning bracket, a hanging sign) would sit. Usually equal to
+   * `roofPivotY`, but not always: a station's roof pivots about its low deck
+   * while its hut wall tops out much higher, so the two stay separate fields
+   * rather than one dual-purpose number. See render/attach.ts, which reads
+   * this alongside `halfWidth`/`halfDepth` to place facade-mounted decor.
+   */
+  wallTopY: number
+  /** Half-extent of the body along local x, for facade prop placement. */
+  halfWidth: number
+  /** Half-extent of the body along local z, for facade prop placement. */
+  halfDepth: number
 }
 
 const WHITE = new Color(1, 1, 1)
@@ -523,6 +440,9 @@ function houseParts(c: Ctx): Parts {
     windows: mergeParts(win.map((g) => tint(g, WHITE))),
     roofPivotY: H,
     heightJitter: jitterFor(L, 0.3),
+    wallTopY: H,
+    halfWidth: half,
+    halfDepth: half,
   }
 }
 
@@ -582,6 +502,11 @@ function maxiHouseParts(c: Ctx): Parts {
     windows: mergeParts(win.map((g) => tint(g, WHITE))),
     roofPivotY: wingH,
     heightJitter: jitterFor(MAX_LEVEL, 0.3),
+    wallTopY: wingH,
+    // No single wall: four wings sit at +/-off with their own half-extent,
+    // so the whole cluster's bounding half-extent is off + half.
+    halfWidth: off + half,
+    halfDepth: off + half,
   }
 }
 
@@ -638,6 +563,10 @@ function foodCourtParts(c: Ctx): Parts {
     windows: mergeParts(win.map((g) => tint(g, WHITE))),
     roofPivotY: awnY,
     heightJitter: jitterFor(MAX_LEVEL, 0.2),
+    wallTopY: hallH,
+    // Bounding half-extent of the whole court, set by the canopy (0.92 wide).
+    halfWidth: 0.46,
+    halfDepth: 0.46,
   }
 }
 
@@ -684,6 +613,9 @@ function departmentStoreParts(c: Ctx): Parts {
     windows: mergeParts(win.map((g) => tint(g, WHITE))),
     roofPivotY: H,
     heightJitter: jitterFor(MAX_LEVEL, 0.2),
+    wallTopY: H,
+    halfWidth: half,
+    halfDepth: half,
   }
 }
 
@@ -717,6 +649,9 @@ function supermarketParts(c: Ctx): Parts {
     windows: mergeParts(win.map((g) => tint(g, WHITE))),
     roofPivotY: H,
     heightJitter: jitterFor(MAX_LEVEL, 0.15),
+    wallTopY: H,
+    halfWidth: half,
+    halfDepth: half,
   }
 }
 
@@ -772,6 +707,9 @@ function arcadeParts(c: Ctx): Parts {
     windows: mergeParts(win.map((g) => tint(g, WHITE))),
     roofPivotY: wingH,
     heightJitter: jitterFor(MAX_LEVEL, 0.2),
+    wallTopY: wingH,
+    halfWidth: off + wingW / 2,
+    halfDepth: wingD / 2,
   }
 }
 
@@ -880,6 +818,9 @@ function shopParts(c: Ctx): Parts {
     windows: mergeParts(win.map((g) => tint(g, WHITE))),
     roofPivotY: H,
     heightJitter: jitterFor(L, 0.28),
+    wallTopY: H,
+    halfWidth: half,
+    halfDepth: half,
   }
 }
 
@@ -954,6 +895,9 @@ function factoryParts(c: Ctx): Parts {
     windows: mergeParts(win.map((g) => tint(g, WHITE))),
     roofPivotY: H,
     heightJitter: jitterFor(L, 0.3),
+    wallTopY: H,
+    halfWidth: half,
+    halfDepth: half,
   }
 }
 
@@ -1013,6 +957,11 @@ function maxiFactoryParts(c: Ctx): Parts {
     windows: mergeParts(win.map((g) => tint(g, WHITE))),
     roofPivotY: hallH,
     heightJitter: jitterFor(MAX_LEVEL, 0.25),
+    wallTopY: hallH,
+    // Bounding half-extent of the whole yard: the two halls plus the silos
+    // and gate posts off to the sides.
+    halfWidth: 0.4,
+    halfDepth: 0.36,
   }
 }
 
@@ -1093,17 +1042,28 @@ function stationParts(c: Ctx): Parts {
     windows: mergeParts(win.map((g) => tint(g, WHITE))),
     roofPivotY: deck,
     heightJitter: jitterFor(L, 0.18),
+    // The hut, not the platform plate, is the walled structure a facade prop
+    // would mount to.
+    wallTopY: deck + hutH,
+    halfWidth: hutW / 2,
+    halfDepth: hutD / 2,
   }
 }
 
-/** A palm: a leaning trunk and four drooping fronds. */
-function palm(x: number, z: number, h: number, lean: number, c: Ctx): BufferGeometry[] {
+/**
+ * A palm: a leaning trunk and four drooping fronds. Takes its trunk/frond
+ * colours directly (rather than a full Ctx) so it can be reused outside a
+ * building's per-biome theme lookup — render/decor.ts's yard-anchor tree prop
+ * calls this same builder at the same scale, just with its own decor palette
+ * colours in place of a building's theme trim/leaf.
+ */
+export function palm(x: number, z: number, h: number, lean: number, trim: Color, leaf: Color): BufferGeometry[] {
   const out: BufferGeometry[] = []
   const ty = 0.12 + h / 2
   const trunk = cyl(0.022, 0.032, h, 5)
   trunk.rotateZ(lean)
   trunk.translate(x, ty, z)
-  out.push(tint(trunk, c.trim))
+  out.push(tint(trunk, trim))
   const topY = 0.12 + h * Math.cos(lean)
   const topX = x + Math.sin(-lean) * h * 0.5
   for (let i = 0; i < 4; i++) {
@@ -1111,17 +1071,20 @@ function palm(x: number, z: number, h: number, lean: number, c: Ctx): BufferGeom
     frond.rotateZ(-0.34)
     frond.rotateY((i * Math.PI) / 2 + 0.4)
     frond.translate(topX, topY, z)
-    out.push(tint(frond, c.leaf))
+    out.push(tint(frond, leaf))
   }
   return out
 }
 
-/** A conifer: two stacked cones on a short trunk. */
-function conifer(x: number, z: number, s: number, c: Ctx): BufferGeometry[] {
+/**
+ * A conifer: two stacked cones on a short trunk. Same trim/leaf-colour-
+ * parameter treatment as palm() above, for the same reuse-outside-Ctx reason.
+ */
+export function conifer(x: number, z: number, s: number, trim: Color, leaf: Color): BufferGeometry[] {
   return [
-    tint(cyl(0.024, 0.03, 0.1 * s, 5, x, 0.12 + 0.05 * s, z), c.trim),
-    tint(cone(0.15 * s, 0.28 * s, 6, x, 0.12 + 0.24 * s, z), c.leaf),
-    tint(cone(0.1 * s, 0.2 * s, 6, x, 0.12 + 0.44 * s, z), c.leaf),
+    tint(cyl(0.024, 0.03, 0.1 * s, 5, x, 0.12 + 0.05 * s, z), trim),
+    tint(cone(0.15 * s, 0.28 * s, 6, x, 0.12 + 0.24 * s, z), leaf),
+    tint(cone(0.1 * s, 0.2 * s, 6, x, 0.12 + 0.44 * s, z), leaf),
   ]
 }
 
@@ -1137,11 +1100,11 @@ function parkParts(c: Ctx): Parts {
     for (const z of [-0.09, 0.01, 0.11]) {
       body.push(tint(box(0.86, 0.02, 0.06, 0, 0.125, z), c.trim))
     }
-    foliage.push(...palm(-0.2, 0.14, 0.34, 0.14, c))
-    if (L >= 2) foliage.push(...palm(0.22, -0.18, 0.4, -0.1, c))
+    foliage.push(...palm(-0.2, 0.14, 0.34, 0.14, c.trim, c.leaf))
+    if (L >= 2) foliage.push(...palm(0.22, -0.18, 0.4, -0.1, c.trim, c.leaf))
     if (L === 3) {
-      foliage.push(...palm(0.0, 0.26, 0.3, 0.2, c))
-      foliage.push(...palm(-0.24, -0.2, 0.44, -0.16, c))
+      foliage.push(...palm(0.0, 0.26, 0.3, 0.2, c.trim, c.leaf))
+      foliage.push(...palm(-0.24, -0.2, 0.44, -0.16, c.trim, c.leaf))
     }
     // Grass tufts and a bleached log, so the sand is not empty.
     foliage.push(tint(cone(0.07, 0.13, 5, 0.3, 0.18, 0.26), c.leaf))
@@ -1155,12 +1118,12 @@ function parkParts(c: Ctx): Parts {
     // Snow patches lying on the grass.
     body.push(tint(box(0.3, 0.016, 0.22, -0.26, 0.128, -0.28), c.snow))
     body.push(tint(box(0.22, 0.016, 0.18, 0.28, 0.128, 0.3), c.snow))
-    foliage.push(...conifer(-0.22, 0.2, 1, c))
-    foliage.push(...conifer(0.26, -0.2, 0.82, c))
-    if (L >= 2) foliage.push(...conifer(0.08, 0.26, 1.1, c))
+    foliage.push(...conifer(-0.22, 0.2, 1, c.trim, c.leaf))
+    foliage.push(...conifer(0.26, -0.2, 0.82, c.trim, c.leaf))
+    if (L >= 2) foliage.push(...conifer(0.08, 0.26, 1.1, c.trim, c.leaf))
     if (L === 3) {
-      foliage.push(...conifer(-0.26, -0.24, 1.15, c))
-      foliage.push(...conifer(0.3, 0.26, 0.92, c))
+      foliage.push(...conifer(-0.26, -0.24, 1.15, c.trim, c.leaf))
+      foliage.push(...conifer(0.3, 0.26, 0.92, c.trim, c.leaf))
     }
     foliage.push(tint(blob(0.09, 0.06, 0.17, -0.3), c.trim))
     if (L >= 2) foliage.push(tint(blob(0.07, -0.02, 0.16, 0.32), c.trim))
@@ -1193,6 +1156,11 @@ function parkParts(c: Ctx): Parts {
     windows: null,
     roofPivotY: 0.12,
     heightJitter: jitterFor(L, 0.12),
+    // No walls: a park is a plaza with foliage. Facade props (a bench, a
+    // sign) can still use the plaza's own half-extent to stay on-tile.
+    wallTopY: 0.12,
+    halfWidth: 0.46,
+    halfDepth: 0.46,
   }
 }
 
@@ -1238,6 +1206,9 @@ function maxiParkParts(c: Ctx): Parts {
     windows: null,
     roofPivotY: 0.1,
     heightJitter: jitterFor(MAX_LEVEL, 0.12),
+    wallTopY: 0.1,
+    halfWidth: 0.46,
+    halfDepth: 0.46,
   }
 }
 
@@ -1316,6 +1287,9 @@ function schoolParts(c: Ctx): Parts {
     windows: mergeParts(win.map((g) => tint(g, WHITE))),
     roofPivotY: H,
     heightJitter: jitterFor(L, 0.2),
+    wallTopY: H,
+    halfWidth: half,
+    halfDepth: half,
   }
 }
 
@@ -1395,6 +1369,9 @@ function harbourParts(c: Ctx): Parts {
     windows: mergeParts(win.map((g) => tint(g, WHITE))),
     roofPivotY: deck + shedH,
     heightJitter: jitterFor(L, 0.16),
+    wallTopY: deck + shedH,
+    halfWidth: halfW,
+    halfDepth: halfD,
   }
 }
 
@@ -1447,6 +1424,11 @@ function landfillParts(c: Ctx): Parts {
     windows: null,
     roofPivotY: 0.14,
     heightJitter: jitterFor(L, 0.08),
+    // Not a walled building — a heap. topY (the peak) stands in for a wall
+    // top, and the blob radius for a half-extent.
+    wallTopY: topY,
+    halfWidth: 0.26,
+    halfDepth: 0.26,
   }
 }
 
@@ -1509,6 +1491,9 @@ function maxiSchoolParts(c: Ctx): Parts {
     windows: mergeParts(win.map((g) => tint(g, WHITE))),
     roofPivotY: wingH,
     heightJitter: jitterFor(MAX_LEVEL, 0.2),
+    wallTopY: wingH,
+    halfWidth: off + wingW / 2,
+    halfDepth: wingD / 2,
   }
 }
 
@@ -1582,6 +1567,9 @@ function maxiStationParts(c: Ctx): Parts {
     windows: mergeParts(win.map((g) => tint(g, WHITE))),
     roofPivotY: deck,
     heightJitter: jitterFor(MAX_LEVEL, 0.18),
+    wallTopY: deck + hutH,
+    halfWidth: hutW / 2,
+    halfDepth: hutD / 2,
   }
 }
 
@@ -1659,10 +1647,20 @@ function maxiHarbourParts(c: Ctx): Parts {
     windows: mergeParts(win.map((g) => tint(g, WHITE))),
     roofPivotY: deck + shedH,
     heightJitter: jitterFor(MAX_LEVEL, 0.16),
+    wallTopY: deck + shedH,
+    halfWidth: 0.18 + shedW / 2,
+    halfDepth: shedD / 2,
   }
 }
 
-function buildParts(
+/**
+ * Builds the geometry (and, incidentally, the placement numbers) for one
+ * type/biome/level/kind look. Exported so render/attach.ts can call it and
+ * read off `wallTopY`/`halfWidth`/`halfDepth`/`roofPivotY` without
+ * duplicating the dimension arithmetic scattered across every *Parts
+ * function above — the one place those numbers are allowed to be computed.
+ */
+export function buildParts(
   type: BuildingType,
   biome: Biome,
   level: number,
@@ -1927,8 +1925,8 @@ const SPAWN_SECONDS = 0.4
  * of the single-tile look, one and a half times the height — clearly the
  * block's landmark without towering over the skyline.
  */
-const MERGE_SCALE = 2
-const MERGE_HEIGHT_SCALE = 1.5
+export const MERGE_SCALE = 2
+export const MERGE_HEIGHT_SCALE = 1.5
 /**
  * World-unit nudge from the anchor tile's centre to the block's centre. The
  * block always spills toward +x/+z (see blockCells), world axes run the same
